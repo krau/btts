@@ -4,17 +4,19 @@ import (
 	"context"
 	"path/filepath"
 
-	_ "github.com/ncruces/go-sqlite3/embed"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	lumberjack "gopkg.in/natefinch/lumberjack.v2"
 
 	"github.com/celestix/gotgproto"
 	"github.com/celestix/gotgproto/sessionMaker"
+	"github.com/charmbracelet/log"
 	"github.com/krau/btts/config"
-	"github.com/krau/btts/core/middlewares"
+	"github.com/krau/btts/middlewares"
 	"github.com/ncruces/go-sqlite3/gormlite"
 )
+
+var UC *UserClient
 
 type UserClient struct {
 	TClient *gotgproto.Client
@@ -29,6 +31,10 @@ func (u *UserClient) Close() error {
 }
 
 func NewUserClient(ctx context.Context) (*UserClient, error) {
+	log.FromContext(ctx).Debug("Initializing user client")
+	if UC != nil {
+		return UC, nil
+	}
 	res := make(chan struct {
 		client *UserClient
 		err    error
@@ -51,6 +57,7 @@ func NewUserClient(ctx context.Context) (*UserClient, error) {
 				Session:          sessionMaker.SqlSession(gormlite.Open("data/session_user.db")),
 				AuthConversator:  &termialAuthConversator{},
 				Logger:           tclientLog,
+				Context:          ctx,
 				DisableCopyright: true,
 				Middlewares:      middlewares.FloodWait(),
 			},
@@ -78,6 +85,7 @@ func NewUserClient(ctx context.Context) (*UserClient, error) {
 		if r.err != nil {
 			return nil, r.err
 		}
-		return r.client, nil
+		UC = r.client
+		return UC, nil
 	}
 }

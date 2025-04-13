@@ -1,3 +1,5 @@
 session/
 config.toml
 data/
+.vscode/
+tmp/

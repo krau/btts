@@ -7,23 +7,42 @@ import (
 	"github.com/celestix/gotgproto/sessionMaker"
 	"github.com/charmbracelet/log"
 	"github.com/krau/btts/config"
-	"github.com/krau/btts/core/middlewares"
-	"github.com/krau/btts/core/userclient"
-	_ "github.com/ncruces/go-sqlite3/embed"
+	"github.com/krau/btts/engine"
+	"github.com/krau/btts/middlewares"
+	"github.com/krau/btts/userclient"
 	"github.com/ncruces/go-sqlite3/gormlite"
 )
+
+var BotInstance *Bot
 
 type Bot struct {
 	Client     *gotgproto.Client
 	UserClient *userclient.UserClient
+	Engine     *engine.Engine
 }
 
 func (b *Bot) Start(ctx context.Context) {
-	log.FromContext(ctx).Info("Starting bot...")
+	log := log.FromContext(ctx)
+	log.Info("Starting bot...")
+
+	if err := b.RegisterHandlers(); err != nil {
+		log.Errorf("Failed to register handlers: %v", err)
+		return
+	}
+
 	<-ctx.Done()
+	log.Info("Exiting...")
+	if err := b.UserClient.Close(); err != nil {
+		log.Errorf("Failed to close user client: %v", err)
+	}
 }
 
-func NewBot(ctx context.Context, userClient *userclient.UserClient) (*Bot, error) {
+func NewBot(ctx context.Context, userClient *userclient.UserClient, engine *engine.Engine) (*Bot, error) {
+	log := log.FromContext(ctx)
+	log.Debug("Initializing bot")
+	if BotInstance != nil {
+		return BotInstance, nil
+	}
 	res := make(chan struct {
 		client *gotgproto.Client
 		err    error
@@ -37,6 +56,7 @@ func NewBot(ctx context.Context, userClient *userclient.UserClient) (*Bot, error
 				Session:          sessionMaker.SqlSession(gormlite.Open("data/session_bot.db")),
 				DisableCopyright: true,
 				Middlewares:      middlewares.FloodWait(),
+				Context:          ctx,
 			},
 		)
 		res <- struct {
@@ -54,7 +74,9 @@ func NewBot(ctx context.Context, userClient *userclient.UserClient) (*Bot, error
 		b := &Bot{
 			Client:     r.client,
 			UserClient: userClient,
+			Engine:     engine,
 		}
-		return b, nil
+		BotInstance = b
+		return BotInstance, nil
 	}
 }
