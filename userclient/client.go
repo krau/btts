@@ -15,6 +15,7 @@ import (
 	"github.com/celestix/gotgproto/ext"
 	"github.com/celestix/gotgproto/sessionMaker"
 	"github.com/charmbracelet/log"
+	"github.com/gotd/td/tg"
 	"github.com/krau/btts/config"
 	"github.com/krau/btts/database"
 	"github.com/krau/btts/middlewares"
@@ -30,14 +31,27 @@ type UserClient struct {
 
 func (u *UserClient) StartWatch(ctx context.Context) {
 	disp := u.TClient.Dispatcher
-	disp.AddHandler(handlers.NewMessage(filters.Message.All, func(ctx *ext.Context, u *ext.Update) error {
+	disp.AddHandlerToGroup(handlers.NewAnyUpdate(func(ctx *ext.Context, u *ext.Update) error {
+		switch update := u.UpdateClass.(type) {
+		case *tg.UpdateDeleteChannelMessages:
+			chatID := update.GetChannelID()
+			if !database.Watching(chatID) {
+				return dispatcher.SkipCurrentGroup
+			}
+			return dispatcher.ContinueGroups
+		default:
+			return dispatcher.SkipCurrentGroup
+		}
+	}), 1)
+	disp.AddHandlerToGroup(handlers.NewAnyUpdate(DeleteHandler), 1)
+	disp.AddHandlerToGroup(handlers.NewMessage(filters.Message.All, func(ctx *ext.Context, u *ext.Update) error {
 		chatID := u.EffectiveChat().GetID()
 		if !database.Watching(chatID) {
-			return dispatcher.EndGroups
+			return dispatcher.SkipCurrentGroup
 		}
 		return dispatcher.ContinueGroups
-	}))
-	disp.AddHandler(handlers.NewMessage(filters.Message.All, WatchHandler))
+	}), 2)
+	disp.AddHandlerToGroup(handlers.NewMessage(filters.Message.All, WatchHandler), 2)
 }
 
 func (u *UserClient) Close() error {

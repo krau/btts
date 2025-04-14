@@ -50,7 +50,7 @@ func NewEngine(ctx context.Context, selfID int64) (*Engine, error) {
 	return EgineInstance, nil
 }
 
-func (e *Engine) DeleteDocuments(ctx context.Context, chatID int64, ids []int64) error {
+func (e *Engine) DeleteDocuments(ctx context.Context, chatID int64, ids []int) error {
 	indexName := fmt.Sprintf("btts_%d", chatID)
 	ids = slice.Compact(ids)
 	idsStr := make([]string, len(ids))

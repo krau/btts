@@ -27,6 +27,7 @@ type IndexChat struct {
 	Username string
 	Type     int
 	Watching bool `gorm:"default:true"`
+	NoDelete bool
 	Public   bool `gorm:"default:false"`
 }
 

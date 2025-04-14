@@ -13,10 +13,10 @@ import (
 
 func WatchHandler(ctx *ext.Context, u *ext.Update) error {
 	if u.EffectiveMessage == nil || u.EffectiveMessage.Message == nil {
-		return dispatcher.EndGroups
+		return dispatcher.SkipCurrentGroup
 	}
 	if u.EffectiveMessage.IsService {
-		return dispatcher.EndGroups
+		return dispatcher.SkipCurrentGroup
 	}
 
 	log := log.FromContext(ctx)
@@ -29,7 +29,7 @@ func WatchHandler(ctx *ext.Context, u *ext.Update) error {
 		chatDB.Type = int(database.ChatTypeChannel)
 	} else if c := u.GetChat(); c != nil {
 		log.Debug("Not support group chat")
-		return dispatcher.EndGroups
+		return dispatcher.SkipCurrentGroup
 	} else if c := u.GetUserChat(); c != nil {
 		chatDB.ChatID = c.GetID()
 		chatDB.Title = fmt.Sprintf("%s %s", c.FirstName, c.LastName)
@@ -37,7 +37,7 @@ func WatchHandler(ctx *ext.Context, u *ext.Update) error {
 		chatDB.Type = int(database.ChatTypePrivate)
 	} else {
 		log.Error("Chat is nil")
-		return dispatcher.EndGroups
+		return dispatcher.SkipCurrentGroup
 	}
 	chatDB.Watching = true
 	log.Debug("WatchHandler", "chat_id", chatDB.ChatID, "title", chatDB.Title, "username", chatDB.Username, "type", chatDB.Type)
@@ -78,7 +78,7 @@ func WatchHandler(ctx *ext.Context, u *ext.Update) error {
 						user, ok := u.Entities.Users[userDB.ChatID]
 						if !ok {
 							log.Warnf("User not found in entities: %d", userDB.ChatID)
-							return dispatcher.EndGroups
+							return dispatcher.SkipCurrentGroup
 						}
 						userDB.Username = user.Username
 						userDB.FirstName = user.FirstName
@@ -88,7 +88,7 @@ func WatchHandler(ctx *ext.Context, u *ext.Update) error {
 						user, ok := u.Entities.Channels[userDB.ChatID]
 						if !ok {
 							log.Warnf("Channel not found in entities: %d", userDB.ChatID)
-							return dispatcher.EndGroups
+							return dispatcher.SkipCurrentGroup
 						}
 						userDB.Username = user.Username
 						userDB.FirstName = user.Title
@@ -97,7 +97,7 @@ func WatchHandler(ctx *ext.Context, u *ext.Update) error {
 						user, ok := u.Entities.Chats[userDB.ChatID]
 						if !ok {
 							log.Warnf("Chat not found in entities: %d", userDB.ChatID)
-							return dispatcher.EndGroups
+							return dispatcher.SkipCurrentGroup
 						}
 						userDB.FirstName = user.Title
 					}
@@ -113,5 +113,27 @@ func WatchHandler(ctx *ext.Context, u *ext.Update) error {
 	if err := engine.EgineInstance.AddDocumentsFromMessages(ctx, chatDB.ChatID, []*tg.Message{u.EffectiveMessage.Message}); err != nil {
 		log.Errorf("Failed to add documents: %v", err)
 	}
-	return dispatcher.EndGroups
+	return dispatcher.SkipCurrentGroup
+}
+
+func DeleteHandler(ctx *ext.Context, u *ext.Update) error {
+	update, ok := u.UpdateClass.(*tg.UpdateDeleteChannelMessages)
+	if !ok {
+		return dispatcher.SkipCurrentGroup
+	}
+	chatID := update.GetChannelID()
+	log := log.FromContext(ctx)
+	chatDB, err := database.GetIndexChat(ctx, chatID)
+	if err != nil {
+		log.Errorf("Failed to get chat: %v", err)
+		return dispatcher.SkipCurrentGroup
+	}
+	if chatDB.NoDelete {
+		return dispatcher.SkipCurrentGroup
+	}
+	log.Debug("DeleteHandler", "chat_id", chatID, "message_id", update.GetMessages())
+	if err := engine.EgineInstance.DeleteDocuments(ctx, chatID, update.GetMessages()); err != nil {
+		log.Errorf("Failed to delete documents: %v", err)
+	}
+	return dispatcher.SkipCurrentGroup
 }
