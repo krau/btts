@@ -25,10 +25,11 @@ func (b *Bot) Start(ctx context.Context) {
 	log := log.FromContext(ctx)
 	log.Info("Starting bot...")
 
-	if err := b.RegisterHandlers(); err != nil {
+	if err := b.RegisterHandlers(ctx); err != nil {
 		log.Errorf("Failed to register handlers: %v", err)
 		return
 	}
+
 	b.UserClient.StartWatch(ctx)
 
 	<-ctx.Done()
