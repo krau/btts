@@ -12,3 +12,7 @@ const (
 	MessageTypePoll
 	MessageTypeStory
 )
+
+var (
+	StickerFileNames = []string{"sticker.webp", "sticker.webm"}
+)

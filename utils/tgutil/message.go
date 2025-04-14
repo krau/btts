@@ -3,6 +3,7 @@ package tgutil
 import (
 	"strings"
 
+	"github.com/duke-git/lancet/v2/slice"
 	"github.com/gotd/td/tg"
 	"github.com/krau/btts/types"
 )
@@ -21,8 +22,14 @@ func ExtraMessageMediaText(media tg.MessageMediaClass) (string, types.MessageTyp
 		messageType = types.MessageTypeDocument
 		for _, attr := range doc.GetAttributes() {
 			switch attr := attr.(type) {
+			case *tg.DocumentAttributeHasStickers:
+				return "", messageType
 			case *tg.DocumentAttributeFilename:
-				messageSB.WriteString(attr.GetFileName() + " ")
+				filename := attr.GetFileName()
+				if slice.Contain(types.StickerFileNames, filename) {
+					return "", messageType
+				}
+				messageSB.WriteString(filename + " ")
 			case *tg.DocumentAttributeAudio:
 				title, ok := attr.GetTitle()
 				if ok {

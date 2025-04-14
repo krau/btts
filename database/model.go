@@ -1,6 +1,11 @@
 package database
 
-import "context"
+import (
+	"context"
+
+	"github.com/charmbracelet/log"
+	"gorm.io/gorm"
+)
 
 type UserInfo struct {
 	ChatID    int64 `gorm:"primaryKey"`
@@ -23,6 +28,22 @@ type IndexChat struct {
 	Type     int
 	Watching bool `gorm:"default:true"`
 	Public   bool `gorm:"default:false"`
+}
+
+func (ic *IndexChat) AfterSave(tx *gorm.DB) error {
+	log.FromContext(tx.Statement.Context).Debug("AfterSave IndexChat", "chat_id", ic.ChatID, "watching", ic.Watching)
+	if ic.Watching {
+		WatchedChatsID[ic.ChatID] = struct{}{}
+	} else {
+		delete(WatchedChatsID, ic.ChatID)
+	}
+	return nil
+}
+
+func (ic *IndexChat) BeforeDelete(tx *gorm.DB) error {
+	log.FromContext(tx.Statement.Context).Debug("BeforeDelete IndexChat", "chat_id", ic.ChatID)
+	delete(WatchedChatsID, ic.ChatID)
+	return nil
 }
 
 func UpsertUserInfo(ctx context.Context, userInfo *UserInfo) error {

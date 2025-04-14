@@ -9,9 +9,14 @@ import (
 	lumberjack "gopkg.in/natefinch/lumberjack.v2"
 
 	"github.com/celestix/gotgproto"
+	"github.com/celestix/gotgproto/dispatcher"
+	"github.com/celestix/gotgproto/dispatcher/handlers"
+	"github.com/celestix/gotgproto/dispatcher/handlers/filters"
+	"github.com/celestix/gotgproto/ext"
 	"github.com/celestix/gotgproto/sessionMaker"
 	"github.com/charmbracelet/log"
 	"github.com/krau/btts/config"
+	"github.com/krau/btts/database"
 	"github.com/krau/btts/middlewares"
 	"github.com/ncruces/go-sqlite3/gormlite"
 )
@@ -21,6 +26,18 @@ var UC *UserClient
 type UserClient struct {
 	TClient *gotgproto.Client
 	logger  *zap.Logger
+}
+
+func (u *UserClient) StartWatch(ctx context.Context) {
+	disp := u.TClient.Dispatcher
+	disp.AddHandler(handlers.NewMessage(filters.Message.All, func(ctx *ext.Context, u *ext.Update) error {
+		chatID := u.EffectiveChat().GetID()
+		if !database.Watching(chatID) {
+			return dispatcher.EndGroups
+		}
+		return dispatcher.ContinueGroups
+	}))
+	disp.AddHandler(handlers.NewMessage(filters.Message.All, WatchHandler))
 }
 
 func (u *UserClient) Close() error {

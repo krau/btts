@@ -28,11 +28,12 @@ type MessageDocument struct {
 
 type Engine struct {
 	Client meilisearch.ServiceManager
+	SelfID int64
 }
 
 var EgineInstance *Engine
 
-func NewEngine(ctx context.Context) (*Engine, error) {
+func NewEngine(ctx context.Context, selfID int64) (*Engine, error) {
 	log.FromContext(ctx).Debug("Initializing MeiliSearch engine")
 	if EgineInstance != nil {
 		return EgineInstance, nil
@@ -44,8 +45,20 @@ func NewEngine(ctx context.Context) (*Engine, error) {
 	}
 	EgineInstance = &Engine{
 		Client: sm,
+		SelfID: selfID,
 	}
 	return EgineInstance, nil
+}
+
+func (e *Engine) DeleteDocuments(ctx context.Context, chatID int64, ids []int64) error {
+	indexName := fmt.Sprintf("btts_%d", chatID)
+	ids = slice.Compact(ids)
+	idsStr := make([]string, len(ids))
+	for i, id := range ids {
+		idsStr[i] = fmt.Sprintf("%d", id)
+	}
+	_, err := e.Client.Index(indexName).DeleteDocumentsWithContext(ctx, idsStr)
+	return err
 }
 
 func (e *Engine) AddDocuments(ctx context.Context, chatID int64, docs []*MessageDocument) error {
@@ -60,23 +73,40 @@ func (e *Engine) AddDocuments(ctx context.Context, chatID int64, docs []*Message
 }
 
 func (e *Engine) AddDocumentsFromMessages(ctx context.Context, chatID int64, messages []*tg.Message) error {
-	logger := log.FromContext(ctx)
 	docs := make([]*MessageDocument, 0)
 	for _, message := range messages {
 		var userID int64
-		inputPeer, ok := message.GetFromID()
-		if ok {
-			switch inp := inputPeer.(type) {
-			case *tg.PeerChat:
-				userID = inp.GetChatID()
-			case *tg.PeerUser:
-				userID = inp.GetUserID()
-			case *tg.PeerChannel:
-				userID = inp.GetChannelID()
-			default:
-				logger.Warnf("Unsupported input peer type: %T", inp)
-				continue
+
+		chatPeer := message.GetPeerID()
+		switch chatPeer := chatPeer.(type) {
+		case *tg.PeerUser:
+			if message.GetOut() {
+				userID = e.SelfID
+			} else {
+				userID = chatPeer.GetUserID()
 			}
+		case *tg.PeerChannel:
+			if message.GetPost() {
+				userID = chatPeer.GetChannelID()
+			} else {
+				if message.GetOut() {
+					userID = e.SelfID
+				} else {
+					inputPeer := message.FromID
+					switch inp := inputPeer.(type) {
+					case *tg.PeerChat:
+						userID = inp.GetChatID()
+					case *tg.PeerUser:
+						userID = inp.GetUserID()
+					case *tg.PeerChannel:
+						userID = inp.GetChannelID()
+					}
+				}
+			}
+		}
+		if userID == 0 {
+			log.FromContext(ctx).Debug("UserID is 0, skipping message", "message_id", message.GetID())
+			continue
 		}
 
 		var messageSB strings.Builder
@@ -92,7 +122,6 @@ func (e *Engine) AddDocumentsFromMessages(ctx context.Context, chatID int64, mes
 		messageSB.WriteString(message.GetMessage())
 		messageText := messageSB.String()
 		if messageText == "" {
-			logger.Warnf("No message text found")
 			continue
 		}
 		docs = append(docs, &MessageDocument{

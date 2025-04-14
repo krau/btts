@@ -1,6 +1,7 @@
 package bot
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -64,6 +65,7 @@ func AddHandler(ctx *ext.Context, update *ext.Update) error {
 
 	log := log.FromContext(ctx)
 	log.Infof("Adding chat: %s", chatArg)
+	utclient.API().MessagesGetHistory(ctx, &tg.MessagesGetHistoryRequest{})
 
 	queryHistoryBuilder := query.Messages(utclient.API()).GetHistory(inputPeer).BatchSize(100)
 	total, err := queryHistoryBuilder.Count(ctx)
@@ -102,6 +104,8 @@ func AddHandler(ctx *ext.Context, update *ext.Update) error {
 		}
 	}
 
-	ctx.Reply(update, ext.ReplyTextString("Added chat: "+chatArg), nil)
+	ctx.Reply(update, ext.ReplyTextString(fmt.Sprintf(
+		"Added %d messages from chat %s", processed, chatArg,
+	)), nil)
 	return dispatcher.EndGroups
 }

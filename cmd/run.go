@@ -35,15 +35,16 @@ func run() {
 		log.Errorf("Failed to initialize database: %v", err)
 		return
 	}
-	engine, err := engine.NewEngine(ctx)
-	if err != nil {
-		log.Errorf("Failed to create engine: %v", err)
-		return
-	}
 
 	userClient, err := userclient.NewUserClient(ctx)
 	if err != nil {
 		log.Errorf("Failed to create user client: %v", err)
+		return
+	}
+
+	engine, err := engine.NewEngine(ctx, userClient.TClient.Self.ID)
+	if err != nil {
+		log.Errorf("Failed to create engine: %v", err)
 		return
 	}
 

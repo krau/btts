@@ -29,6 +29,7 @@ func (b *Bot) Start(ctx context.Context) {
 		log.Errorf("Failed to register handlers: %v", err)
 		return
 	}
+	b.UserClient.StartWatch(ctx)
 
 	<-ctx.Done()
 	log.Info("Exiting...")
