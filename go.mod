@@ -6,10 +6,12 @@ require (
 	github.com/celestix/gotgproto v1.0.0-beta20.4
 	github.com/charmbracelet/huh v0.6.0
 	github.com/charmbracelet/log v0.4.1
+	github.com/dgraph-io/ristretto/v2 v2.2.0
 	github.com/gotd/contrib v0.21.0
 	github.com/gotd/td v0.122.0
 	github.com/meilisearch/meilisearch-go v0.31.0
 	github.com/ncruces/go-sqlite3 v0.24.0
+	github.com/rs/xid v1.6.0
 	go.uber.org/zap v1.27.0
 	golang.org/x/time v0.11.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
@@ -23,6 +25,7 @@ require (
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/bytedance/sonic/loader v0.2.4 // indirect
 	github.com/catppuccin/go v0.2.0 // indirect
+	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/charmbracelet/colorprofile v0.2.3-0.20250311203215-f60798e515dc // indirect
 	github.com/charmbracelet/lipgloss v1.1.0 // indirect
 	github.com/charmbracelet/x/ansi v0.8.0 // indirect

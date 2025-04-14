@@ -11,20 +11,9 @@ import (
 	"github.com/gotd/td/tg"
 	"github.com/krau/btts/config"
 	"github.com/krau/btts/types"
-	"github.com/krau/btts/utils/tgutil"
+	"github.com/krau/btts/utils"
 	"github.com/meilisearch/meilisearch-go"
 )
-
-type MessageDocument struct {
-	// Telegram MessageID
-	ID   int64 `json:"id"`
-	Type int   `json:"type"`
-	// The original text of the message
-	Message string `json:"message"`
-	// The ID of the user who sent the message
-	UserID    int64 `json:"user_id"`
-	Timestamp int64 `json:"timestamp"`
-}
 
 type Engine struct {
 	Client meilisearch.ServiceManager
@@ -61,7 +50,31 @@ func (e *Engine) DeleteDocuments(ctx context.Context, chatID int64, ids []int) e
 	return err
 }
 
-func (e *Engine) AddDocuments(ctx context.Context, chatID int64, docs []*MessageDocument) error {
+func (e *Engine) Search(ctx context.Context, chatID int64, query string, offset, limit int64) (*meilisearch.SearchResponse, error) {
+	indexName := fmt.Sprintf("btts_%d", chatID)
+	if limit == 0 {
+		limit = 10
+	}
+	if offset == 0 {
+		offset = 0
+	}
+	resp, err := e.Client.Index(indexName).SearchWithContext(ctx, query, &meilisearch.SearchRequest{
+		Offset: offset,
+		Limit:  limit,
+		AttributesToSearchOn: []string{
+			"message",
+		},
+		AttributesToCrop: []string{
+			"message",
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (e *Engine) AddDocuments(ctx context.Context, chatID int64, docs []*types.MessageDocument) error {
 	docs = slice.Compact(docs)
 	jsonData, err := sonic.Marshal(docs)
 	if err != nil {
@@ -76,7 +89,7 @@ func (e *Engine) AddDocuments(ctx context.Context, chatID int64, docs []*Message
 }
 
 func (e *Engine) AddDocumentsFromMessages(ctx context.Context, chatID int64, messages []*tg.Message) error {
-	docs := make([]*MessageDocument, 0)
+	docs := make([]*types.MessageDocument, 0)
 	for _, message := range messages {
 		var userID int64
 
@@ -116,7 +129,7 @@ func (e *Engine) AddDocumentsFromMessages(ctx context.Context, chatID int64, mes
 		var messageType types.MessageType
 		media, ok := message.GetMedia()
 		if ok {
-			text, mt := tgutil.ExtraMessageMediaText(media)
+			text, mt := utils.ExtraMessageMediaText(media)
 			if text != "" {
 				messageSB.WriteString(text)
 			}
@@ -127,7 +140,7 @@ func (e *Engine) AddDocumentsFromMessages(ctx context.Context, chatID int64, mes
 		if messageText == "" {
 			continue
 		}
-		docs = append(docs, &MessageDocument{
+		docs = append(docs, &types.MessageDocument{
 			ID:        int64(message.GetID()),
 			Message:   messageText,
 			Type:      int(messageType),

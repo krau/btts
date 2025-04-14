@@ -26,6 +26,7 @@ func (b *Bot) RegisterHandlers() error {
 	disp.AddHandler(handlers.NewCommand("start", StartHandler))
 	disp.AddHandler(handlers.NewCommand("help", StartHandler))
 	disp.AddHandler(handlers.NewCommand("search", SearchHandler))
+	disp.AddHandler(handlers.NewCallbackQuery(filters.CallbackQuery.Prefix("search"), SearchCallbackHandler))
 
 	// admins
 	disp.AddHandler(handlers.NewMessage(filters.Message.All, CheckPermissionsHandler))
