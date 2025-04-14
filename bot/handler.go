@@ -36,8 +36,9 @@ func (b *Bot) RegisterHandlers() error {
 	disp := b.Client.Dispatcher
 	disp.AddHandler(handlers.NewCommand("start", StartHandler))
 	disp.AddHandler(handlers.NewCommand("help", StartHandler))
-	disp.AddHandler(handlers.NewCommand("add", AddHandler))
 	disp.AddHandler(handlers.NewCommand("search", SearchHandler))
+	disp.AddHandler(handlers.NewCommand("add", AddHandler))
+	disp.AddHandler(handlers.NewCommand("del", DelHandler))
 	disp.AddHandler(handlers.NewCallbackQuery(filters.CallbackQuery.Prefix("search"), SearchCallbackHandler))
 	disp.AddHandler(handlers.NewMessage(filters.Message.ChatType(filters.ChatTypeUser), SearchHandler))
 	return nil
