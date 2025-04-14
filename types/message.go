@@ -25,6 +25,7 @@ type MessageDocument struct {
 	Message string `json:"message"`
 	// The ID of the user who sent the message
 	UserID    int64 `json:"user_id"`
+	ChatID    int64 `json:"chat_id"`
 	Timestamp int64 `json:"timestamp"`
 }
 
@@ -35,6 +36,17 @@ type SearchHit struct {
 		Type      string `json:"type"`
 		Message   string `json:"message"`
 		UserID    string `json:"user_id"`
+		ChatID    string `json:"chat_id"`
 		Timestamp string `json:"timestamp"`
 	} `json:"_formatted"`
+}
+
+type MessageSearchResponse struct {
+	Hits               []SearchHit `json:"hits,omitempty"`
+	ProcessingTimeMs   int64       `json:"processingTimeMs,omitempty"`
+	Offset             int64       `json:"offset,omitempty"`
+	Limit              int64       `json:"limit,omitempty"`
+	EstimatedTotalHits int64       `json:"estimatedTotalHits,omitempty"`
+	SemanticHitCount   int64       `json:"semanticHitCount,omitempty"`
+	Raw                any
 }

@@ -10,21 +10,69 @@ import (
 	"github.com/gotd/td/telegram/message/entity"
 	"github.com/gotd/td/telegram/message/styling"
 	"github.com/gotd/td/tg"
+	"github.com/krau/btts/database"
 	"github.com/krau/btts/types"
 	"github.com/krau/btts/utils"
 	"github.com/krau/btts/utils/cache"
 )
 
 func SearchHandler(ctx *ext.Context, update *ext.Update) error {
-	args := update.Args()
-	if len(args) < 2 {
-		ctx.Reply(update, ext.ReplyTextString("Usage: /search <query>"), nil)
+	query := strings.TrimPrefix(strings.TrimPrefix(update.EffectiveMessage.GetMessage(), "/search"), "@"+ctx.Self.Username)
+	if query == "" {
+		ctx.Reply(update, ext.ReplyTextString("Usage: Send query in PM, or use /search <query> in group"), nil)
 		return dispatcher.EndGroups
 	}
-	query := strings.Join(args[1:], " ")
-	resp, err := BotInstance.Engine.Search(ctx, update.EffectiveChat().GetID(), query, 0, 16)
+	isChannel := false
+	if update.GetChannel() != nil {
+		isChannel = true
+	}
+	if isChannel {
+		channelID := update.GetChannel().GetID()
+		resp, err := BotInstance.Engine.Search(ctx, channelID, query, 0, 16)
+		if err != nil {
+			ctx.Reply(update, ext.ReplyTextString("Error: "+err.Error()), nil)
+			return dispatcher.EndGroups
+		}
+		if len(resp.Hits) == 0 {
+			ctx.Reply(update, ext.ReplyTextString("No results found"), nil)
+			return dispatcher.EndGroups
+		}
+		markup, err := utils.BuildSearchReplyMarkup(ctx, 1, types.SearchCallbackData{
+			ChatID: channelID,
+			Query:  query,
+		})
+		if err != nil {
+			log.FromContext(ctx).Errorf("Failed to build reply markup: %v", err)
+			return dispatcher.EndGroups
+		}
+		ctx.Reply(update, ext.ReplyTextStyledTextArray(utils.BuildResultStyling(ctx, resp)), &ext.ReplyOpts{
+			Markup: markup})
+		return dispatcher.EndGroups
+	}
+	var err error
+	var chats []*database.IndexChat
+	if CheckPermission(ctx, update) {
+		chats, err = database.GetAllIndexChats(ctx)
+	} else {
+		chats, err = database.GetAllPublicIndexChats(ctx)
+	}
 	if err != nil {
-		ctx.Reply(update, ext.ReplyTextString("Error: "+err.Error()), nil)
+		log.FromContext(ctx).Errorf("Failed to get index chats: %v", err)
+		ctx.Reply(update, ext.ReplyTextString("Error Happened"), nil)
+		return dispatcher.EndGroups
+	}
+	if len(chats) == 0 {
+		ctx.Reply(update, ext.ReplyTextString("No index chats found"), nil)
+		return dispatcher.EndGroups
+	}
+	chatIDs := make([]int64, len(chats))
+	for i, chat := range chats {
+		chatIDs[i] = chat.ChatID
+	}
+	resp, err := BotInstance.Engine.MultiSearch(ctx, chatIDs, query, 0, 16)
+	if err != nil {
+		log.FromContext(ctx).Errorf("Failed to search: %v", err)
+		ctx.Reply(update, ext.ReplyTextString("Error Happened"), nil)
 		return dispatcher.EndGroups
 	}
 	if len(resp.Hits) == 0 {
@@ -32,15 +80,16 @@ func SearchHandler(ctx *ext.Context, update *ext.Update) error {
 		return dispatcher.EndGroups
 	}
 	markup, err := utils.BuildSearchReplyMarkup(ctx, 1, types.SearchCallbackData{
-		ChatID: update.EffectiveChat().GetID(),
-		Query:  query,
+		ChatIDs: chatIDs,
+		Query:   query,
 	})
 	if err != nil {
 		log.FromContext(ctx).Errorf("Failed to build reply markup: %v", err)
 		return dispatcher.EndGroups
 	}
-	ctx.Reply(update, ext.ReplyTextStyledTextArray(utils.BuildResultStyling(ctx, update.EffectiveChat().GetID(), resp)), &ext.ReplyOpts{
-		Markup: markup})
+	ctx.Reply(update, ext.ReplyTextStyledTextArray(utils.BuildResultStyling(ctx, resp)), &ext.ReplyOpts{
+		Markup: markup,
+	})
 	return dispatcher.EndGroups
 }
 
@@ -76,7 +125,13 @@ func SearchCallbackHandler(ctx *ext.Context, update *ext.Update) error {
 		return dispatcher.EndGroups
 	}
 	offset := (page - 1) * 16
-	resp, err := BotInstance.Engine.Search(ctx, data.ChatID, data.Query, int64(offset), 16)
+
+	var resp *types.MessageSearchResponse
+	if len(data.ChatIDs) > 0 {
+		resp, err = BotInstance.Engine.MultiSearch(ctx, data.ChatIDs, data.Query, int64(offset), 16)
+	} else {
+		resp, err = BotInstance.Engine.Search(ctx, data.ChatID, data.Query, int64(offset), 16)
+	}
 	if err != nil {
 		log.FromContext(ctx).Errorf("Failed to search: %v", err)
 		ctx.AnswerCallback(&tg.MessagesSetBotCallbackAnswerRequest{
@@ -95,9 +150,8 @@ func SearchCallbackHandler(ctx *ext.Context, update *ext.Update) error {
 		})
 		return dispatcher.EndGroups
 	}
-
 	eb := entity.Builder{}
-	if err := styling.Perform(&eb, utils.BuildResultStyling(ctx, data.ChatID, resp)...); err != nil {
+	if err := styling.Perform(&eb, utils.BuildResultStyling(ctx, resp)...); err != nil {
 		log.FromContext(ctx).Errorf("Failed to build styling: %v", err)
 		ctx.AnswerCallback(&tg.MessagesSetBotCallbackAnswerRequest{
 			QueryID:   update.CallbackQuery.GetQueryID(),
@@ -113,10 +167,7 @@ func SearchCallbackHandler(ctx *ext.Context, update *ext.Update) error {
 	text, entities := eb.Complete()
 	editReq.SetEntities(entities)
 	editReq.SetMessage(text)
-	markup, err := utils.BuildSearchReplyMarkup(ctx, page, types.SearchCallbackData{
-		ChatID: data.ChatID,
-		Query:  data.Query,
-	})
+	markup, err := utils.BuildSearchReplyMarkup(ctx, page, data)
 	if err != nil {
 		log.FromContext(ctx).Errorf("Failed to build reply markup: %v", err)
 		ctx.AnswerCallback(&tg.MessagesSetBotCallbackAnswerRequest{
@@ -128,6 +179,9 @@ func SearchCallbackHandler(ctx *ext.Context, update *ext.Update) error {
 		return dispatcher.EndGroups
 	}
 	editReq.SetReplyMarkup(markup)
-	ctx.EditMessage(data.ChatID, editReq)
+	if _, err := ctx.EditMessage(update.EffectiveChat().GetID(), editReq); err != nil {
+		log.FromContext(ctx).Errorf("Failed to edit message: %v", err)
+	}
+
 	return dispatcher.EndGroups
 }

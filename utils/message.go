@@ -6,15 +6,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bytedance/sonic"
-	"github.com/charmbracelet/log"
 	"github.com/duke-git/lancet/v2/slice"
 	"github.com/gotd/td/telegram/message/styling"
 	"github.com/gotd/td/tg"
 	"github.com/krau/btts/database"
 	"github.com/krau/btts/types"
 	"github.com/krau/btts/utils/cache"
-	"github.com/meilisearch/meilisearch-go"
 	"github.com/rs/xid"
 )
 
@@ -103,37 +100,36 @@ func BuildSearchReplyMarkup(ctx context.Context, currentPage int64, data types.S
 	}, nil
 }
 
-func HitFromRaw(raw any) (*types.SearchHit, error) {
-	hitBytes, err := sonic.Marshal(raw)
-	if err != nil {
-		return nil, err
-	}
-	var hit types.SearchHit
-	err = sonic.Unmarshal(hitBytes, &hit)
-	if err != nil {
-		return nil, err
-	}
-	return &hit, nil
-}
-
-func BuildResultStyling(ctx context.Context, chatID int64, resp *meilisearch.SearchResponse) []styling.StyledTextOption {
+func BuildResultStyling(ctx context.Context, resp *types.MessageSearchResponse) []styling.StyledTextOption {
 	var resultStyling []styling.StyledTextOption
+
 	resultStyling = append(resultStyling, styling.Plain(fmt.Sprintf("找到约 %d 条结果, 耗时 %dms\n", resp.EstimatedTotalHits, resp.ProcessingTimeMs)))
-	for _, hitraw := range resp.Hits {
-		hit, err := HitFromRaw(hitraw)
-		if err != nil {
-			log.FromContext(ctx).Errorf("Failed to parse hit: %v", err)
-			continue
-		}
+
+	for _, hit := range resp.Hits {
+
 		userDisplay := hit.Formatted.UserID
 		user, err := database.GetUserInfo(ctx, hit.UserID)
 		if err == nil {
-			userDisplay = fmt.Sprintf("%s %s", user.FirstName, user.LastName)
+			userDisplay = func() string {
+				userDisplay = user.FirstName
+				if user.LastName != "" {
+					if userDisplay != "" {
+						userDisplay += " "
+					}
+					userDisplay += user.LastName
+				}
+				return userDisplay
+			}()
 		}
+
 		timeStr := time.Unix(hit.Timestamp, 0).Format("060102 15:04:05")
-		resultStyling = append(resultStyling, styling.Plain(fmt.Sprintf("\n%s [%s]:\n", timeStr, userDisplay)))
-		msgLink := fmt.Sprintf("https://t.me/c/%d/%d", chatID, hit.ID)
-		resultStyling = append(resultStyling, styling.TextURL(strings.ReplaceAll(hit.Formatted.Message, "\n", " "), msgLink))
+		resultStyling = append(resultStyling, styling.Italic("\n"+timeStr))
+		resultStyling = append(resultStyling, styling.Plain(fmt.Sprintf(" [%s]:\n", userDisplay)))
+
+		msgLink := fmt.Sprintf("https://t.me/c/%d/%d", hit.ChatID, hit.ID)
+		hitFormattedMsg := strings.ReplaceAll(hit.Formatted.Message, "\n", " ")
+		resultStyling = append(resultStyling, styling.TextURL(hitFormattedMsg, msgLink))
 	}
+
 	return resultStyling
 }

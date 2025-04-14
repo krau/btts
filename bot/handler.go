@@ -10,6 +10,17 @@ import (
 	"github.com/celestix/gotgproto/ext"
 )
 
+func CheckPermission(ctx *ext.Context, update *ext.Update) bool {
+	userID := update.GetUserChat().GetID()
+	if userID == BotInstance.UserClient.TClient.Self.ID {
+		return true
+	}
+	if !slice.Contain(config.C.Admins, userID) {
+		return false
+	}
+	return true
+}
+
 func CheckPermissionsHandler(ctx *ext.Context, update *ext.Update) error {
 	userID := update.GetUserChat().GetID()
 	if userID == BotInstance.UserClient.TClient.Self.ID {
@@ -25,11 +36,9 @@ func (b *Bot) RegisterHandlers() error {
 	disp := b.Client.Dispatcher
 	disp.AddHandler(handlers.NewCommand("start", StartHandler))
 	disp.AddHandler(handlers.NewCommand("help", StartHandler))
+	disp.AddHandler(handlers.NewCommand("add", AddHandler))
 	disp.AddHandler(handlers.NewCommand("search", SearchHandler))
 	disp.AddHandler(handlers.NewCallbackQuery(filters.CallbackQuery.Prefix("search"), SearchCallbackHandler))
-
-	// admins
-	disp.AddHandler(handlers.NewMessage(filters.Message.All, CheckPermissionsHandler))
-	disp.AddHandler(handlers.NewCommand("add", AddHandler))
+	disp.AddHandler(handlers.NewMessage(filters.Message.ChatType(filters.ChatTypeUser), SearchHandler))
 	return nil
 }

@@ -105,3 +105,11 @@ func GetAllIndexChats(ctx context.Context) ([]*IndexChat, error) {
 	}
 	return IndexChats, nil
 }
+
+func GetAllPublicIndexChats(ctx context.Context) ([]*IndexChat, error) {
+	var IndexChats []*IndexChat
+	if err := db.WithContext(ctx).Where("public = ?", true).Find(&IndexChats).Error; err != nil {
+		return nil, err
+	}
+	return IndexChats, nil
+}

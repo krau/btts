@@ -14,11 +14,16 @@ import (
 )
 
 func AddHandler(ctx *ext.Context, update *ext.Update) error {
+	if !CheckPermission(ctx, update) {
+		return dispatcher.EndGroups
+	}
 	args := update.Args()
 	if len(args) < 2 {
 		ctx.Reply(update, ext.ReplyTextString("Usage: /add <chat>"), nil)
 		return dispatcher.EndGroups
 	}
+	log := log.FromContext(ctx)
+
 	chatArg := args[1]
 	var inputPeer tg.InputPeerClass
 	utclient := BotInstance.UserClient.TClient
@@ -40,6 +45,26 @@ func AddHandler(ctx *ext.Context, update *ext.Update) error {
 		return dispatcher.EndGroups
 	}
 
+	_, err = database.GetIndexChat(ctx, chatId)
+	if err == nil {
+		ctx.Reply(update, ext.ReplyTextString("Chat already indexed"), nil)
+		return dispatcher.EndGroups
+	}
+
+	if err := BotInstance.Engine.CreateIndex(ctx, chatId); err != nil {
+		ctx.Reply(update, ext.ReplyTextString("Failed to create index: "+err.Error()), nil)
+		return dispatcher.EndGroups
+	}
+
+	var gerr error
+	defer func() {
+		if gerr != nil {
+			if err := BotInstance.Engine.DeleteIndex(ctx, chatId); err != nil {
+				log.Errorf("Failed to delete index: %v", err)
+			}
+		}
+	}()
+
 	indexChat := &database.IndexChat{
 		ChatID:   chatId,
 		Watching: true,
@@ -57,18 +82,22 @@ func AddHandler(ctx *ext.Context, update *ext.Update) error {
 		return dispatcher.EndGroups
 	}
 
-	if err := database.UpsertIndexChat(ctx, indexChat); err != nil {
-		log.Errorf("Failed to upsert index chat: %v", err)
+	if gerr = database.UpsertIndexChat(ctx, indexChat); gerr != nil {
+		log.Errorf("Failed to upsert index chat: %v", gerr)
 		ctx.Reply(update, ext.ReplyTextString("Failed to add chat"), nil)
 		return dispatcher.EndGroups
 	}
 
-	log := log.FromContext(ctx)
 	log.Infof("Adding chat: %s", chatArg)
 	utclient.API().MessagesGetHistory(ctx, &tg.MessagesGetHistoryRequest{})
 
 	queryHistoryBuilder := query.Messages(utclient.API()).GetHistory(inputPeer).BatchSize(100)
 	total, err := queryHistoryBuilder.Count(ctx)
+	if err != nil {
+		gerr = err
+		ctx.Reply(update, ext.ReplyTextString("Failed to count messages: "+err.Error()), nil)
+		return dispatcher.EndGroups
+	}
 
 	ctx.Reply(update, ext.ReplyTextString("Total messages: "+strconv.Itoa(total)), nil)
 
@@ -94,6 +123,7 @@ func AddHandler(ctx *ext.Context, update *ext.Update) error {
 		}
 	}
 	if err := iter.Err(); err != nil {
+		gerr = err
 		ctx.Reply(update, ext.ReplyTextString("Error: "+err.Error()), nil)
 		return dispatcher.EndGroups
 	}
