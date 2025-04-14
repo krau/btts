@@ -62,12 +62,15 @@ func (e *Engine) DeleteDocuments(ctx context.Context, chatID int64, ids []int) e
 }
 
 func (e *Engine) AddDocuments(ctx context.Context, chatID int64, docs []*MessageDocument) error {
-	indexName := fmt.Sprintf("btts_%d", chatID)
 	docs = slice.Compact(docs)
 	jsonData, err := sonic.Marshal(docs)
 	if err != nil {
 		return err
 	}
+	if len(docs) == 0 {
+		return nil
+	}
+	indexName := fmt.Sprintf("btts_%d", chatID)
 	_, err = e.Client.Index(indexName).UpdateDocumentsWithContext(ctx, jsonData, "id")
 	return err
 }
