@@ -44,7 +44,11 @@ func StartHandler(ctx *ext.Context, update *ext.Update) error {
 	helpTextStyling := make([]styling.StyledTextOption, 0)
 	helpTextStyling = append(helpTextStyling, styling.Bold("发送任意搜索词以搜索以下聊天的消息:\n"))
 	for _, chat := range myChats {
-		helpTextStyling = append(helpTextStyling, styling.TextURL(chat.Title, "https://t.me/c/"+strconv.FormatInt(chat.ChatID, 10)))
+		if chat.Username != "" {
+			helpTextStyling = append(helpTextStyling, styling.TextURL(chat.Title, "https://t.me/"+chat.Username))
+		} else {
+			helpTextStyling = append(helpTextStyling, styling.TextURL(chat.Title, "https://t.me/c/"+strconv.FormatInt(chat.ChatID, 10)))
+		}
 		helpTextStyling = append(helpTextStyling, styling.Plain("\n"))
 	}
 	ctx.Reply(update, ext.ReplyTextStyledTextArray(helpTextStyling), nil)
