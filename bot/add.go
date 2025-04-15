@@ -62,6 +62,9 @@ func AddHandler(ctx *ext.Context, update *ext.Update) error {
 			if err := BotInstance.Engine.DeleteIndex(ctx, chatId); err != nil {
 				log.Errorf("Failed to delete index: %v", err)
 			}
+			if err := database.DeleteIndexChat(ctx, chatId); err != nil {
+				log.Errorf("Failed to delete index chat: %v", err)
+			}
 		}
 	}()
 
