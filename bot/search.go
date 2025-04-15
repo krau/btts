@@ -186,3 +186,105 @@ func SearchCallbackHandler(ctx *ext.Context, update *ext.Update) error {
 
 	return dispatcher.EndGroups
 }
+
+func FilterCallbackHandler(ctx *ext.Context, update *ext.Update) error {
+	args := update.Args()
+	dataid := args[2]
+	data, ok := cache.Get[types.SearchRequest](dataid)
+	if !ok {
+		ctx.AnswerCallback(&tg.MessagesSetBotCallbackAnswerRequest{
+			QueryID:   update.CallbackQuery.GetQueryID(),
+			Message:   "Invalid Query",
+			Alert:     true,
+			CacheTime: 60,
+		})
+		return dispatcher.EndGroups
+	}
+	toswitch, err := strconv.Atoi(args[1])
+	if err != nil {
+		ctx.AnswerCallback(&tg.MessagesSetBotCallbackAnswerRequest{
+			QueryID:   update.CallbackQuery.GetQueryID(),
+			Message:   "Invalid filter",
+			Alert:     true,
+			CacheTime: 60,
+		})
+		return dispatcher.EndGroups
+	}
+	oldFilter := data.TypeFilters
+	if oldFilter == nil {
+		oldFilter = make([]types.MessageType, 0)
+	}
+	newFilter := make([]types.MessageType, 0)
+	// 如果已经存在，则删除, 否则添加
+
+	toSwitchType := types.MessageType(toswitch)
+	found := false
+	for _, filter := range oldFilter {
+		if filter == toSwitchType {
+			found = true
+			continue
+		}
+		newFilter = append(newFilter, filter)
+	}
+
+	if !found {
+		newFilter = append(newFilter, toSwitchType)
+	}
+
+	data.TypeFilters = newFilter
+	cache.Set(dataid, data)
+	// 重新触发搜索, 从第一页开始
+	data.Offset = 0
+	resp, err := BotInstance.Engine.Search(ctx, data)
+	if err != nil {
+		log.FromContext(ctx).Errorf("Failed to search: %v", err)
+		ctx.AnswerCallback(&tg.MessagesSetBotCallbackAnswerRequest{
+			QueryID:   update.CallbackQuery.GetQueryID(),
+			Message:   "Search Error",
+			Alert:     true,
+			CacheTime: 60,
+		})
+		return dispatcher.EndGroups
+	}
+	if len(resp.Hits) == 0 {
+		ctx.AnswerCallback(&tg.MessagesSetBotCallbackAnswerRequest{
+			QueryID:   update.CallbackQuery.GetQueryID(),
+			Message:   "无结果",
+			CacheTime: 5,
+		})
+		return dispatcher.EndGroups
+	}
+	eb := entity.Builder{}
+	if err := styling.Perform(&eb, utils.BuildResultStyling(ctx, resp)...); err != nil {
+		log.FromContext(ctx).Errorf("Failed to build styling: %v", err)
+		ctx.AnswerCallback(&tg.MessagesSetBotCallbackAnswerRequest{
+			QueryID:   update.CallbackQuery.GetQueryID(),
+			Message:   "Styling Error",
+			Alert:     true,
+			CacheTime: 60,
+		})
+		return dispatcher.EndGroups
+	}
+	editReq := &tg.MessagesEditMessageRequest{
+		ID: update.CallbackQuery.MsgID,
+	}
+	text, entities := eb.Complete()
+	editReq.SetEntities(entities)
+	editReq.SetMessage(text)
+	markup, err := utils.BuildSearchReplyMarkup(ctx, 1, data)
+	if err != nil {
+		log.FromContext(ctx).Errorf("Failed to build reply markup: %v", err)
+		ctx.AnswerCallback(&tg.MessagesSetBotCallbackAnswerRequest{
+			QueryID:   update.CallbackQuery.GetQueryID(),
+			Message:   "Failed to build reply markup",
+			Alert:     true,
+			CacheTime: 60,
+		})
+		return dispatcher.EndGroups
+	}
+	editReq.SetReplyMarkup(markup)
+	if _, err := ctx.EditMessage(update.EffectiveChat().GetID(), editReq); err != nil {
+		log.FromContext(ctx).Errorf("Failed to edit message: %v", err)
+	}
+	return dispatcher.EndGroups
+}

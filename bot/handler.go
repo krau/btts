@@ -51,6 +51,7 @@ func (b *Bot) RegisterHandlers(ctx context.Context) {
 	disp.AddHandler(handlers.NewCommand("unwatchdel", UnWatchDelHandler))
 	disp.AddHandler(handlers.NewCommand("ls", ListHandler))
 	disp.AddHandler(handlers.NewCallbackQuery(filters.CallbackQuery.Prefix("search"), SearchCallbackHandler))
+	disp.AddHandler(handlers.NewCallbackQuery(filters.CallbackQuery.Prefix("filter"), FilterCallbackHandler))
 	disp.AddHandler(handlers.NewMessage(filters.Message.ChatType(filters.ChatTypeUser), SearchHandler))
 
 	_, err := b.Client.API().BotsSetBotCommands(ctx, &tg.BotsSetBotCommandsRequest{

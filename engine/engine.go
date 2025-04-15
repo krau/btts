@@ -66,7 +66,7 @@ func (e *Engine) Search(ctx context.Context, req types.SearchRequest) (*types.Me
 	if offset == 0 {
 		offset = 0
 	}
-	resp, err := e.Client.Index(indexName).SearchWithContext(ctx, req.Query, &meilisearch.SearchRequest{
+	request := &meilisearch.SearchRequest{
 		Offset: offset,
 		Limit:  limit,
 		AttributesToSearchOn: []string{
@@ -75,7 +75,11 @@ func (e *Engine) Search(ctx context.Context, req types.SearchRequest) (*types.Me
 		AttributesToCrop: []string{
 			"message",
 		},
-	})
+	}
+	if len(req.TypeFilters) > 0 {
+		request.Filter = fmt.Sprintf("type IN [%s]", slice.Join(req.TypeFilters, ","))
+	}
+	resp, err := e.Client.Index(indexName).SearchWithContext(ctx, req.Query, request)
 	if err != nil {
 		return nil, err
 	}
@@ -110,7 +114,7 @@ func (e *Engine) multiSearch(ctx context.Context, req types.SearchRequest) (*typ
 	multiQueries := make([]*meilisearch.SearchRequest, len(req.ChatIDs))
 	for i, chatID := range req.ChatIDs {
 		indexName := fmt.Sprintf("btts_%d", chatID)
-		multiQueries[i] = &meilisearch.SearchRequest{
+		queryRequest := &meilisearch.SearchRequest{
 			IndexUID: indexName,
 			Query:    req.Query,
 			AttributesToSearchOn: []string{
@@ -120,6 +124,10 @@ func (e *Engine) multiSearch(ctx context.Context, req types.SearchRequest) (*typ
 				"message",
 			},
 		}
+		if len(req.TypeFilters) > 0 {
+			queryRequest.Filter = fmt.Sprintf("type IN [%s]", slice.Join(req.TypeFilters, ","))
+		}
+		multiQueries[i] = queryRequest
 	}
 	resp, err := e.Client.MultiSearchWithContext(ctx, &meilisearch.MultiSearchRequest{
 		Federation: &meilisearch.MultiSearchFederation{

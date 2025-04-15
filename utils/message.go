@@ -83,17 +83,27 @@ func BuildSearchReplyMarkup(ctx context.Context, currentPage int64, data types.S
 	}
 	mtbuttons := make([]tg.KeyboardButtonClass, 0)
 	for i := range len(types.MessageTypeToEmoji) {
+		text := types.MessageTypeToEmoji[types.MessageType(i)]
+		if data.TypeFilters != nil && slice.Contain(data.TypeFilters, types.MessageType(i)) {
+			text += " √"
+		}
 		mtbuttons = append(mtbuttons, &tg.KeyboardButtonCallback{
-			Text: types.MessageTypeToEmoji[types.MessageType(i)],
+			Text: text,
 			Data: fmt.Appendf(nil, "filter %d %s", i, cacheid),
 		})
 	}
-	messageTypeFilterRow := &tg.KeyboardButtonRow{
-		Buttons: mtbuttons,
+
+	messageTypeFilterRow1 := &tg.KeyboardButtonRow{
+		Buttons: mtbuttons[:4],
 	}
+	messageTypeFilterRow2 := &tg.KeyboardButtonRow{
+		Buttons: mtbuttons[4:],
+	}
+
 	return &tg.ReplyInlineMarkup{
 		Rows: []tg.KeyboardButtonRow{
-			*messageTypeFilterRow,
+			*messageTypeFilterRow1,
+			*messageTypeFilterRow2,
 			{
 				Buttons: []tg.KeyboardButtonClass{
 					&tg.KeyboardButtonCallback{
