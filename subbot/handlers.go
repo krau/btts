@@ -253,7 +253,6 @@ func FilterCallbackHandler(ctx *ext.Context, update *ext.Update) error {
 	}
 
 	data.TypeFilters = newFilter
-	cache.Set(dataid, data)
 	// 重新触发搜索, 从第一页开始
 	data.Offset = 0
 	resp, err := engine.EgineInstance.Search(ctx, data)
@@ -307,5 +306,6 @@ func FilterCallbackHandler(ctx *ext.Context, update *ext.Update) error {
 	if _, err := ctx.EditMessage(update.EffectiveChat().GetID(), editReq); err != nil {
 		log.FromContext(ctx).Errorf("Failed to edit message: %v", err)
 	}
+	cache.Set(dataid, data)
 	return dispatcher.EndGroups
 }
