@@ -19,7 +19,7 @@ var (
 var VersionCmd = &cobra.Command{
 	Use:     "version",
 	Aliases: []string{"v"},
-	Short:   "Print the version number of saveany-bot",
+	Short:   "Print the version number of btts",
 	Run: func(cmd *cobra.Command, args []string) {
 		log.Infof("btts version: %s %s/%s\nBuildTime: %s, Commit: %s\n", Version, runtime.GOOS, runtime.GOARCH, BuildTime, GitCommit)
 	},
@@ -37,9 +37,9 @@ var upgradeCmd = &cobra.Command{
 			return
 		}
 		if latest.Version.Equals(v) {
-			log.Info("Current binary is the latest version", Version)
+			log.Infof("Current binary is the latest version %s", Version)
 		} else {
-			log.Info("Successfully updated to version", latest.Version)
+			log.Infof("Successfully updated to version %s", latest.Version)
 			fmt.Println("Release note:\n", latest.ReleaseNotes)
 		}
 	},
