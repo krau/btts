@@ -34,6 +34,7 @@ func (b *Bot) Start(ctx context.Context) {
 		log.Errorf("Failed to start sub bots: %v", err)
 	}
 
+	log.Info("Bot started.")
 	<-ctx.Done()
 	log.Info("Exiting...")
 	if err := b.UserClient.Close(); err != nil {
