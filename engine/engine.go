@@ -50,15 +50,23 @@ func (e *Engine) DeleteDocuments(ctx context.Context, chatID int64, ids []int) e
 	return err
 }
 
-func (e *Engine) Search(ctx context.Context, chatID int64, query string, offset, limit int64) (*types.MessageSearchResponse, error) {
-	indexName := fmt.Sprintf("btts_%d", chatID)
+func (e *Engine) Search(ctx context.Context, req types.SearchRequest) (*types.MessageSearchResponse, error) {
+	if len(req.ChatIDs) > 0 {
+		return e.multiSearch(ctx, req)
+	}
+	if req.ChatID == 0 {
+		return nil, fmt.Errorf("chatID is required")
+	}
+	indexName := fmt.Sprintf("btts_%d", req.ChatID)
+	limit := req.Limit
+	offset := req.Offset
 	if limit == 0 {
-		limit = 10
+		limit = types.PER_SEARCH_LIMIT
 	}
 	if offset == 0 {
 		offset = 0
 	}
-	resp, err := e.Client.Index(indexName).SearchWithContext(ctx, query, &meilisearch.SearchRequest{
+	resp, err := e.Client.Index(indexName).SearchWithContext(ctx, req.Query, &meilisearch.SearchRequest{
 		Offset: offset,
 		Limit:  limit,
 		AttributesToSearchOn: []string{
@@ -90,19 +98,21 @@ func (e *Engine) Search(ctx context.Context, chatID int64, query string, offset,
 	}, nil
 }
 
-func (e *Engine) MultiSearch(ctx context.Context, chatIDs []int64, query string, offset, limit int64) (*types.MessageSearchResponse, error) {
+func (e *Engine) multiSearch(ctx context.Context, req types.SearchRequest) (*types.MessageSearchResponse, error) {
+	limit := req.Limit
+	offset := req.Offset
 	if limit == 0 {
-		limit = 10
+		limit = types.PER_SEARCH_LIMIT
 	}
 	if offset == 0 {
 		offset = 0
 	}
-	multiQueries := make([]*meilisearch.SearchRequest, len(chatIDs))
-	for i, chatID := range chatIDs {
+	multiQueries := make([]*meilisearch.SearchRequest, len(req.ChatIDs))
+	for i, chatID := range req.ChatIDs {
 		indexName := fmt.Sprintf("btts_%d", chatID)
 		multiQueries[i] = &meilisearch.SearchRequest{
 			IndexUID: indexName,
-			Query:    query,
+			Query:    req.Query,
 			AttributesToSearchOn: []string{
 				"message",
 			},

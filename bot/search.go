@@ -28,7 +28,10 @@ func SearchHandler(ctx *ext.Context, update *ext.Update) error {
 	}
 	if isChannel {
 		channelID := update.GetChannel().GetID()
-		resp, err := BotInstance.Engine.Search(ctx, channelID, query, 0, types.PER_SEARCH_LIMIT)
+		resp, err := BotInstance.Engine.Search(ctx, types.SearchRequest{
+			ChatID: channelID,
+			Query:  query,
+		})
 		if err != nil {
 			ctx.Reply(update, ext.ReplyTextString("Error: "+err.Error()), nil)
 			return dispatcher.EndGroups
@@ -37,7 +40,7 @@ func SearchHandler(ctx *ext.Context, update *ext.Update) error {
 			ctx.Reply(update, ext.ReplyTextString("No results found"), nil)
 			return dispatcher.EndGroups
 		}
-		markup, err := utils.BuildSearchReplyMarkup(ctx, 1, types.SearchCallbackData{
+		markup, err := utils.BuildSearchReplyMarkup(ctx, 1, types.SearchRequest{
 			ChatID: channelID,
 			Query:  query,
 		})
@@ -69,7 +72,10 @@ func SearchHandler(ctx *ext.Context, update *ext.Update) error {
 	for i, chat := range chats {
 		chatIDs[i] = chat.ChatID
 	}
-	resp, err := BotInstance.Engine.MultiSearch(ctx, chatIDs, query, 0, types.PER_SEARCH_LIMIT)
+	resp, err := BotInstance.Engine.Search(ctx, types.SearchRequest{
+		ChatIDs: chatIDs,
+		Query:   query,
+	})
 	if err != nil {
 		log.FromContext(ctx).Errorf("Failed to search: %v", err)
 		ctx.Reply(update, ext.ReplyTextString("Error Happened"), nil)
@@ -79,7 +85,7 @@ func SearchHandler(ctx *ext.Context, update *ext.Update) error {
 		ctx.Reply(update, ext.ReplyTextString("No results found"), nil)
 		return dispatcher.EndGroups
 	}
-	markup, err := utils.BuildSearchReplyMarkup(ctx, 1, types.SearchCallbackData{
+	markup, err := utils.BuildSearchReplyMarkup(ctx, 1, types.SearchRequest{
 		ChatIDs: chatIDs,
 		Query:   query,
 	})
@@ -96,7 +102,7 @@ func SearchHandler(ctx *ext.Context, update *ext.Update) error {
 func SearchCallbackHandler(ctx *ext.Context, update *ext.Update) error {
 	args := update.Args()
 	cacheid := args[2]
-	data, ok := cache.Get[types.SearchCallbackData](cacheid)
+	data, ok := cache.Get[types.SearchRequest](cacheid)
 	if !ok {
 		ctx.AnswerCallback(&tg.MessagesSetBotCallbackAnswerRequest{
 			QueryID:   update.CallbackQuery.GetQueryID(),
@@ -125,13 +131,8 @@ func SearchCallbackHandler(ctx *ext.Context, update *ext.Update) error {
 		return dispatcher.EndGroups
 	}
 	offset := (page - 1) * types.PER_SEARCH_LIMIT
-
-	var resp *types.MessageSearchResponse
-	if len(data.ChatIDs) > 0 {
-		resp, err = BotInstance.Engine.MultiSearch(ctx, data.ChatIDs, data.Query, int64(offset), types.PER_SEARCH_LIMIT)
-	} else {
-		resp, err = BotInstance.Engine.Search(ctx, data.ChatID, data.Query, int64(offset), types.PER_SEARCH_LIMIT)
-	}
+	data.Offset = offset
+	resp, err := BotInstance.Engine.Search(ctx, data)
 	if err != nil {
 		log.FromContext(ctx).Errorf("Failed to search: %v", err)
 		ctx.AnswerCallback(&tg.MessagesSetBotCallbackAnswerRequest{

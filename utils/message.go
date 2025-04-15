@@ -76,13 +76,24 @@ func ExtraMessageMediaText(media tg.MessageMediaClass) (string, types.MessageTyp
 	return messageSB.String(), messageType
 }
 
-func BuildSearchReplyMarkup(ctx context.Context, currentPage int64, data types.SearchCallbackData) (*tg.ReplyInlineMarkup, error) {
+func BuildSearchReplyMarkup(ctx context.Context, currentPage int64, data types.SearchRequest) (*tg.ReplyInlineMarkup, error) {
 	cacheid := xid.New().String()
 	if err := cache.Set(cacheid, data); err != nil {
 		return nil, err
 	}
+	mtbuttons := make([]tg.KeyboardButtonClass, 0)
+	for i := range len(types.MessageTypeToEmoji) {
+		mtbuttons = append(mtbuttons, &tg.KeyboardButtonCallback{
+			Text: types.MessageTypeToEmoji[types.MessageType(i)],
+			Data: fmt.Appendf(nil, "filter %d %s", i, cacheid),
+		})
+	}
+	messageTypeFilterRow := &tg.KeyboardButtonRow{
+		Buttons: mtbuttons,
+	}
 	return &tg.ReplyInlineMarkup{
 		Rows: []tg.KeyboardButtonRow{
+			*messageTypeFilterRow,
 			{
 				Buttons: []tg.KeyboardButtonClass{
 					&tg.KeyboardButtonCallback{
@@ -145,7 +156,7 @@ func BuildResultStyling(ctx context.Context, resp *types.MessageSearchResponse) 
 		resultStyling = append(resultStyling, styling.Italic(fmt.Sprintf(" [%s]\n", timeStr)))
 
 		msgLink := fmt.Sprintf("https://t.me/c/%d/%d", hit.ChatID, hit.ID)
-		hitFormattedMsg := strings.ReplaceAll(hit.Formatted.Message, "\n", " ")
+		hitFormattedMsg := types.MessageTypeToEmoji[types.MessageType(hit.Type)] + " " + strings.ReplaceAll(hit.Formatted.Message, "\n", " ")
 		resultStyling = append(resultStyling, styling.TextURL(hitFormattedMsg, msgLink))
 	}
 

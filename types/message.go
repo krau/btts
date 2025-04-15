@@ -13,6 +13,17 @@ const (
 	MessageTypeStory
 )
 
+var MessageTypeToEmoji = map[MessageType]string{
+	MessageTypeText:     "💬",
+	MessageTypePhoto:    "🖼️",
+	MessageTypeVideo:    "🎥",
+	MessageTypeDocument: "📄",
+	MessageTypeVoice:    "🎙️",
+	MessageTypeAudio:    "🎵",
+	MessageTypePoll:     "📊",
+	MessageTypeStory:    "🪟",
+}
+
 var (
 	StickerFileNames = []string{"sticker.webp", "sticker.webm"}
 )
