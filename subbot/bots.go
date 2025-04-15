@@ -130,7 +130,6 @@ func NewSubBot(ctx context.Context, token string, chats []int64) (*SubBot, error
 
 func GetSubBot(ctx context.Context, botID int64) (*SubBot, error) {
 	log := log.FromContext(ctx)
-	log.Debugf("Getting sub bot %d", botID)
 	bot, ok := subBots[botID]
 	if !ok {
 		log.Errorf("Sub bot %d not found", botID)
@@ -159,8 +158,6 @@ func DelSubBot(ctx context.Context, botID int64) error {
 }
 
 func GetAll(ctx context.Context) []*SubBot {
-	log := log.FromContext(ctx)
-	log.Debugf("Getting all sub bots")
 	var subBotsList []*SubBot
 	for _, bot := range subBots {
 		subBotsList = append(subBotsList, bot)

@@ -40,7 +40,6 @@ func WatchHandler(ctx *ext.Context, u *ext.Update) error {
 		return dispatcher.SkipCurrentGroup
 	}
 	chatDB.Watching = true
-	log.Debug("WatchHandler", "chat_id", chatDB.ChatID, "title", chatDB.Title, "username", chatDB.Username, "type", chatDB.Type)
 	if err := database.UpsertIndexChat(ctx, chatDB); err != nil {
 		log.Warnf("Failed to upsert index chat: %v", err)
 	}
@@ -131,7 +130,6 @@ func DeleteHandler(ctx *ext.Context, u *ext.Update) error {
 	if chatDB.NoDelete {
 		return dispatcher.SkipCurrentGroup
 	}
-	log.Debug("DeleteHandler", "chat_id", chatID, "message_id", update.GetMessages())
 	if err := engine.EgineInstance.DeleteDocuments(ctx, chatID, update.GetMessages()); err != nil {
 		log.Errorf("Failed to delete documents: %v", err)
 	}

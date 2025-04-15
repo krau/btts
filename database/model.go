@@ -30,7 +30,6 @@ type IndexChat struct {
 }
 
 func (ic *IndexChat) AfterSave(tx *gorm.DB) error {
-	log.FromContext(tx.Statement.Context).Debug("AfterSave IndexChat", "chat_id", ic.ChatID, "watching", ic.Watching)
 	if ic.ChatID == 0 {
 		log.FromContext(tx.Statement.Context).Warnf("AfterSave IndexChat: chat_id is 0")
 		return nil
@@ -48,7 +47,6 @@ func (ic *IndexChat) BeforeDelete(tx *gorm.DB) error {
 		log.FromContext(tx.Statement.Context).Warnf("BeforeDelete IndexChat: chat_id is 0")
 		return nil
 	}
-	log.FromContext(tx.Statement.Context).Debug("BeforeDelete IndexChat", "chat_id", ic.ChatID)
 	delete(WatchedChatsID, ic.ChatID)
 	return nil
 }
