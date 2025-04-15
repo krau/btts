@@ -8,13 +8,13 @@ require (
 	github.com/charmbracelet/huh v0.6.0
 	github.com/charmbracelet/log v0.4.1
 	github.com/dgraph-io/ristretto/v2 v2.2.0
+	github.com/go-faster/errors v0.7.1
 	github.com/gotd/contrib v0.21.0
 	github.com/gotd/td v0.122.0
 	github.com/meilisearch/meilisearch-go v0.31.0
 	github.com/ncruces/go-sqlite3 v0.24.0
 	github.com/rs/xid v1.6.0
 	go.uber.org/zap v1.27.0
-	golang.org/x/time v0.11.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	gorm.io/gorm v1.25.12
 )
@@ -39,7 +39,6 @@ require (
 	github.com/fsnotify/fsnotify v1.8.0 // indirect
 	github.com/glebarez/go-sqlite v1.22.0 // indirect
 	github.com/glebarez/sqlite v1.11.0 // indirect
-	github.com/go-faster/errors v0.7.1 // indirect
 	github.com/go-logfmt/logfmt v0.6.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.2.1 // indirect
 	github.com/golang-jwt/jwt/v4 v4.5.2 // indirect
@@ -87,7 +86,7 @@ require (
 
 require (
 	github.com/bytedance/sonic v1.13.2
-	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
+	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/charmbracelet/bubbles v0.21.0 // indirect
 	github.com/charmbracelet/bubbletea v1.3.4 // indirect
 	github.com/coder/websocket v1.8.13 // indirect

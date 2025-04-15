@@ -2,6 +2,7 @@ package bot
 
 import (
 	"context"
+	"time"
 
 	"github.com/celestix/gotgproto"
 	"github.com/celestix/gotgproto/sessionMaker"
@@ -60,7 +61,7 @@ func NewBot(ctx context.Context, userClient *userclient.UserClient, engine *engi
 			&gotgproto.ClientOpts{
 				Session:          sessionMaker.SqlSession(gormlite.Open("data/session_bot.db")),
 				DisableCopyright: true,
-				Middlewares:      middlewares.FloodWait(),
+				Middlewares:      middlewares.NewDefaultMiddlewares(ctx, 5*time.Minute),
 				Context:          ctx,
 			},
 		)

@@ -3,6 +3,7 @@ package userclient
 import (
 	"context"
 	"path/filepath"
+	"time"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -90,7 +91,7 @@ func NewUserClient(ctx context.Context) (*UserClient, error) {
 				Logger:           tclientLog,
 				Context:          ctx,
 				DisableCopyright: true,
-				Middlewares:      middlewares.FloodWait(),
+				Middlewares:      middlewares.NewDefaultMiddlewares(ctx, 5*time.Minute),
 			},
 		)
 		if err != nil {

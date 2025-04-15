@@ -89,7 +89,6 @@ func AddHandler(ctx *ext.Context, update *ext.Update) error {
 	}
 
 	log.Infof("Adding chat: %s", chatArg)
-	utclient.API().MessagesGetHistory(ctx, &tg.MessagesGetHistoryRequest{})
 
 	queryHistoryBuilder := query.Messages(utclient.API()).GetHistory(inputPeer).BatchSize(100)
 	total, err := queryHistoryBuilder.Count(ctx)

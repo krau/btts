@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/celestix/gotgproto"
 	"github.com/celestix/gotgproto/dispatcher/handlers"
@@ -60,7 +61,7 @@ func NewSubBot(ctx context.Context, token string, chats []int64) (*SubBot, error
 				Session:          sessionMaker.SqlSession(gormlite.Open(fmt.Sprintf("data/session_%s.db", session))),
 				DisableCopyright: true,
 				Context:          ctx,
-				Middlewares:      middlewares.FloodWait(),
+				Middlewares:      middlewares.NewDefaultMiddlewares(ctx, 5*time.Minute),
 			},
 		)
 		if err != nil {
