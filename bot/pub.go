@@ -1,28 +1,25 @@
 package bot
 
 import (
-	"strconv"
+	"fmt"
 
 	"github.com/celestix/gotgproto/dispatcher"
 	"github.com/celestix/gotgproto/ext"
 	"github.com/krau/btts/database"
+	"github.com/krau/btts/utils"
 )
 
 func PubHandler(ctx *ext.Context, update *ext.Update) error {
 	if !CheckPermission(ctx, update) {
 		return dispatcher.EndGroups
 	}
-	args := update.Args()
-	if len(args) < 2 {
-		ctx.Reply(update, ext.ReplyTextString("Usage: /pub <chat_id>"), nil)
-		return dispatcher.EndGroups
-	}
-	chatID, err := strconv.Atoi(args[1])
+	chatDB, err := utils.GetChatDBFromUpdateArgs(ctx, update)
 	if err != nil {
-		ctx.Reply(update, ext.ReplyTextString("Invalid chat ID"), nil)
+		ctx.Reply(update, ext.ReplyTextString(fmt.Sprintf("Usage: /pub <chat_id>\n%s", err.Error())), nil)
 		return dispatcher.EndGroups
 	}
-	if err := database.UpdateIndexChatPublic(ctx, int64(chatID), true); err != nil {
+	chatDB.Public = true
+	if err := database.UpsertIndexChat(ctx, chatDB); err != nil {
 		ctx.Reply(update, ext.ReplyTextString("Failed to pub chat"), nil)
 		return dispatcher.EndGroups
 	}
@@ -34,17 +31,13 @@ func UnPubHandler(ctx *ext.Context, update *ext.Update) error {
 	if !CheckPermission(ctx, update) {
 		return dispatcher.EndGroups
 	}
-	args := update.Args()
-	if len(args) < 2 {
-		ctx.Reply(update, ext.ReplyTextString("Usage: /unpub <chat_id>"), nil)
-		return dispatcher.EndGroups
-	}
-	chatID, err := strconv.Atoi(args[1])
+	chatDB, err := utils.GetChatDBFromUpdateArgs(ctx, update)
 	if err != nil {
-		ctx.Reply(update, ext.ReplyTextString("Invalid chat ID"), nil)
+		ctx.Reply(update, ext.ReplyTextString(fmt.Sprintf("Usage: /unpub <chat_id>\n%s", err.Error())), nil)
 		return dispatcher.EndGroups
 	}
-	if err := database.UpdateIndexChatPublic(ctx, int64(chatID), false); err != nil {
+	chatDB.Public = false
+	if err := database.UpsertIndexChat(ctx, chatDB); err != nil {
 		ctx.Reply(update, ext.ReplyTextString("Failed to unpub chat"), nil)
 		return dispatcher.EndGroups
 	}

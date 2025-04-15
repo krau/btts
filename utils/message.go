@@ -2,10 +2,13 @@ package utils
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/celestix/gotgproto/ext"
 	"github.com/duke-git/lancet/v2/slice"
 	"github.com/gotd/td/telegram/message/styling"
 	"github.com/gotd/td/tg"
@@ -132,4 +135,23 @@ func BuildResultStyling(ctx context.Context, resp *types.MessageSearchResponse) 
 	}
 
 	return resultStyling
+}
+
+func GetChatDBFromUpdateArgs(ctx *ext.Context, update *ext.Update) (*database.IndexChat, error) {
+	args := update.Args()
+	if len(args) < 2 {
+		return nil, errors.New("Args not enough")
+	}
+	chatID, err := strconv.Atoi(args[1])
+	if err != nil {
+		return nil, fmt.Errorf("Invalid chat ID")
+	}
+	chatDB, err := database.GetIndexChat(ctx, int64(chatID))
+	if err != nil {
+		return nil, fmt.Errorf("Failed to get chat DB: %w", err)
+	}
+	if chatDB == nil {
+		return nil, fmt.Errorf("Chat not found")
+	}
+	return chatDB, nil
 }

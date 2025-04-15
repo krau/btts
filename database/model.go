@@ -31,16 +31,10 @@ type IndexChat struct {
 
 func (ic *IndexChat) AfterSave(tx *gorm.DB) error {
 	log.FromContext(tx.Statement.Context).Debug("AfterSave IndexChat", "chat_id", ic.ChatID, "watching", ic.Watching)
-	if ic.Watching {
-		WatchedChatsID[ic.ChatID] = struct{}{}
-	} else {
-		delete(WatchedChatsID, ic.ChatID)
+	if ic.ChatID == 0 {
+		log.FromContext(tx.Statement.Context).Warnf("AfterSave IndexChat: chat_id is 0")
+		return nil
 	}
-	return nil
-}
-
-func (ic *IndexChat) AfterUpdate(tx *gorm.DB) error {
-	log.FromContext(tx.Statement.Context).Debug("AfterUpdate IndexChat", "chat_id", ic.ChatID, "watching", ic.Watching)
 	if ic.Watching {
 		WatchedChatsID[ic.ChatID] = struct{}{}
 	} else {

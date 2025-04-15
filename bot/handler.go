@@ -3,6 +3,7 @@ package bot
 import (
 	"context"
 
+	"github.com/charmbracelet/log"
 	"github.com/duke-git/lancet/v2/slice"
 	"github.com/gotd/td/tg"
 	"github.com/krau/btts/config"
@@ -35,7 +36,7 @@ func CheckPermissionsHandler(ctx *ext.Context, update *ext.Update) error {
 	return dispatcher.ContinueGroups
 }
 
-func (b *Bot) RegisterHandlers(ctx context.Context) error {
+func (b *Bot) RegisterHandlers(ctx context.Context) {
 	disp := b.Client.Dispatcher
 	disp.AddHandler(handlers.NewCommand("start", StartHandler))
 	disp.AddHandler(handlers.NewCommand("help", StartHandler))
@@ -46,6 +47,9 @@ func (b *Bot) RegisterHandlers(ctx context.Context) error {
 	disp.AddHandler(handlers.NewCommand("unpub", UnPubHandler))
 	disp.AddHandler(handlers.NewCommand("watch", WatchHandler))
 	disp.AddHandler(handlers.NewCommand("unwatch", UnWatchHandler))
+	disp.AddHandler(handlers.NewCommand("watchdel", WatchDelHandler))
+	disp.AddHandler(handlers.NewCommand("unwatchdel", UnWatchDelHandler))
+	disp.AddHandler(handlers.NewCommand("ls", ListHandler))
 	disp.AddHandler(handlers.NewCallbackQuery(filters.CallbackQuery.Prefix("search"), SearchCallbackHandler))
 	disp.AddHandler(handlers.NewMessage(filters.Message.ChatType(filters.ChatTypeUser), SearchHandler))
 
@@ -57,5 +61,27 @@ func (b *Bot) RegisterHandlers(ctx context.Context) error {
 			{Command: "search", Description: "Search for a message"},
 		},
 	})
-	return err
+	if err != nil {
+		log.FromContext(ctx).Error("Failed to set bot commands", "error", err)
+	}
+	if peer := b.Client.PeerStorage.GetInputPeerById(b.UserClient.TClient.Self.ID); peer != nil {
+		if _, err = b.Client.API().BotsSetBotCommands(ctx, &tg.BotsSetBotCommandsRequest{
+			Scope: &tg.BotCommandScopePeer{
+				Peer: peer,
+			},
+			Commands: []tg.BotCommand{
+				{Command: "ls", Description: "List all watched chats"},
+				{Command: "add", Description: "Add a message to the index"},
+				{Command: "del", Description: "Delete a message from the index"},
+				{Command: "pub", Description: "Publish a message to the index"},
+				{Command: "unpub", Description: "Unpublish a message from the index"},
+				{Command: "watch", Description: "Watch a chat"},
+				{Command: "unwatch", Description: "Unwatch a chat"},
+				{Command: "watchdel", Description: "Delete a watched chat delete event"},
+				{Command: "unwatchdel", Description: "Unwatch a chat delete event"},
+			},
+		}); err != nil {
+			log.FromContext(ctx).Error("Failed to set bot commands", "error", err)
+		}
+	}
 }
