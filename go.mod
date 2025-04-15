@@ -3,6 +3,7 @@ module github.com/krau/btts
 go 1.24.2
 
 require (
+	github.com/blang/semver v3.5.1+incompatible
 	github.com/celestix/gotgproto v1.0.0-beta20.4
 	github.com/charmbracelet/huh v0.6.0
 	github.com/charmbracelet/log v0.4.1
@@ -42,6 +43,9 @@ require (
 	github.com/go-logfmt/logfmt v0.6.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.2.1 // indirect
 	github.com/golang-jwt/jwt/v4 v4.5.1 // indirect
+	github.com/google/go-github/v30 v30.1.0 // indirect
+	github.com/google/go-querystring v1.0.0 // indirect
+	github.com/inconshreveable/go-update v0.0.0-20160112193335-8152e7eb6ccf // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
@@ -66,10 +70,13 @@ require (
 	github.com/spf13/cast v1.7.1 // indirect
 	github.com/spf13/pflag v1.0.6 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
+	github.com/tcnksm/go-gitconfig v0.1.2 // indirect
 	github.com/tetratelabs/wazero v1.9.0 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
+	github.com/ulikunitz/xz v0.5.9 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	golang.org/x/arch v0.0.0-20210923205945-b76863e36670 // indirect
+	golang.org/x/oauth2 v0.25.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	modernc.org/libc v1.61.8 // indirect
@@ -100,6 +107,7 @@ require (
 	github.com/ncruces/go-sqlite3/gormlite v0.24.0
 	github.com/ogen-go/ogen v1.10.1 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
+	github.com/rhysd/go-github-selfupdate v1.2.3
 	github.com/segmentio/asm v1.2.0 // indirect
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/viper v1.20.1
