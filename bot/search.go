@@ -28,6 +28,11 @@ func SearchHandler(ctx *ext.Context, update *ext.Update) error {
 	}
 	if isChannel {
 		channelID := update.GetChannel().GetID()
+		if _, err := database.GetIndexChat(ctx, channelID); err != nil {
+			ctx.Reply(update, ext.ReplyTextString("This chat is not indexed"), nil)
+			return dispatcher.EndGroups
+		}
+
 		resp, err := BotInstance.Engine.Search(ctx, types.SearchRequest{
 			ChatID: channelID,
 			Query:  query,
