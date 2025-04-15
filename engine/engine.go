@@ -79,6 +79,7 @@ func (e *Engine) Search(ctx context.Context, req types.SearchRequest) (*types.Me
 	if len(req.TypeFilters) > 0 {
 		request.Filter = fmt.Sprintf("type IN [%s]", slice.Join(req.TypeFilters, ","))
 	}
+	log.FromContext(ctx).Debug("Searching", "index", indexName, "query", req.Query, "offset", offset, "filter", request.Filter)
 	resp, err := e.Client.Index(indexName).SearchWithContext(ctx, req.Query, request)
 	if err != nil {
 		return nil, err
@@ -129,6 +130,7 @@ func (e *Engine) multiSearch(ctx context.Context, req types.SearchRequest) (*typ
 		}
 		multiQueries[i] = queryRequest
 	}
+	log.FromContext(ctx).Debug("Searching", "query", req.Query, "offset", offset, "chats", req.ChatIDs)
 	resp, err := e.Client.MultiSearchWithContext(ctx, &meilisearch.MultiSearchRequest{
 		Federation: &meilisearch.MultiSearchFederation{
 			Offset: offset,
