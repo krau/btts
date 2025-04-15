@@ -29,7 +29,7 @@ func ListHandler(ctx *ext.Context, update *ext.Update) error {
 	for _, chat := range chats {
 		chatsStyling = append(chatsStyling, styling.Code(fmt.Sprintf("%d", chat.ChatID)))
 		chatsStyling = append(chatsStyling, styling.Plain(fmt.Sprintf(" - %s\n", chat.Title)))
-		chatsStyling = append(chatsStyling, styling.Plain(fmt.Sprintf("Watching: %t , Public: %t\n\n", chat.Watching, chat.Public)))
+		chatsStyling = append(chatsStyling, styling.Plain(fmt.Sprintf("Watching: %t , Public: %t , WatchDelete: %t\n\n", chat.Watching, chat.Public, !chat.NoDelete)))
 	}
 	ctx.Reply(update, ext.ReplyTextStyledTextArray(chatsStyling), nil)
 	return dispatcher.EndGroups
