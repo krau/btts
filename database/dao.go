@@ -56,3 +56,33 @@ func GetAllPublicIndexChats(ctx context.Context) ([]*IndexChat, error) {
 	}
 	return IndexChats, nil
 }
+
+func UpsertSubBot(ctx context.Context, subBot *SubBot) error {
+	if err := db.WithContext(ctx).Save(subBot).Error; err != nil {
+		return err
+	}
+	return nil
+}
+
+func GetAllSubBots(ctx context.Context) ([]*SubBot, error) {
+	var subBots []*SubBot
+	if err := db.WithContext(ctx).Find(&subBots).Error; err != nil {
+		return nil, err
+	}
+	return subBots, nil
+}
+
+func GetSubBot(ctx context.Context, botID int64) (*SubBot, error) {
+	var subBot SubBot
+	if err := db.WithContext(ctx).Where("bot_id = ?", botID).First(&subBot).Error; err != nil {
+		return nil, err
+	}
+	return &subBot, nil
+}
+
+func DeleteSubBot(ctx context.Context, botID int64) error {
+	if err := db.WithContext(ctx).Where("bot_id = ?", botID).Delete(&SubBot{}).Error; err != nil {
+		return err
+	}
+	return nil
+}

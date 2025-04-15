@@ -51,6 +51,9 @@ func (b *Bot) RegisterHandlers(ctx context.Context) {
 	disp.AddHandler(handlers.NewCommand("unwatchdel", UnWatchDelHandler))
 	disp.AddHandler(handlers.NewCommand("ls", ListHandler))
 	disp.AddHandler(handlers.NewCommand("dl", DownloadHandler))
+	disp.AddHandler(handlers.NewCommand("addsub", AddSubHandler))
+	disp.AddHandler(handlers.NewCommand("delsub", DelSubHandler))
+	disp.AddHandler(handlers.NewCommand("lssub", ListSubHandler))
 	disp.AddHandler(handlers.NewCallbackQuery(filters.CallbackQuery.Prefix("search"), SearchCallbackHandler))
 	disp.AddHandler(handlers.NewCallbackQuery(filters.CallbackQuery.Prefix("filter"), FilterCallbackHandler))
 	disp.AddHandler(handlers.NewMessage(filters.Message.ChatType(filters.ChatTypeUser), SearchHandler))
@@ -81,6 +84,10 @@ func (b *Bot) RegisterHandlers(ctx context.Context) {
 				{Command: "unwatch", Description: "Unwatch a chat"},
 				{Command: "watchdel", Description: "Delete a watched chat delete event"},
 				{Command: "unwatchdel", Description: "Unwatch a chat delete event"},
+				{Command: "addsub", Description: "Add a sub bot"},
+				{Command: "delsub", Description: "Delete a sub bot"},
+				{Command: "lssub", Description: "List all sub bots"},
+				{Command: "dl", Description: "Download messages"},
 			},
 		}); err != nil {
 			log.FromContext(ctx).Error("Failed to set bot commands", "error", err)

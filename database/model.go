@@ -52,3 +52,10 @@ func (ic *IndexChat) BeforeDelete(tx *gorm.DB) error {
 	delete(WatchedChatsID, ic.ChatID)
 	return nil
 }
+
+type SubBot struct {
+	BotID int64 `gorm:"primaryKey"`
+	Token string
+	// which chats this bot can search
+	ChatIDs []int64 `gorm:"serializer:json;type:json"`
+}

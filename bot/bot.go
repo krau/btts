@@ -9,6 +9,7 @@ import (
 	"github.com/krau/btts/config"
 	"github.com/krau/btts/engine"
 	"github.com/krau/btts/middlewares"
+	"github.com/krau/btts/subbot"
 	"github.com/krau/btts/userclient"
 	"github.com/ncruces/go-sqlite3/gormlite"
 )
@@ -28,6 +29,10 @@ func (b *Bot) Start(ctx context.Context) {
 	b.RegisterHandlers(ctx)
 
 	b.UserClient.StartWatch(ctx)
+
+	if err := subbot.StartStored(ctx); err != nil {
+		log.Errorf("Failed to start sub bots: %v", err)
+	}
 
 	<-ctx.Done()
 	log.Info("Exiting...")
