@@ -28,7 +28,7 @@ func SearchHandler(ctx *ext.Context, update *ext.Update) error {
 	}
 	if isChannel {
 		channelID := update.GetChannel().GetID()
-		resp, err := BotInstance.Engine.Search(ctx, channelID, query, 0, 16)
+		resp, err := BotInstance.Engine.Search(ctx, channelID, query, 0, types.PER_SEARCH_LIMIT)
 		if err != nil {
 			ctx.Reply(update, ext.ReplyTextString("Error: "+err.Error()), nil)
 			return dispatcher.EndGroups
@@ -69,7 +69,7 @@ func SearchHandler(ctx *ext.Context, update *ext.Update) error {
 	for i, chat := range chats {
 		chatIDs[i] = chat.ChatID
 	}
-	resp, err := BotInstance.Engine.MultiSearch(ctx, chatIDs, query, 0, 16)
+	resp, err := BotInstance.Engine.MultiSearch(ctx, chatIDs, query, 0, types.PER_SEARCH_LIMIT)
 	if err != nil {
 		log.FromContext(ctx).Errorf("Failed to search: %v", err)
 		ctx.Reply(update, ext.ReplyTextString("Error Happened"), nil)
@@ -124,13 +124,13 @@ func SearchCallbackHandler(ctx *ext.Context, update *ext.Update) error {
 		})
 		return dispatcher.EndGroups
 	}
-	offset := (page - 1) * 16
+	offset := (page - 1) * types.PER_SEARCH_LIMIT
 
 	var resp *types.MessageSearchResponse
 	if len(data.ChatIDs) > 0 {
-		resp, err = BotInstance.Engine.MultiSearch(ctx, data.ChatIDs, data.Query, int64(offset), 16)
+		resp, err = BotInstance.Engine.MultiSearch(ctx, data.ChatIDs, data.Query, int64(offset), types.PER_SEARCH_LIMIT)
 	} else {
-		resp, err = BotInstance.Engine.Search(ctx, data.ChatID, data.Query, int64(offset), 16)
+		resp, err = BotInstance.Engine.Search(ctx, data.ChatID, data.Query, int64(offset), types.PER_SEARCH_LIMIT)
 	}
 	if err != nil {
 		log.FromContext(ctx).Errorf("Failed to search: %v", err)

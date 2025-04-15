@@ -17,6 +17,10 @@ var (
 	StickerFileNames = []string{"sticker.webp", "sticker.webm"}
 )
 
+const (
+	PER_SEARCH_LIMIT = 12
+)
+
 type MessageDocument struct {
 	// Telegram MessageID
 	ID   int64 `json:"id"`

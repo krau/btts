@@ -110,24 +110,39 @@ func BuildResultStyling(ctx context.Context, resp *types.MessageSearchResponse) 
 
 	for _, hit := range resp.Hits {
 
-		userDisplay := hit.Formatted.UserID
-		user, err := database.GetUserInfo(ctx, hit.UserID)
+		chatDisplay := hit.Formatted.ChatID
+		chat, err := database.GetIndexChat(ctx, hit.ChatID)
 		if err == nil {
-			userDisplay = func() string {
-				userDisplay = user.FirstName
-				if user.LastName != "" {
-					if userDisplay != "" {
-						userDisplay += " "
-					}
-					userDisplay += user.LastName
-				}
-				return userDisplay
-			}()
+			if chat.Title != "" {
+				chatDisplay = chat.Title
+			}
 		}
+		senderInfo := func() string {
+			if hit.UserID == hit.ChatID {
+				// 频道消息
+				return chatDisplay
+			}
+			userDisplay := hit.Formatted.UserID
+			user, err := database.GetUserInfo(ctx, hit.UserID)
+			if err == nil {
+				userDisplay = func() string {
+					userDisplay = user.FirstName
+					if user.LastName != "" {
+						if userDisplay != "" {
+							userDisplay += " "
+						}
+						userDisplay += user.LastName
+					}
+					return userDisplay
+				}()
+			}
+			return fmt.Sprintf("%s | %s", userDisplay, chatDisplay)
+		}()
 
-		timeStr := time.Unix(hit.Timestamp, 0).Format("060102 15:04:05")
-		resultStyling = append(resultStyling, styling.Italic("\n"+timeStr))
-		resultStyling = append(resultStyling, styling.Plain(fmt.Sprintf(" [%s]:\n", userDisplay)))
+		resultStyling = append(resultStyling, styling.Bold(fmt.Sprintf("\n%s", senderInfo)))
+
+		timeStr := time.Unix(hit.Timestamp, 0).Format("06-01-02 15:04:05")
+		resultStyling = append(resultStyling, styling.Italic(fmt.Sprintf(" [%s]\n", timeStr)))
 
 		msgLink := fmt.Sprintf("https://t.me/c/%d/%d", hit.ChatID, hit.ID)
 		hitFormattedMsg := strings.ReplaceAll(hit.Formatted.Message, "\n", " ")
