@@ -48,7 +48,9 @@ func StartHandler(ctx *ext.Context, update *ext.Update) error {
 			log.FromContext(ctx).Errorf("Failed to get index chat: %v", err)
 			continue
 		}
-		myChats = append(myChats, chat)
+		if chat.Public {
+			myChats = append(myChats, chat)
+		}
 	}
 	if len(myChats) == 0 {
 		ctx.Reply(update, ext.ReplyTextString("Yet Another Bot For Telegram Search..."), nil)
@@ -108,6 +110,10 @@ func SearchHandler(ctx *ext.Context, update *ext.Update) error {
 				chatIDs = append(chatIDs, chatID)
 			}
 		}
+	}
+	if len(chatIDs) == 0 {
+		ctx.Reply(update, ext.ReplyTextString("No indexed chats found"), nil)
+		return dispatcher.EndGroups
 	}
 
 	req := types.SearchRequest{
