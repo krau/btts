@@ -55,6 +55,7 @@ func StartHandler(ctx *ext.Context, update *ext.Update) error {
 	return dispatcher.EndGroups
 }
 
+// yes i have no insterest in code reuse and just want it work :D
 func SearchHandler(ctx *ext.Context, update *ext.Update) error {
 	query := strings.TrimPrefix(strings.TrimPrefix(update.EffectiveMessage.GetMessage(), "/search"), "@"+ctx.Self.Username)
 	if query == "" {
@@ -103,7 +104,7 @@ func SearchCallbackHandler(ctx *ext.Context, update *ext.Update) error {
 	if !ok {
 		ctx.AnswerCallback(&tg.MessagesSetBotCallbackAnswerRequest{
 			QueryID:   update.CallbackQuery.GetQueryID(),
-			Message:   "Invalid Query",
+			Message:   "查询已过期",
 			Alert:     true,
 			CacheTime: 60,
 		})
@@ -205,7 +206,7 @@ func FilterCallbackHandler(ctx *ext.Context, update *ext.Update) error {
 	if !ok {
 		ctx.AnswerCallback(&tg.MessagesSetBotCallbackAnswerRequest{
 			QueryID:   update.CallbackQuery.GetQueryID(),
-			Message:   "Invalid Query",
+			Message:   "查询已过期",
 			Alert:     true,
 			CacheTime: 60,
 		})

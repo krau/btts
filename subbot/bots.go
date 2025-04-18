@@ -166,11 +166,11 @@ func GetAll(ctx context.Context) []*SubBot {
 	return subBotsList
 }
 
-func StartStored(ctx context.Context) error {
+func StartStored(ctx context.Context) (map[int64]*SubBot, error) {
 	bots, err := database.GetAllSubBots(ctx)
 	if err != nil {
 		log.FromContext(ctx).Errorf("Failed to get sub bots: %v", err)
-		return err
+		return nil, err
 	}
 	wg := sync.WaitGroup{}
 	for _, bot := range bots {
@@ -193,5 +193,5 @@ func StartStored(ctx context.Context) error {
 		}()
 	}
 	wg.Wait()
-	return nil
+	return subBots, nil
 }

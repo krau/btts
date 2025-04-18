@@ -30,9 +30,12 @@ func (b *Bot) Start(ctx context.Context) {
 	b.RegisterHandlers(ctx)
 
 	b.UserClient.StartWatch(ctx)
-
-	if err := subbot.StartStored(ctx); err != nil {
+	sbs, err := subbot.StartStored(ctx)
+	if err != nil {
 		log.Errorf("Failed to start sub bots: %v", err)
+	}
+	for _, sb := range sbs {
+		b.UserClient.AddGlobalIgnoreUser(sb.ID)
 	}
 
 	log.Info("Bot started.")
@@ -83,6 +86,10 @@ func NewBot(ctx context.Context, userClient *userclient.UserClient, engine *engi
 			Engine:     engine,
 		}
 		BotInstance = b
+		if b.Client.Self.ID == 0 {
+			log.Fatalf("Failed to get bot ID")
+		}
+		userClient.AddGlobalIgnoreUser(b.Client.Self.ID)
 		return BotInstance, nil
 	}
 }

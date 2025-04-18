@@ -111,7 +111,7 @@ func SearchCallbackHandler(ctx *ext.Context, update *ext.Update) error {
 	if !ok {
 		ctx.AnswerCallback(&tg.MessagesSetBotCallbackAnswerRequest{
 			QueryID:   update.CallbackQuery.GetQueryID(),
-			Message:   "Invalid Query",
+			Message:   "查询已过期",
 			Alert:     true,
 			CacheTime: 60,
 		})
@@ -199,7 +199,7 @@ func FilterCallbackHandler(ctx *ext.Context, update *ext.Update) error {
 	if !ok {
 		ctx.AnswerCallback(&tg.MessagesSetBotCallbackAnswerRequest{
 			QueryID:   update.CallbackQuery.GetQueryID(),
-			Message:   "Invalid Query",
+			Message:   "查询已过期",
 			Alert:     true,
 			CacheTime: 60,
 		})

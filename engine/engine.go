@@ -23,10 +23,10 @@ type Engine struct {
 var EgineInstance *Engine
 
 func NewEngine(ctx context.Context, selfID int64) (*Engine, error) {
-	log.FromContext(ctx).Debug("Initializing MeiliSearch engine")
 	if EgineInstance != nil {
 		return EgineInstance, nil
 	}
+	log.FromContext(ctx).Debug("Initializing MeiliSearch engine")
 	sm := meilisearch.New(config.C.Engine.Url, meilisearch.WithAPIKey(config.C.Engine.Key))
 	_, err := sm.HealthWithContext(ctx)
 	if err != nil {
@@ -210,6 +210,9 @@ func (e *Engine) CreateIndex(ctx context.Context, chatID int64) error {
 					},
 					"{{..}}",
 				},
+			}
+			embedder.Headers = map[string]string{
+				"Content-Type": "application/json",
 			}
 		} else {
 			embedder.Model = embedSettings.Model

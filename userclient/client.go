@@ -3,6 +3,7 @@ package userclient
 import (
 	"context"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"go.uber.org/zap"
@@ -26,8 +27,10 @@ import (
 var UC *UserClient
 
 type UserClient struct {
-	TClient *gotgproto.Client
-	logger  *zap.Logger
+	TClient           *gotgproto.Client
+	logger            *zap.Logger
+	GlobalIgnoreUsers []int64
+	mu                sync.Mutex
 }
 
 func (u *UserClient) StartWatch(ctx context.Context) {
@@ -50,6 +53,12 @@ func (u *UserClient) StartWatch(ctx context.Context) {
 		if !database.Watching(chatID) {
 			return dispatcher.SkipCurrentGroup
 		}
+		if u.EffectiveMessage == nil || u.EffectiveMessage.Message == nil {
+			return dispatcher.SkipCurrentGroup
+		}
+		if u.EffectiveMessage.IsService {
+			return dispatcher.SkipCurrentGroup
+		}
 		return dispatcher.ContinueGroups
 	}), 2)
 	disp.AddHandlerToGroup(handlers.NewMessage(filters.Message.All, WatchHandler), 2)
@@ -60,6 +69,23 @@ func (u *UserClient) Close() error {
 		return u.logger.Sync()
 	}
 	return nil
+}
+
+func (u *UserClient) AddGlobalIgnoreUser(userID int64) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	u.GlobalIgnoreUsers = append(u.GlobalIgnoreUsers, userID)
+}
+
+func (u *UserClient) RemoveGlobalIgnoreUser(userID int64) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	for i, id := range u.GlobalIgnoreUsers {
+		if id == userID {
+			u.GlobalIgnoreUsers = append(u.GlobalIgnoreUsers[:i], u.GlobalIgnoreUsers[i+1:]...)
+			break
+		}
+	}
 }
 
 func NewUserClient(ctx context.Context) (*UserClient, error) {
@@ -106,8 +132,11 @@ func NewUserClient(ctx context.Context) (*UserClient, error) {
 		}(struct {
 			client *UserClient
 			err    error
-		}{&UserClient{TClient: tclient,
-			logger: tclientLog}, nil})
+		}{&UserClient{
+			TClient:           tclient,
+			logger:            tclientLog,
+			GlobalIgnoreUsers: make([]int64, 0),
+		}, nil})
 	}()
 
 	select {

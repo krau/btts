@@ -6,6 +6,7 @@ import (
 	"github.com/celestix/gotgproto/dispatcher"
 	"github.com/celestix/gotgproto/ext"
 	"github.com/charmbracelet/log"
+	"github.com/duke-git/lancet/v2/slice"
 	"github.com/gotd/td/tg"
 	"github.com/krau/btts/database"
 	"github.com/krau/btts/engine"
@@ -39,6 +40,7 @@ func WatchHandler(ctx *ext.Context, u *ext.Update) error {
 		log.Error("Chat is nil")
 		return dispatcher.SkipCurrentGroup
 	}
+	// 那我问你 你不 watch 是怎么进来的
 	chatDB.Watching = true
 	if err := database.UpsertIndexChat(ctx, chatDB); err != nil {
 		log.Warnf("Failed to upsert index chat: %v", err)
@@ -107,6 +109,9 @@ func WatchHandler(ctx *ext.Context, u *ext.Update) error {
 
 	if err := database.UpsertUserInfo(ctx, userDB); err != nil {
 		log.Warnf("Failed to upsert user info: %v", err)
+	}
+	if slice.Contain(UC.GlobalIgnoreUsers, userDB.ChatID) {
+		return dispatcher.SkipCurrentGroup
 	}
 
 	if err := engine.EgineInstance.AddDocumentsFromMessages(ctx, chatDB.ChatID, []*tg.Message{u.EffectiveMessage.Message}); err != nil {
