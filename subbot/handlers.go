@@ -111,7 +111,7 @@ func SearchHandler(ctx *ext.Context, update *ext.Update) error {
 	}
 
 	req := types.SearchRequest{
-		ChatIDs: sbModel.ChatIDs,
+		ChatIDs: chatIDs,
 		Query:   query,
 	}
 	resp, err := engine.EgineInstance.Search(ctx, req)
