@@ -11,12 +11,25 @@ import (
 	"github.com/gotd/td/telegram/message/entity"
 	"github.com/gotd/td/telegram/message/styling"
 	"github.com/gotd/td/tg"
+	"github.com/krau/btts/config"
 	"github.com/krau/btts/database"
 	"github.com/krau/btts/engine"
 	"github.com/krau/btts/types"
+	"github.com/krau/btts/userclient"
 	"github.com/krau/btts/utils"
 	"github.com/krau/btts/utils/cache"
 )
+
+func CheckPermission(ctx *ext.Context, update *ext.Update) bool {
+	userID := update.GetUserChat().GetID()
+	if userID == userclient.UC.TClient.Self.ID {
+		return true
+	}
+	if !slice.Contain(config.C.Admins, userID) {
+		return false
+	}
+	return true
+}
 
 func StartHandler(ctx *ext.Context, update *ext.Update) error {
 	myChats := make([]*database.IndexChat, 0)
@@ -70,6 +83,31 @@ func SearchHandler(ctx *ext.Context, update *ext.Update) error {
 	if len(sbModel.ChatIDs) == 0 {
 		ctx.Reply(update, ext.ReplyTextString("This bot not indexed any chats"), nil)
 		return dispatcher.EndGroups
+	}
+
+	chatIDs := make([]int64, 0)
+
+	isChannel := update.GetChannel() != nil
+	var channelID int64
+	if isChannel {
+		channelID = update.GetChannel().GetID()
+	}
+
+	if CheckPermission(ctx, update) {
+		chatIDs = sbModel.ChatIDs
+	} else {
+		for _, chatID := range sbModel.ChatIDs {
+			chat, err := database.GetIndexChat(ctx, chatID)
+			if err != nil {
+				log.FromContext(ctx).Errorf("Failed to get index chat: %v", err)
+				continue
+			}
+			if chat.Public {
+				chatIDs = append(chatIDs, chatID)
+			} else if isChannel && chat.ChatID == channelID {
+				chatIDs = append(chatIDs, chatID)
+			}
+		}
 	}
 
 	req := types.SearchRequest{

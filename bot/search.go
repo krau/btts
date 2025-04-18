@@ -22,10 +22,8 @@ func SearchHandler(ctx *ext.Context, update *ext.Update) error {
 		ctx.Reply(update, ext.ReplyTextString("Usage: Send query in PM, or use /search <query> in group"), nil)
 		return dispatcher.EndGroups
 	}
-	isChannel := false
-	if update.GetChannel() != nil {
-		isChannel = true
-	}
+	isChannel := update.GetChannel() != nil
+	
 	if isChannel {
 		channelID := update.GetChannel().GetID()
 		if _, err := database.GetIndexChat(ctx, channelID); err != nil {
