@@ -96,9 +96,9 @@ func NewSubBot(ctx context.Context, token string, chats []int64) (*SubBot, error
 		tclient.API().BotsSetBotCommands(ctx, &tg.BotsSetBotCommandsRequest{
 			Scope: &tg.BotCommandScopeDefault{},
 			Commands: []tg.BotCommand{
-				{Command: "start", Description: "Start the bot"},
-				{Command: "help", Description: "Help"},
-				{Command: "search", Description: "Search for a message"},
+				{Command: "search", Description: "搜索消息"},
+				{Command: "start", Description: "开始使用"},
+				{Command: "help", Description: "帮助"},
 			},
 		})
 		res <- struct {

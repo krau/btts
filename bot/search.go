@@ -23,7 +23,7 @@ func SearchHandler(ctx *ext.Context, update *ext.Update) error {
 		return dispatcher.EndGroups
 	}
 	isChannel := update.GetChannel() != nil
-	
+
 	if isChannel {
 		channelID := update.GetChannel().GetID()
 		if _, err := database.GetIndexChat(ctx, channelID); err != nil {
@@ -55,17 +55,30 @@ func SearchHandler(ctx *ext.Context, update *ext.Update) error {
 			Markup: markup})
 		return dispatcher.EndGroups
 	}
-	var err error
 	var chats []*database.IndexChat
-	if CheckPermission(ctx, update) {
-		chats, err = database.GetAllIndexChats(ctx)
-	} else {
-		chats, err = database.GetAllPublicIndexChats(ctx)
+	if update.EffectiveMessage.ReplyToMessage != nil {
+		selectChatId, ok := cache.Get[int64](strconv.Itoa(update.EffectiveMessage.ReplyToMessage.GetID()))
+		if ok {
+			selectChat, err := database.GetIndexChat(ctx, selectChatId)
+			if err != nil {
+				ctx.Reply(update, ext.ReplyTextString("Failed to get chat"), nil)
+				return dispatcher.EndGroups
+			}
+			chats = append(chats, selectChat)
+		}
 	}
-	if err != nil {
-		log.FromContext(ctx).Errorf("Failed to get index chats: %v", err)
-		ctx.Reply(update, ext.ReplyTextString("Error Happened"), nil)
-		return dispatcher.EndGroups
+	if len(chats) == 0 {
+		var err error
+		if CheckPermission(ctx, update) {
+			chats, err = database.GetAllIndexChats(ctx)
+		} else {
+			chats, err = database.GetAllPublicIndexChats(ctx)
+		}
+		if err != nil {
+			log.FromContext(ctx).Errorf("Failed to get index chats: %v", err)
+			ctx.Reply(update, ext.ReplyTextString("Error Happened"), nil)
+			return dispatcher.EndGroups
+		}
 	}
 	if len(chats) == 0 {
 		ctx.Reply(update, ext.ReplyTextString("No index chats found"), nil)

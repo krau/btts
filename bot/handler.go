@@ -56,14 +56,16 @@ func (b *Bot) RegisterHandlers(ctx context.Context) {
 	disp.AddHandler(handlers.NewCommand("lssub", ListSubHandler))
 	disp.AddHandler(handlers.NewCallbackQuery(filters.CallbackQuery.Prefix("search"), SearchCallbackHandler))
 	disp.AddHandler(handlers.NewCallbackQuery(filters.CallbackQuery.Prefix("filter"), FilterCallbackHandler))
+	disp.AddHandler(handlers.NewCallbackQuery(filters.CallbackQuery.Prefix("select"), SelectCallbackHandler))
 	disp.AddHandler(handlers.NewMessage(filters.Message.ChatType(filters.ChatTypeUser), SearchHandler))
 
 	_, err := b.Client.API().BotsSetBotCommands(ctx, &tg.BotsSetBotCommandsRequest{
 		Scope: &tg.BotCommandScopeDefault{},
 		Commands: []tg.BotCommand{
-			{Command: "start", Description: "Start the bot"},
-			{Command: "help", Description: "Help"},
-			{Command: "search", Description: "Search for a message"},
+			{Command: "search", Description: "搜索消息"},
+			{Command: "ls", Description: "列出已索引聊天"},
+			{Command: "start", Description: "开始使用"},
+			{Command: "help", Description: "帮助"},
 		},
 	})
 	if err != nil {
@@ -75,19 +77,18 @@ func (b *Bot) RegisterHandlers(ctx context.Context) {
 				Peer: peer,
 			},
 			Commands: []tg.BotCommand{
-				{Command: "ls", Description: "List all watched chats"},
-				{Command: "add", Description: "Add a message to the index"},
-				{Command: "del", Description: "Delete a message from the index"},
-				{Command: "pub", Description: "Publish a message to the index"},
-				{Command: "unpub", Description: "Unpublish a message from the index"},
-				{Command: "watch", Description: "Watch a chat"},
-				{Command: "unwatch", Description: "Unwatch a chat"},
-				{Command: "watchdel", Description: "Delete a watched chat delete event"},
-				{Command: "unwatchdel", Description: "Unwatch a chat delete event"},
-				{Command: "addsub", Description: "Add a sub bot"},
-				{Command: "delsub", Description: "Delete a sub bot"},
-				{Command: "lssub", Description: "List all sub bots"},
-				{Command: "dl", Description: "Download messages"},
+				{Command: "add", Description: "添加聊天到索引"},
+				{Command: "del", Description: "删除聊天索引"},
+				{Command: "pub", Description: "将一个聊天设为公开"},
+				{Command: "unpub", Description: "将一个聊天设为私有"},
+				{Command: "watch", Description: "监听一个聊天"},
+				{Command: "unwatch", Description: "取消监听一个聊天"},
+				{Command: "watchdel", Description: "监听一个聊天的删除事件"},
+				{Command: "unwatchdel", Description: "取消监听一个聊天的删除事件"},
+				{Command: "addsub", Description: "添加子 bot"},
+				{Command: "delsub", Description: "删除子 bot"},
+				{Command: "lssub", Description: "列出子 bot"},
+				{Command: "dl", Description: "下载消息"},
 			},
 		}); err != nil {
 			log.FromContext(ctx).Error("Failed to set bot commands", "error", err)

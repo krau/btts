@@ -62,6 +62,7 @@ func NewBot(ctx context.Context, userClient *userclient.UserClient, engine *engi
 			config.C.AppHash,
 			gotgproto.ClientTypeBot(config.C.BotToken),
 			&gotgproto.ClientOpts{
+				AutoFetchReply:   true,
 				Session:          sessionMaker.SqlSession(gormlite.Open("data/session_bot.db")),
 				DisableCopyright: true,
 				Middlewares:      middlewares.NewDefaultMiddlewares(ctx, 5*time.Minute),
