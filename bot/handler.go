@@ -77,6 +77,10 @@ func (b *Bot) RegisterHandlers(ctx context.Context) {
 				Peer: peer,
 			},
 			Commands: []tg.BotCommand{
+				{Command: "search", Description: "搜索消息"},
+				{Command: "ls", Description: "列出已索引聊天"},
+				{Command: "start", Description: "开始使用"},
+				{Command: "help", Description: "帮助"},
 				{Command: "add", Description: "添加聊天到索引"},
 				{Command: "del", Description: "删除聊天索引"},
 				{Command: "pub", Description: "将一个聊天设为公开"},

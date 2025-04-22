@@ -40,7 +40,6 @@ func ListHandler(ctx *ext.Context, update *ext.Update) error {
 		if hasPermission {
 			chatsStyling = append(chatsStyling, styling.Plain(fmt.Sprintf("Watching: %t , Public: %t , WatchDelete: %t\n\n", chat.Watching, chat.Public, !chat.NoDelete)))
 		}
-		chatsStyling = append(chatsStyling, styling.Plain("\n点击按钮选择一个聊天进行搜索"))
 		selectButtonRow = append(selectButtonRow, tg.KeyboardButtonRow{
 			Buttons: []tg.KeyboardButtonClass{
 				&tg.KeyboardButtonCallback{
@@ -55,6 +54,7 @@ func ListHandler(ctx *ext.Context, update *ext.Update) error {
 			},
 		})
 	}
+	chatsStyling = append(chatsStyling, styling.Plain("\n点击按钮选择一个聊天进行搜索"))
 	ctx.Reply(update, ext.ReplyTextStyledTextArray(chatsStyling), &ext.ReplyOpts{
 		Markup: &tg.ReplyInlineMarkup{
 			Rows: selectButtonRow,
