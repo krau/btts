@@ -22,7 +22,11 @@ func WatchHandler(ctx *ext.Context, u *ext.Update) error {
 
 	log := log.FromContext(ctx)
 
-	chatDB := &database.IndexChat{}
+	chatDB, err := database.GetIndexChat(ctx, u.EffectiveChat().GetID())
+	if err != nil {
+		log.Errorf("Failed to get chat: %v", err)
+		return dispatcher.SkipCurrentGroup
+	}
 	if c := u.GetChannel(); c != nil {
 		chatDB.ChatID = c.GetID()
 		chatDB.Title = c.Title
