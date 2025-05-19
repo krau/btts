@@ -46,6 +46,13 @@ func (b *Bot) Start(ctx context.Context) {
 	}
 }
 
+func (b *Bot) GetUsername() string {
+	if b.Client == nil {
+		return ""
+	}
+	return b.Client.Self.Username
+}
+
 func NewBot(ctx context.Context, userClient *userclient.UserClient, engine *engine.Engine) (*Bot, error) {
 	log := log.FromContext(ctx)
 	log.Debug("Initializing bot")

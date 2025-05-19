@@ -124,7 +124,7 @@ func BuildSearchReplyMarkup(ctx context.Context, currentPage int64, data types.S
 	}, nil
 }
 
-func BuildResultStyling(ctx context.Context, resp *types.MessageSearchResponse) []styling.StyledTextOption {
+func BuildResultStyling(ctx context.Context, resp *types.MessageSearchResponse, botUsername ...string) []styling.StyledTextOption {
 	var resultStyling []styling.StyledTextOption
 
 	resultStyling = append(resultStyling, styling.Plain(fmt.Sprintf("找到约 %d 条结果, 耗时 %dms\n", resp.EstimatedTotalHits, resp.ProcessingTimeMs)))
@@ -140,7 +140,7 @@ func BuildResultStyling(ctx context.Context, resp *types.MessageSearchResponse) 
 		}
 		senderInfo := func() string {
 			if hit.UserID == hit.ChatID {
-				// 频道消息
+				// 频道消息或私聊的对方
 				return chatDisplay
 			}
 			userDisplay := hit.Formatted.UserID
@@ -163,9 +163,14 @@ func BuildResultStyling(ctx context.Context, resp *types.MessageSearchResponse) 
 		resultStyling = append(resultStyling, styling.Bold(fmt.Sprintf("\n%s", senderInfo)))
 
 		timeStr := time.Unix(hit.Timestamp, 0).Format("06-01-02 15:04:05")
-		resultStyling = append(resultStyling, styling.Italic(fmt.Sprintf(" [%s]\n", timeStr)))
+		resultStyling = append(resultStyling, styling.Plain(fmt.Sprintf(" [%s]\n", timeStr)))
 
-		msgLink := fmt.Sprintf("https://t.me/c/%d/%d", hit.ChatID, hit.ID)
+		msgLink := func() string {
+			if chat.Type == int(database.ChatTypeChannel) || botUsername == nil {
+				return fmt.Sprintf("https://t.me/c/%d/%d", hit.ChatID, hit.ID)
+			}
+			return fmt.Sprintf("https://t.me/%s/?start=fav_%d_%d", botUsername[0], hit.ChatID, hit.ID)
+		}()
 		hitFormattedMsg := types.MessageTypeToEmoji[types.MessageType(hit.Type)] + " " + strings.ReplaceAll(hit.Formatted.Message, "\n", " ")
 		resultStyling = append(resultStyling, styling.TextURL(hitFormattedMsg, msgLink))
 	}
