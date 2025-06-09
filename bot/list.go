@@ -34,25 +34,29 @@ func ListHandler(ctx *ext.Context, update *ext.Update) error {
 	var chatsStyling []styling.StyledTextOption
 	chatsStyling = append(chatsStyling, styling.Plain(fmt.Sprintf("已添加 %d 个聊天\n\n", len(chats))))
 	selectButtonRow := make([]tg.KeyboardButtonRow, 0)
-	for _, chat := range chats {
+	buttons := make([]tg.KeyboardButtonClass, 0, 2)
+	for i, chat := range chats {
 		chatsStyling = append(chatsStyling, styling.Code(fmt.Sprintf("%d", chat.ChatID)))
 		chatsStyling = append(chatsStyling, styling.Plain(fmt.Sprintf(" - %s\n", chat.Title)))
 		if hasPermission {
 			chatsStyling = append(chatsStyling, styling.Plain(fmt.Sprintf("Watching: %t , Public: %t , WatchDelete: %t\n\n", chat.Watching, chat.Public, !chat.NoDelete)))
 		}
-		selectButtonRow = append(selectButtonRow, tg.KeyboardButtonRow{
-			Buttons: []tg.KeyboardButtonClass{
-				&tg.KeyboardButtonCallback{
-					Text: func() string {
-						if chat.Title != "" {
-							return strutil.Ellipsis(chat.Title, 10)
-						}
-						return strconv.Itoa(int(chat.ChatID))
-					}(),
-					Data: fmt.Appendf(nil, "select %d", chat.ChatID),
-				},
-			},
-		})
+		button := &tg.KeyboardButtonCallback{
+			Text: func() string {
+				if chat.Title != "" {
+					return strutil.Ellipsis(chat.Title, 10)
+				}
+				return strconv.Itoa(int(chat.ChatID))
+			}(),
+			Data: fmt.Appendf(nil, "select %d", chat.ChatID),
+		}
+		buttons = append(buttons, button)
+		if len(buttons) == 2 || i == len(chats)-1 {
+			selectButtonRow = append(selectButtonRow, tg.KeyboardButtonRow{
+				Buttons: buttons,
+			})
+			buttons = make([]tg.KeyboardButtonClass, 0, 2)
+		}
 	}
 	chatsStyling = append(chatsStyling, styling.Plain("\n点击按钮选择一个聊天进行搜索"))
 	ctx.Reply(update, ext.ReplyTextStyledTextArray(chatsStyling), &ext.ReplyOpts{
