@@ -10,6 +10,7 @@ import (
 	"github.com/celestix/gotgproto/dispatcher/handlers"
 	"github.com/celestix/gotgproto/dispatcher/handlers/filters"
 	"github.com/celestix/gotgproto/sessionMaker"
+	"github.com/celestix/gotgproto/types"
 	"github.com/charmbracelet/log"
 	"github.com/gotd/td/tg"
 	"github.com/krau/btts/config"
@@ -33,6 +34,18 @@ func (s *SubBot) Start() {
 	disp.AddHandler(handlers.NewCallbackQuery(filters.CallbackQuery.Prefix("search"), SearchCallbackHandler))
 	disp.AddHandler(handlers.NewCallbackQuery(filters.CallbackQuery.Prefix("filter"), FilterCallbackHandler))
 	disp.AddHandler(handlers.NewMessage(filters.Message.ChatType(filters.ChatTypeUser), SearchHandler))
+	disp.AddHandler(handlers.NewMessage(func(m *types.Message) bool {
+		if m == nil || m.ReplyToMessage == nil || m.ReplyToMessage.FromID == nil {
+			return false
+		}
+		peer := m.ReplyToMessage.FromID
+		switch p := peer.(type) {
+		case *tg.PeerUser:
+			return p.GetUserID() == s.ID
+		default:
+			return false
+		}
+	}, SearchHandler))
 }
 
 func (s *SubBot) Stop() {
@@ -43,9 +56,11 @@ func (s *SubBot) Stop() {
 
 var subBots = make(map[int64]*SubBot)
 
+type SubBotKey struct{}
+
 func NewSubBot(ctx context.Context, token string, chats []int64) (*SubBot, error) {
 	session := utils.MD5Hash(token)
-	ctx = context.WithValue(ctx, "subbot", session)
+	ctx = context.WithValue(ctx, SubBotKey{}, session)
 	log := log.FromContext(ctx)
 	log.Debugf("Initializing sub bot %s", session)
 	res := make(chan struct {
