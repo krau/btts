@@ -26,6 +26,11 @@ type AppConfig struct {
 			URL              string `toml:"url" mapstructure:"url"`
 		} `toml:"embedder" mapstructure:"embedder"`
 	} `toml:"engine" mapstructure:"engine"`
+	Api struct {
+		Enable bool   `toml:"enable" mapstructure:"enable"`
+		Addr   string `toml:"addr" mapstructure:"addr"`
+		Key    string `toml:"key" mapstructure:"key"`
+	}
 }
 
 var C AppConfig

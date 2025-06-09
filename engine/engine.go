@@ -20,11 +20,11 @@ type Engine struct {
 	SelfID int64
 }
 
-var EgineInstance *Engine
+var Instance *Engine
 
 func NewEngine(ctx context.Context, selfID int64) (*Engine, error) {
-	if EgineInstance != nil {
-		return EgineInstance, nil
+	if Instance != nil {
+		return Instance, nil
 	}
 	log.FromContext(ctx).Debug("Initializing MeiliSearch engine")
 	sm := meilisearch.New(config.C.Engine.Url, meilisearch.WithAPIKey(config.C.Engine.Key))
@@ -32,11 +32,11 @@ func NewEngine(ctx context.Context, selfID int64) (*Engine, error) {
 	if err != nil {
 		return nil, err
 	}
-	EgineInstance = &Engine{
+	Instance = &Engine{
 		Client: sm,
 		SelfID: selfID,
 	}
-	return EgineInstance, nil
+	return Instance, nil
 }
 
 func (e *Engine) DeleteDocuments(ctx context.Context, chatID int64, ids []int) error {

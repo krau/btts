@@ -20,13 +20,13 @@ const (
 )
 
 type IndexChat struct {
-	ChatID   int64 `gorm:"primaryKey"`
-	Title    string
-	Username string
-	Type     int
-	Watching bool `gorm:"default:true"`
-	NoDelete bool
-	Public   bool `gorm:"default:false"`
+	ChatID   int64  `gorm:"primaryKey" json:"chat_id"`
+	Title    string `json:"title"`
+	Username string `json:"username"`
+	Type     int    `json:"type"`
+	Watching bool   `gorm:"default:true" json:"watching"`
+	NoDelete bool   `json:"no_delete"`
+	Public   bool   `gorm:"default:false" json:"public"`
 }
 
 func (ic *IndexChat) AfterSave(tx *gorm.DB) error {

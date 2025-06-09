@@ -9,7 +9,9 @@ import (
 	_ "github.com/ncruces/go-sqlite3/embed"
 
 	"github.com/charmbracelet/log"
+	"github.com/krau/btts/api"
 	"github.com/krau/btts/bot"
+	"github.com/krau/btts/config"
 	"github.com/krau/btts/database"
 	"github.com/krau/btts/engine"
 	"github.com/krau/btts/userclient"
@@ -52,6 +54,10 @@ func run() {
 	if err != nil {
 		log.Errorf("Failed to create bot: %v", err)
 		return
+	}
+	if config.C.Api.Enable {
+		api.Serve(config.C.Api.Addr)
+		log.Infof("API server started at %s", config.C.Api.Addr)
 	}
 	bot.Start(ctx)
 }
