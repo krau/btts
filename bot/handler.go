@@ -12,6 +12,7 @@ import (
 	"github.com/celestix/gotgproto/dispatcher/handlers"
 	"github.com/celestix/gotgproto/dispatcher/handlers/filters"
 	"github.com/celestix/gotgproto/ext"
+	"github.com/celestix/gotgproto/types"
 )
 
 func CheckPermission(ctx *ext.Context, update *ext.Update) bool {
@@ -58,6 +59,18 @@ func (b *Bot) RegisterHandlers(ctx context.Context) {
 	disp.AddHandler(handlers.NewCallbackQuery(filters.CallbackQuery.Prefix("filter"), FilterCallbackHandler))
 	disp.AddHandler(handlers.NewCallbackQuery(filters.CallbackQuery.Prefix("select"), SelectCallbackHandler))
 	disp.AddHandler(handlers.NewMessage(filters.Message.ChatType(filters.ChatTypeUser), SearchHandler))
+	disp.AddHandler(handlers.NewMessage(func(m *types.Message) bool {
+		if m == nil || m.ReplyToMessage == nil || m.ReplyToMessage.FromID == nil {
+			return false
+		}
+		peer := m.ReplyToMessage.FromID
+		switch p := peer.(type) {
+		case *tg.PeerUser:
+			return p.GetUserID() == b.Client.Self.ID
+		default:
+			return false
+		}
+	}, SearchHandler))
 
 	_, err := b.Client.API().BotsSetBotCommands(ctx, &tg.BotsSetBotCommandsRequest{
 		Scope: &tg.BotCommandScopeDefault{},

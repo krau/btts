@@ -41,7 +41,7 @@ func (s *SubBot) Start() {
 		peer := m.ReplyToMessage.FromID
 		switch p := peer.(type) {
 		case *tg.PeerUser:
-			return p.GetUserID() == s.ID
+			return p.GetUserID() == s.Client.Self.ID
 		default:
 			return false
 		}
