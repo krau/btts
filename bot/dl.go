@@ -76,7 +76,7 @@ func DownloadHandler(ctx *ext.Context, update *ext.Update) error {
 			return dispatcher.EndGroups
 		}
 
-		msgClass := make([]tg.MessageClass, 0)
+		var msgClass []tg.MessageClass
 		switch msgsv := msgs.(type) {
 		case *tg.MessagesMessages:
 			msgClass = msgsv.GetMessages()
