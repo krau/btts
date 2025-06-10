@@ -1,6 +1,10 @@
 package api
 
 import (
+	"strconv"
+	"strings"
+
+	"github.com/duke-git/lancet/v2/slice"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/keyauth"
@@ -63,11 +67,32 @@ func Serve(addr string) {
 		}
 		offset := c.QueryInt("offset")
 		limit := c.QueryInt("limit", 10)
+
 		req := types.SearchRequest{
 			ChatID: int64(chatID),
 			Query:  query,
 			Offset: int64(offset),
 			Limit:  int64(limit),
+		}
+		if users := c.Query("users"); users != "" {
+			userIDs := slice.Compact(slice.Map(strings.Split(users, ","), func(i int, userId string) int64 {
+				userID, err := strconv.ParseInt(userId, 10, 64)
+				if err != nil {
+					return 0
+				}
+				return userID
+			}))
+			if len(userIDs) > 0 {
+				req.UserFilters = userIDs
+			}
+		}
+		if msgTypeStr := c.Query("types"); msgTypeStr != "" {
+			msgTypes := slice.Compact(slice.Map(strings.Split(msgTypeStr, ","), func(i int, msgType string) types.MessageType {
+				return types.MessageTypeFromString[msgType]
+			}))
+			if len(msgTypes) > 0 {
+				req.TypeFilters = msgTypes
+			}
 		}
 		results, err := engine.Instance.Search(c.Context(), req)
 		if err != nil {

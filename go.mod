@@ -9,6 +9,7 @@ require (
 	github.com/charmbracelet/log v0.4.1
 	github.com/dgraph-io/ristretto/v2 v2.2.0
 	github.com/go-faster/errors v0.7.1
+	github.com/gofiber/fiber/v2 v2.52.8
 	github.com/gotd/contrib v0.21.0
 	github.com/gotd/td v0.122.0
 	github.com/meilisearch/meilisearch-go v0.31.0
@@ -41,7 +42,6 @@ require (
 	github.com/glebarez/sqlite v1.11.0 // indirect
 	github.com/go-logfmt/logfmt v0.6.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.2.1 // indirect
-	github.com/gofiber/fiber/v2 v2.52.8 // indirect
 	github.com/golang-jwt/jwt/v4 v4.5.2 // indirect
 	github.com/google/go-github/v30 v30.1.0 // indirect
 	github.com/google/go-querystring v1.0.0 // indirect

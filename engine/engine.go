@@ -76,8 +76,8 @@ func (e *Engine) Search(ctx context.Context, req types.SearchRequest) (*types.Me
 			"message",
 		},
 	}
-	if len(req.TypeFilters) > 0 {
-		request.Filter = fmt.Sprintf("type IN [%s]", slice.Join(req.TypeFilters, ","))
+	if expr := req.FilterExpression(); expr != "" {
+		request.Filter = expr
 	}
 	log.FromContext(ctx).Debug("Searching", "index", indexName, "query", req.Query, "offset", offset, "filter", request.Filter)
 	resp, err := e.Client.Index(indexName).SearchWithContext(ctx, req.Query, request)
@@ -125,8 +125,8 @@ func (e *Engine) multiSearch(ctx context.Context, req types.SearchRequest) (*typ
 				"message",
 			},
 		}
-		if len(req.TypeFilters) > 0 {
-			queryRequest.Filter = fmt.Sprintf("type IN [%s]", slice.Join(req.TypeFilters, ","))
+		if expr := req.FilterExpression(); expr != "" {
+			queryRequest.Filter = expr
 		}
 		multiQueries[i] = queryRequest
 	}
