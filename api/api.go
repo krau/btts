@@ -8,6 +8,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/keyauth"
+	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/krau/btts/config"
 	"github.com/krau/btts/database"
 	"github.com/krau/btts/engine"
@@ -29,6 +30,9 @@ func validateApiKey(ctx *fiber.Ctx, key string) (bool, error) {
 
 func Serve(addr string) {
 	app := fiber.New()
+	loggerCfg := logger.ConfigDefault
+	loggerCfg.Format = "${time} | ${status} | ${latency} | ${ip} | ${method} | ${path} | ${queryParams} | ${error}\n"
+	app.Use(logger.New(loggerCfg))
 	app.Use(cors.New())
 	if config.C.Api.Key != "" {
 		app.Use(keyauth.New(keyauth.Config{
