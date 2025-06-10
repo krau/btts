@@ -174,6 +174,7 @@ func (e *Engine) CreateIndex(ctx context.Context, chatID int64) error {
 		FilterableAttributes: []string{
 			"user_id",
 			"type",
+			"timestamp",
 		},
 		SortableAttributes: []string{
 			"timestamp",
@@ -221,6 +222,27 @@ func (e *Engine) CreateIndex(ctx context.Context, chatID int64) error {
 			config.C.Engine.Embedder.Name: embedder,
 		})
 	}
+	return err
+}
+
+func (e *Engine) UpdateIndexSettings(ctx context.Context, chatID int64) error {
+	indexName := fmt.Sprintf("btts_%d", chatID)
+	index := e.Client.Index(indexName)
+	_, err := index.UpdateSettingsWithContext(ctx, &meilisearch.Settings{
+		FilterableAttributes: []string{
+			"user_id",
+			"type",
+			"timestamp",
+		},
+		SortableAttributes: []string{
+			"timestamp",
+			"id",
+		},
+		SearchableAttributes: []string{
+			"message",
+			"user_id",
+		},
+	})
 	return err
 }
 

@@ -77,6 +77,7 @@ func NewSubBot(ctx context.Context, token string, chats []int64) (*SubBot, error
 				DisableCopyright: true,
 				Context:          ctx,
 				Middlewares:      middlewares.NewDefaultMiddlewares(ctx, 5*time.Minute),
+				AutoFetchReply:   true,
 			},
 		)
 		if err != nil {
