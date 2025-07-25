@@ -1,0 +1,433 @@
+basePath: /api
+definitions:
+  api.SearchOnChatByPostRequest:
+    properties:
+      limit:
+        default: 10
+        description: 限制数量，用于分页
+        example: 10
+        type: integer
+      offset:
+        default: 0
+        description: 偏移量，用于分页
+        example: 0
+        type: integer
+      query:
+        description: 搜索查询字符串
+        example: search text
+        type: string
+      types:
+        description: 消息类型过滤列表，可选值：text,photo,video,document,voice,audio,poll,story
+        example:
+        - text
+        - photo
+        items:
+          type: string
+        type: array
+      users:
+        description: 用户ID过滤列表，可选
+        example:
+        - 123456
+        - 789012
+        items:
+          type: integer
+        type: array
+    required:
+    - query
+    type: object
+  api.SearchOnMultiChatByPostRequest:
+    properties:
+      chat_ids:
+        description: 聊天ID列表，如果为空则搜索所有聊天
+        example:
+        - 777000
+        - 114514
+        items:
+          type: integer
+        type: array
+      limit:
+        default: 10
+        description: 限制数量，用于分页
+        example: 10
+        type: integer
+      offset:
+        default: 0
+        description: 偏移量，用于分页
+        example: 0
+        type: integer
+      query:
+        description: 搜索查询字符串
+        example: search text
+        type: string
+      types:
+        description: 消息类型过滤列表，可选值：text,photo,video,document,voice,audio,poll,story
+        example:
+        - text
+        - photo
+        items:
+          type: string
+        type: array
+      users:
+        description: 用户ID过滤列表，可选
+        example:
+        - 123456
+        - 789012
+        items:
+          type: integer
+        type: array
+    required:
+    - query
+    type: object
+  database.IndexChat:
+    properties:
+      chat_id:
+        type: integer
+      no_delete:
+        type: boolean
+      public:
+        type: boolean
+      title:
+        type: string
+      type:
+        type: integer
+      username:
+        type: string
+      watching:
+        type: boolean
+    type: object
+  types.MessageSearchResponse:
+    properties:
+      estimatedTotalHits:
+        type: integer
+      hits:
+        items:
+          $ref: '#/definitions/types.SearchHit'
+        type: array
+      limit:
+        type: integer
+      offset:
+        type: integer
+      processingTimeMs:
+        type: integer
+      raw: {}
+      semanticHitCount:
+        type: integer
+    type: object
+  types.SearchHit:
+    properties:
+      _formatted:
+        properties:
+          chat_id:
+            type: string
+          id:
+            type: string
+          message:
+            type: string
+          timestamp:
+            type: string
+          type:
+            type: string
+          user_id:
+            type: string
+        type: object
+      chat_id:
+        type: integer
+      id:
+        description: Telegram MessageID
+        type: integer
+      message:
+        description: The original text of the message
+        type: string
+      timestamp:
+        type: integer
+      type:
+        type: integer
+      user_id:
+        description: The ID of the user who sent the message
+        type: integer
+    type: object
+info:
+  contact: {}
+  description: Better Telegram Search API
+  title: BTTS API
+  version: "1.0"
+paths:
+  /index/{chat_id}:
+    get:
+      consumes:
+      - application/json
+      description: 根据聊天ID获取该聊天的索引详细信息
+      parameters:
+      - description: 聊天ID
+        in: path
+        name: chat_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 成功响应示例
+          schema:
+            properties:
+              index:
+                $ref: '#/definitions/database.IndexChat'
+              status:
+                type: string
+            type: object
+        "400":
+          description: 聊天ID是必需的
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: 未授权
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: 未找到指定聊天的索引
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: 服务器内部错误
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: 获取指定聊天的索引信息
+      tags:
+      - Chat
+  /index/{chat_id}/search:
+    get:
+      consumes:
+      - application/json
+      description: 使用GET方法在指定聊天中搜索消息，支持分页和过滤
+      parameters:
+      - description: 聊天ID
+        in: path
+        name: chat_id
+        required: true
+        type: integer
+      - description: 搜索查询字符串
+        in: query
+        name: q
+        required: true
+        type: string
+      - default: 0
+        description: 偏移量，默认为0
+        in: query
+        name: offset
+        type: integer
+      - default: 10
+        description: 限制数量，默认为10
+        in: query
+        name: limit
+        type: integer
+      - description: 用户ID列表，逗号分隔
+        example: '"123456,789012"'
+        in: query
+        name: users
+        type: string
+      - description: 消息类型列表，逗号分隔
+        enum:
+        - text
+        - photo
+        - video
+        - document
+        - voice
+        - audio
+        - poll
+        - story
+        example: '"text,photo,video"'
+        in: query
+        name: types
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 成功响应示例
+          schema:
+            properties:
+              results:
+                $ref: '#/definitions/types.MessageSearchResponse'
+              status:
+                type: string
+            type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: 未授权
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: 服务器内部错误
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: 在指定聊天中搜索消息 (GET方法)
+      tags:
+      - Search
+    post:
+      consumes:
+      - application/json
+      description: 使用POST方法在指定聊天中搜索消息，支持更复杂的搜索参数
+      parameters:
+      - description: 聊天ID
+        in: path
+        name: chat_id
+        required: true
+        type: integer
+      - description: 搜索请求参数
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.SearchOnChatByPostRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 成功响应示例
+          schema:
+            properties:
+              results:
+                $ref: '#/definitions/types.MessageSearchResponse'
+              status:
+                type: string
+            type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: 未授权
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: 服务器内部错误
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: 在指定聊天中搜索消息 (POST方法)
+      tags:
+      - Search
+  /index/multi-search:
+    post:
+      consumes:
+      - application/json
+      description: 在指定的多个聊天中搜索消息，如果未指定聊天ID则搜索所有聊天
+      parameters:
+      - description: 多聊天搜索请求参数
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.SearchOnMultiChatByPostRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 成功响应示例
+          schema:
+            properties:
+              results:
+                $ref: '#/definitions/types.MessageSearchResponse'
+              status:
+                type: string
+            type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: 未授权
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: 服务器内部错误
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: 在多个聊天中搜索消息
+      tags:
+      - Search
+  /indexed:
+    get:
+      consumes:
+      - application/json
+      description: 获取系统中所有已索引的聊天列表
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 成功响应示例
+          schema:
+            properties:
+              chats:
+                items:
+                  $ref: '#/definitions/database.IndexChat'
+                type: array
+              status:
+                type: string
+            type: object
+        "401":
+          description: 未授权
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: 未找到已索引的聊天
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: 服务器内部错误
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: 获取所有已索引的聊天
+      tags:
+      - Chat
+securityDefinitions:
+  ApiKeyAuth:
+    description: Type "Bearer" followed by a space and JWT token.
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

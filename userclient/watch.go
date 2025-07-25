@@ -2,6 +2,7 @@ package userclient
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/celestix/gotgproto/dispatcher"
 	"github.com/celestix/gotgproto/ext"
@@ -37,7 +38,7 @@ func WatchHandler(ctx *ext.Context, u *ext.Update) error {
 		return dispatcher.SkipCurrentGroup
 	} else if c := u.GetUserChat(); c != nil {
 		chatDB.ChatID = c.GetID()
-		chatDB.Title = fmt.Sprintf("%s %s", c.FirstName, c.LastName)
+		chatDB.Title = strings.TrimSpace(fmt.Sprintf("%s %s", c.FirstName, c.LastName))
 		chatDB.Username = c.Username
 		chatDB.Type = int(database.ChatTypePrivate)
 	} else {

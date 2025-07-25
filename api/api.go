@@ -6,6 +6,8 @@ import (
 
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/swagger"
+	_ "github.com/krau/btts/api/docs"
 
 	"github.com/bytedance/sonic"
 	"github.com/gofiber/fiber/v2/middleware/cors"
@@ -32,6 +34,14 @@ func validateApiKey(ctx *fiber.Ctx, key string) (bool, error) {
 	return true, nil
 }
 
+// @title			BTTS API
+// @version		1.0
+// @description	Better Telegram Search API
+// @BasePath		/api
+// @securityDefinitions.apikey ApiKeyAuth
+// @in header
+// @name Authorization
+// @description Type "Bearer" followed by a space and JWT token.
 func Serve(addr string) {
 	app := fiber.New(
 		fiber.Config{
@@ -43,15 +53,15 @@ func Serve(addr string) {
 	loggerCfg.Format = "${time} | ${status} | ${latency} | ${ip} | ${method} | ${path} | ${queryParams} | ${error}\n"
 	app.Use(logger.New(loggerCfg))
 	app.Use(cors.New())
+	app.Get("/docs/*", swagger.HandlerDefault)
+	rg := app.Group("/api")
 	if config.C.Api.Key != "" {
-		app.Use(keyauth.New(keyauth.Config{
+		rg.Use(keyauth.New(keyauth.Config{
 			Validator: validateApiKey,
 		}))
 		sum := sha256.Sum256([]byte(config.C.Api.Key))
 		copy(storedKeyHash, sum[:])
 	}
-
-	rg := app.Group("/api")
 	rg.Get("/indexed", GetIndexed)
 	rg.Get("/index/:chat_id<int>", GetIndexInfo)
 	rg.Post("/index/multi-search", SearchOnMultiChatByPost)

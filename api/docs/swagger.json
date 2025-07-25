@@ -1,0 +1,646 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "description": "Better Telegram Search API",
+        "title": "BTTS API",
+        "contact": {},
+        "version": "1.0"
+    },
+    "basePath": "/api",
+    "paths": {
+        "/index/multi-search": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "在指定的多个聊天中搜索消息，如果未指定聊天ID则搜索所有聊天",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Search"
+                ],
+                "summary": "在多个聊天中搜索消息",
+                "parameters": [
+                    {
+                        "description": "多聊天搜索请求参数",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.SearchOnMultiChatByPostRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功响应示例",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "results": {
+                                    "$ref": "#/definitions/types.MessageSearchResponse"
+                                },
+                                "status": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "未授权",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/index/{chat_id}": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "根据聊天ID获取该聊天的索引详细信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chat"
+                ],
+                "summary": "获取指定聊天的索引信息",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "聊天ID",
+                        "name": "chat_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功响应示例",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "index": {
+                                    "$ref": "#/definitions/database.IndexChat"
+                                },
+                                "status": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "聊天ID是必需的",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "未授权",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "未找到指定聊天的索引",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/index/{chat_id}/search": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "使用GET方法在指定聊天中搜索消息，支持分页和过滤",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Search"
+                ],
+                "summary": "在指定聊天中搜索消息 (GET方法)",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "聊天ID",
+                        "name": "chat_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "搜索查询字符串",
+                        "name": "q",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "default": 0,
+                        "description": "偏移量，默认为0",
+                        "name": "offset",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "限制数量，默认为10",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"123456,789012\"",
+                        "description": "用户ID列表，逗号分隔",
+                        "name": "users",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "text",
+                            "photo",
+                            "video",
+                            "document",
+                            "voice",
+                            "audio",
+                            "poll",
+                            "story"
+                        ],
+                        "type": "string",
+                        "example": "\"text,photo,video\"",
+                        "description": "消息类型列表，逗号分隔",
+                        "name": "types",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功响应示例",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "results": {
+                                    "$ref": "#/definitions/types.MessageSearchResponse"
+                                },
+                                "status": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "未授权",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "使用POST方法在指定聊天中搜索消息，支持更复杂的搜索参数",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Search"
+                ],
+                "summary": "在指定聊天中搜索消息 (POST方法)",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "聊天ID",
+                        "name": "chat_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "搜索请求参数",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.SearchOnChatByPostRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功响应示例",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "results": {
+                                    "$ref": "#/definitions/types.MessageSearchResponse"
+                                },
+                                "status": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "未授权",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/indexed": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "获取系统中所有已索引的聊天列表",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chat"
+                ],
+                "summary": "获取所有已索引的聊天",
+                "responses": {
+                    "200": {
+                        "description": "成功响应示例",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "chats": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/definitions/database.IndexChat"
+                                    }
+                                },
+                                "status": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "未授权",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "未找到已索引的聊天",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "api.SearchOnChatByPostRequest": {
+            "type": "object",
+            "required": [
+                "query"
+            ],
+            "properties": {
+                "limit": {
+                    "description": "限制数量，用于分页",
+                    "type": "integer",
+                    "default": 10,
+                    "example": 10
+                },
+                "offset": {
+                    "description": "偏移量，用于分页",
+                    "type": "integer",
+                    "default": 0,
+                    "example": 0
+                },
+                "query": {
+                    "description": "搜索查询字符串",
+                    "type": "string",
+                    "example": "search text"
+                },
+                "types": {
+                    "description": "消息类型过滤列表，可选值：text,photo,video,document,voice,audio,poll,story",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "text",
+                        "photo"
+                    ]
+                },
+                "users": {
+                    "description": "用户ID过滤列表，可选",
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    },
+                    "example": [
+                        123456,
+                        789012
+                    ]
+                }
+            }
+        },
+        "api.SearchOnMultiChatByPostRequest": {
+            "type": "object",
+            "required": [
+                "query"
+            ],
+            "properties": {
+                "chat_ids": {
+                    "description": "聊天ID列表，如果为空则搜索所有聊天",
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    },
+                    "example": [
+                        777000,
+                        114514
+                    ]
+                },
+                "limit": {
+                    "description": "限制数量，用于分页",
+                    "type": "integer",
+                    "default": 10,
+                    "example": 10
+                },
+                "offset": {
+                    "description": "偏移量，用于分页",
+                    "type": "integer",
+                    "default": 0,
+                    "example": 0
+                },
+                "query": {
+                    "description": "搜索查询字符串",
+                    "type": "string",
+                    "example": "search text"
+                },
+                "types": {
+                    "description": "消息类型过滤列表，可选值：text,photo,video,document,voice,audio,poll,story",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "text",
+                        "photo"
+                    ]
+                },
+                "users": {
+                    "description": "用户ID过滤列表，可选",
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    },
+                    "example": [
+                        123456,
+                        789012
+                    ]
+                }
+            }
+        },
+        "database.IndexChat": {
+            "type": "object",
+            "properties": {
+                "chat_id": {
+                    "type": "integer"
+                },
+                "no_delete": {
+                    "type": "boolean"
+                },
+                "public": {
+                    "type": "boolean"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "integer"
+                },
+                "username": {
+                    "type": "string"
+                },
+                "watching": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "types.MessageSearchResponse": {
+            "type": "object",
+            "properties": {
+                "estimatedTotalHits": {
+                    "type": "integer"
+                },
+                "hits": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/types.SearchHit"
+                    }
+                },
+                "limit": {
+                    "type": "integer"
+                },
+                "offset": {
+                    "type": "integer"
+                },
+                "processingTimeMs": {
+                    "type": "integer"
+                },
+                "raw": {},
+                "semanticHitCount": {
+                    "type": "integer"
+                }
+            }
+        },
+        "types.SearchHit": {
+            "type": "object",
+            "properties": {
+                "_formatted": {
+                    "type": "object",
+                    "properties": {
+                        "chat_id": {
+                            "type": "string"
+                        },
+                        "id": {
+                            "type": "string"
+                        },
+                        "message": {
+                            "type": "string"
+                        },
+                        "timestamp": {
+                            "type": "string"
+                        },
+                        "type": {
+                            "type": "string"
+                        },
+                        "user_id": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "chat_id": {
+                    "type": "integer"
+                },
+                "id": {
+                    "description": "Telegram MessageID",
+                    "type": "integer"
+                },
+                "message": {
+                    "description": "The original text of the message",
+                    "type": "string"
+                },
+                "timestamp": {
+                    "type": "integer"
+                },
+                "type": {
+                    "type": "integer"
+                },
+                "user_id": {
+                    "description": "The ID of the user who sent the message",
+                    "type": "integer"
+                }
+            }
+        }
+    },
+    "securityDefinitions": {
+        "ApiKeyAuth": {
+            "description": "Type \"Bearer\" followed by a space and JWT token.",
+            "type": "apiKey",
+            "name": "Authorization",
+            "in": "header"
+        }
+    }
+}

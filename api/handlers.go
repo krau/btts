@@ -13,6 +13,19 @@ import (
 	"gorm.io/gorm"
 )
 
+// GetIndexed 获取所有已索引的聊天
+// @Summary 获取所有已索引的聊天
+// @Description 获取系统中所有已索引的聊天列表
+// @Tags Chat
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Success 200 {object} map[string]interface{} "成功响应"
+// @Success 200 {object} object{status=string,chats=[]database.IndexChat} "成功响应示例"
+// @Failure 401 {object} map[string]string "未授权"
+// @Failure 404 {object} map[string]string "未找到已索引的聊天"
+// @Failure 500 {object} map[string]string "服务器内部错误"
+// @Router /indexed [get]
 func GetIndexed(c *fiber.Ctx) error {
 	chats, err := database.GetAllIndexChats(c.Context())
 	if err != nil {
@@ -27,6 +40,21 @@ func GetIndexed(c *fiber.Ctx) error {
 	})
 }
 
+// GetIndexInfo 获取指定聊天的索引信息
+// @Summary 获取指定聊天的索引信息
+// @Description 根据聊天ID获取该聊天的索引详细信息
+// @Tags Chat
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param chat_id path int true "聊天ID"
+// @Success 200 {object} map[string]interface{} "成功响应"
+// @Success 200 {object} object{status=string,index=database.IndexChat} "成功响应示例"
+// @Failure 400 {object} map[string]string "聊天ID是必需的"
+// @Failure 401 {object} map[string]string "未授权"
+// @Failure 404 {object} map[string]string "未找到指定聊天的索引"
+// @Failure 500 {object} map[string]string "服务器内部错误"
+// @Router /index/{chat_id} [get]
 func GetIndexInfo(c *fiber.Ctx) error {
 	chatID, err := c.ParamsInt("chat_id")
 	if err != nil {
@@ -51,6 +79,25 @@ func GetIndexInfo(c *fiber.Ctx) error {
 	})
 }
 
+// SearchOnChatByGet 使用GET方法在指定聊天中搜索消息
+// @Summary 在指定聊天中搜索消息 (GET方法)
+// @Description 使用GET方法在指定聊天中搜索消息，支持分页和过滤
+// @Tags Search
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param chat_id path int true "聊天ID"
+// @Param q query string true "搜索查询字符串"
+// @Param offset query int false "偏移量，默认为0" default(0)
+// @Param limit query int false "限制数量，默认为10" default(10)
+// @Param users query string false "用户ID列表，逗号分隔" example("123456,789012")
+// @Param types query string false "消息类型列表，逗号分隔" example("text,photo,video") Enums(text,photo,video,document,voice,audio,poll,story)
+// @Success 200 {object} map[string]interface{} "成功响应"
+// @Success 200 {object} object{status=string,results=types.MessageSearchResponse} "成功响应示例"
+// @Failure 400 {object} map[string]string "请求参数错误"
+// @Failure 401 {object} map[string]string "未授权"
+// @Failure 500 {object} map[string]string "服务器内部错误"
+// @Router /index/{chat_id}/search [get]
 func SearchOnChatByGet(c *fiber.Ctx) error {
 	chatID, err := c.ParamsInt("chat_id")
 	if err != nil {
@@ -99,6 +146,21 @@ func SearchOnChatByGet(c *fiber.Ctx) error {
 	})
 }
 
+// SearchOnChatByPost 使用POST方法在指定聊天中搜索消息
+// @Summary 在指定聊天中搜索消息 (POST方法)
+// @Description 使用POST方法在指定聊天中搜索消息，支持更复杂的搜索参数
+// @Tags Search
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param chat_id path int true "聊天ID"
+// @Param request body SearchOnChatByPostRequest true "搜索请求参数"
+// @Success 200 {object} map[string]interface{} "成功响应"
+// @Success 200 {object} object{status=string,results=types.MessageSearchResponse} "成功响应示例"
+// @Failure 400 {object} map[string]string "请求参数错误"
+// @Failure 401 {object} map[string]string "未授权"
+// @Failure 500 {object} map[string]string "服务器内部错误"
+// @Router /index/{chat_id}/search [post]
 func SearchOnChatByPost(c *fiber.Ctx) error {
 	chatID, err := c.ParamsInt("chat_id")
 	if err != nil {
@@ -137,6 +199,20 @@ func SearchOnChatByPost(c *fiber.Ctx) error {
 
 }
 
+// SearchOnMultiChatByPost 在多个聊天中搜索消息
+// @Summary 在多个聊天中搜索消息
+// @Description 在指定的多个聊天中搜索消息，如果未指定聊天ID则搜索所有聊天
+// @Tags Search
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param request body SearchOnMultiChatByPostRequest true "多聊天搜索请求参数"
+// @Success 200 {object} map[string]interface{} "成功响应"
+// @Success 200 {object} object{status=string,results=types.MessageSearchResponse} "成功响应示例"
+// @Failure 400 {object} map[string]string "请求参数错误"
+// @Failure 401 {object} map[string]string "未授权"
+// @Failure 500 {object} map[string]string "服务器内部错误"
+// @Router /index/multi-search [post]
 func SearchOnMultiChatByPost(c *fiber.Ctx) error {
 	request := new(SearchOnMultiChatByPostRequest)
 	if err := c.BodyParser(request); err != nil {
