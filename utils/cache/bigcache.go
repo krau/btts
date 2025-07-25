@@ -2,6 +2,7 @@ package cache
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/charmbracelet/log"
 	"github.com/dgraph-io/ristretto/v2"
@@ -11,9 +12,12 @@ var cache *ristretto.Cache[string, any]
 
 func init() {
 	c, err := ristretto.NewCache(&ristretto.Config[string, any]{
-		NumCounters: 1e7, // 10M keys
-		MaxCost:     1e8, // 100M values
+		NumCounters: 1e5,
+		MaxCost:     1e6,
 		BufferItems: 64,
+		OnReject: func(item *ristretto.Item[any]) {
+			log.Warnf("Cache item rejected: key=%d, value=%v", item.Key, item.Value)
+		},
 	})
 	if err != nil {
 		log.Fatalf("Failed to create cache: %v", err)
@@ -22,7 +26,7 @@ func init() {
 }
 
 func Set(key string, value any) error {
-	ok := cache.Set(key, value, 1)
+	ok := cache.SetWithTTL(key, value, 0, 86400*time.Second)
 	if !ok {
 		return fmt.Errorf("failed to set value in cache")
 	}
