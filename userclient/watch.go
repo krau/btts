@@ -10,7 +10,6 @@ import (
 	"github.com/gotd/td/tg"
 	"github.com/krau/btts/database"
 	"github.com/krau/btts/engine"
-	"github.com/krau/btts/utils"
 )
 
 func WatchHandler(ctx *ext.Context, u *ext.Update) error {
@@ -23,7 +22,7 @@ func WatchHandler(ctx *ext.Context, u *ext.Update) error {
 
 	log := log.FromContext(ctx)
 
-	chatDB, err := database.GetIndexChat(ctx, utils.GetUpdateChatID(u))
+	chatDB, err := database.GetIndexChat(ctx, u.EffectiveChat().GetID())
 	if err != nil {
 		log.Errorf("Failed to get chat: %v", err)
 		return dispatcher.SkipCurrentGroup
@@ -42,7 +41,6 @@ func WatchHandler(ctx *ext.Context, u *ext.Update) error {
 		chatDB.Username = c.Username
 		chatDB.Type = int(database.ChatTypePrivate)
 	} else {
-		// [TODO] handle short update
 		log.Error("Chat is nil")
 		return dispatcher.SkipCurrentGroup
 	}

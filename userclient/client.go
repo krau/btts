@@ -31,6 +31,7 @@ type UserClient struct {
 	TClient           *gotgproto.Client
 	logger            *zap.Logger
 	GlobalIgnoreUsers []int64
+	ectx              *ext.Context // created by TClient.CreateContext()
 	mu                sync.Mutex
 }
 
@@ -50,6 +51,9 @@ func (u *UserClient) StartWatch(ctx context.Context) {
 	}), 1)
 	disp.AddHandlerToGroup(handlers.NewAnyUpdate(DeleteHandler), 1)
 	disp.AddHandlerToGroup(handlers.NewMessage(filters.Message.All, func(ctx *ext.Context, u *ext.Update) error {
+		if u.Entities == nil || u.Entities.Short {
+			u = ext.GetNewUpdate(ctx, ctx.Raw, ctx.Self.ID, ctx.PeerStorage, u.Entities, u.UpdateClass)
+		}
 		chatID := u.EffectiveChat().GetID()
 		if chatID == 0 {
 			if u.Entities == nil || !u.Entities.Short {
@@ -151,6 +155,7 @@ func NewUserClient(ctx context.Context) (*UserClient, error) {
 			TClient:           tclient,
 			logger:            tclientLog,
 			GlobalIgnoreUsers: make([]int64, 0),
+			ectx:              tclient.CreateContext(),
 		}, nil})
 	}()
 

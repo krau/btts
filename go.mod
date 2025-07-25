@@ -11,7 +11,7 @@ require (
 	github.com/go-faster/errors v0.7.1
 	github.com/gofiber/fiber/v2 v2.52.9
 	github.com/gotd/contrib v0.21.0
-	github.com/gotd/td v0.125.0
+	github.com/gotd/td v0.127.0
 	github.com/meilisearch/meilisearch-go v0.32.0
 	github.com/ncruces/go-sqlite3 v0.26.1
 	github.com/rs/xid v1.6.0
@@ -21,7 +21,7 @@ require (
 )
 
 require (
-	github.com/AnimeKaizoku/cacher v1.0.2 // indirect
+	github.com/AnimeKaizoku/cacher v1.0.3-0.20250508132714-ddc7471efeef // indirect
 	github.com/andybalholm/brotli v1.2.0 // indirect
 	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
@@ -118,9 +118,9 @@ require (
 	github.com/segmentio/asm v1.2.0 // indirect
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/viper v1.20.1
-	go.opentelemetry.io/otel v1.36.0 // indirect
-	go.opentelemetry.io/otel/metric v1.36.0 // indirect
-	go.opentelemetry.io/otel/trace v1.36.0 // indirect
+	go.opentelemetry.io/otel v1.37.0 // indirect
+	go.opentelemetry.io/otel/metric v1.37.0 // indirect
+	go.opentelemetry.io/otel/trace v1.37.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/crypto v0.40.0 // indirect
@@ -134,3 +134,5 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	rsc.io/qr v0.2.0 // indirect
 )
+
+replace github.com/celestix/gotgproto => github.com/krau/gotgproto v0.0.0-20250725120916-d91fede4a4bf
