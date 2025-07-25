@@ -19,7 +19,7 @@ import (
 )
 
 func ExtraMessageMediaText(media tg.MessageMediaClass) (string, types.MessageType) {
-	var messageType types.MessageType
+	messageType := types.MessageTypeText
 	var messageSB strings.Builder
 	switch m := media.(type) {
 	case *tg.MessageMediaPhoto:
@@ -44,6 +44,10 @@ func ExtraMessageMediaText(media tg.MessageMediaClass) (string, types.MessageTyp
 				title, ok := attr.GetTitle()
 				if ok {
 					messageSB.WriteString(title + " ")
+				}
+				performer, ok := attr.GetPerformer()
+				if ok {
+					messageSB.WriteString(performer + " ")
 				}
 				messageType = types.MessageTypeAudio
 			case *tg.DocumentAttributeVideo:
@@ -72,8 +76,56 @@ func ExtraMessageMediaText(media tg.MessageMediaClass) (string, types.MessageTyp
 		default:
 			return "", messageType
 		}
+	case *tg.MessageMediaWebPage:
+		wp, ok := m.GetWebpage().AsModified()
+		if !ok {
+			return "", messageType
+		}
+		switch page := wp.(type) {
+		case *tg.WebPage:
+			pageTitle, ok := page.GetTitle()
+			if ok {
+				messageSB.WriteString(pageTitle + " ")
+			}
+			pageDesc, ok := page.GetDescription()
+			if ok {
+				messageSB.WriteString(pageDesc + " ")
+			}
+			pageAuthor, ok := page.GetAuthor()
+			if ok {
+				messageSB.WriteString(pageAuthor + " ")
+			}
+			pageDocument, ok := page.GetDocument()
+			if ok {
+				pageDocument, ok := pageDocument.AsNotEmpty()
+				if ok {
+					for _, attr := range pageDocument.GetAttributes() {
+						switch attr := attr.(type) {
+						case *tg.DocumentAttributeFilename:
+							filename := attr.GetFileName()
+							if !slice.Contain(types.StickerFileNames, filename) {
+								messageSB.WriteString(filename + " ")
+							}
+						case *tg.DocumentAttributeAudio:
+							title, ok := attr.GetTitle()
+							if ok {
+								messageSB.WriteString(title + " ")
+							}
+							performer, ok := attr.GetPerformer()
+							if ok {
+								messageSB.WriteString(performer + " ")
+							}
+						}
+					}
+				}
+			}
+			// [TODO] do we really need this?
+			// ivpage, ok := page.GetCachedPage()
+			// if ok {
+			// }
+		}
 	}
-	return messageSB.String(), messageType
+	return strings.TrimSpace(messageSB.String()), messageType
 }
 
 func BuildSearchReplyMarkup(ctx context.Context, currentPage int64, data types.SearchRequest) (*tg.ReplyInlineMarkup, error) {
