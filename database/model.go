@@ -1,6 +1,8 @@
 package database
 
 import (
+	"slices"
+
 	"github.com/charmbracelet/log"
 	"gorm.io/gorm"
 )
@@ -39,6 +41,11 @@ func (ic *IndexChat) AfterSave(tx *gorm.DB) error {
 	} else {
 		delete(WatchedChatsID, ic.ChatID)
 	}
+	allChatIDsMu.Lock()
+	defer allChatIDsMu.Unlock()
+	if !slices.Contains(allChatIDs, ic.ChatID) {
+		allChatIDs = append(allChatIDs, ic.ChatID)
+	}
 	return nil
 }
 
@@ -48,6 +55,11 @@ func (ic *IndexChat) BeforeDelete(tx *gorm.DB) error {
 		return nil
 	}
 	delete(WatchedChatsID, ic.ChatID)
+	allChatIDsMu.Lock()
+	defer allChatIDsMu.Unlock()
+	if idx := slices.Index(allChatIDs, ic.ChatID); idx != -1 {
+		allChatIDs = slices.Delete(allChatIDs, idx, idx+1)
+	}
 	return nil
 }
 

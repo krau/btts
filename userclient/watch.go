@@ -10,6 +10,7 @@ import (
 	"github.com/gotd/td/tg"
 	"github.com/krau/btts/database"
 	"github.com/krau/btts/engine"
+	"github.com/krau/btts/utils"
 )
 
 func WatchHandler(ctx *ext.Context, u *ext.Update) error {
@@ -22,7 +23,7 @@ func WatchHandler(ctx *ext.Context, u *ext.Update) error {
 
 	log := log.FromContext(ctx)
 
-	chatDB, err := database.GetIndexChat(ctx, u.EffectiveChat().GetID())
+	chatDB, err := database.GetIndexChat(ctx, utils.GetUpdateChatID(u))
 	if err != nil {
 		log.Errorf("Failed to get chat: %v", err)
 		return dispatcher.SkipCurrentGroup
@@ -41,6 +42,7 @@ func WatchHandler(ctx *ext.Context, u *ext.Update) error {
 		chatDB.Username = c.Username
 		chatDB.Type = int(database.ChatTypePrivate)
 	} else {
+		// [TODO] handle short update
 		log.Error("Chat is nil")
 		return dispatcher.SkipCurrentGroup
 	}
@@ -59,10 +61,11 @@ func WatchHandler(ctx *ext.Context, u *ext.Update) error {
 	} else {
 		switch chatDB.Type {
 		case int(database.ChatTypePrivate):
-			userDB.ChatID = u.GetUserChat().GetID()
-			userDB.Username = u.GetUserChat().Username
-			userDB.FirstName = u.GetUserChat().FirstName
-			userDB.LastName = u.GetUserChat().LastName
+			userchat := u.GetUserChat()
+			userDB.ChatID = userchat.GetID()
+			userDB.Username = userchat.Username
+			userDB.FirstName = userchat.FirstName
+			userDB.LastName = userchat.LastName
 		case int(database.ChatTypeChannel):
 			msg := u.EffectiveMessage
 			if msg.Post {

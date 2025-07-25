@@ -21,6 +21,7 @@ import (
 	"github.com/krau/btts/config"
 	"github.com/krau/btts/database"
 	"github.com/krau/btts/middlewares"
+	"github.com/krau/btts/utils"
 	"github.com/ncruces/go-sqlite3/gormlite"
 )
 
@@ -50,6 +51,20 @@ func (u *UserClient) StartWatch(ctx context.Context) {
 	disp.AddHandlerToGroup(handlers.NewAnyUpdate(DeleteHandler), 1)
 	disp.AddHandlerToGroup(handlers.NewMessage(filters.Message.All, func(ctx *ext.Context, u *ext.Update) error {
 		chatID := u.EffectiveChat().GetID()
+		if chatID == 0 {
+			if u.Entities == nil || !u.Entities.Short {
+				log.FromContext(ctx).Error("Unexpected zero chat ID", "entities", u.Entities, "update", u)
+				return dispatcher.SkipCurrentGroup
+			}
+			if u.Entities != nil && u.Entities.Short {
+				pu := utils.GetUpdatePeerUser(u)
+				if pu == nil {
+					log.FromContext(ctx).Error("Failed to get PeerUser from update", "update", u)
+					return dispatcher.SkipCurrentGroup
+				}
+				chatID = pu.GetUserID()
+			}
+		}
 		if !database.Watching(chatID) {
 			return dispatcher.SkipCurrentGroup
 		}

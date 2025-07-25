@@ -34,7 +34,9 @@ func GetIndexChat(ctx context.Context, chatID int64) (*IndexChat, error) {
 
 func DeleteIndexChat(ctx context.Context, chatID int64) error {
 	delete(WatchedChatsID, chatID)
-	if err := db.WithContext(ctx).Where("chat_id = ?", chatID).Delete(&IndexChat{}).Error; err != nil {
+	if err := db.WithContext(ctx).Where("chat_id = ?", chatID).
+		Delete(&IndexChat{ChatID: chatID}).Error; err != nil {
+		// https://github.com/go-gorm/gorm/issues/5663
 		WatchedChatsID[chatID] = struct{}{} // rollback
 		return err
 	}
