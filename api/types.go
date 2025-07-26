@@ -63,6 +63,9 @@ func ResponseSearch(c *fiber.Ctx, rawResp *types.MessageSearchResponse) error {
 	if rawResp == nil {
 		return &fiber.Error{Code: fiber.StatusInternalServerError, Message: "Search response is nil"}
 	}
+	if len(rawResp.Hits) == 0 {
+		return &fiber.Error{Code: fiber.StatusNotFound, Message: "No results found"}
+	}
 	resp := &SearchResponse{
 		Hits:               make([]SearchHit, len(rawResp.Hits)),
 		ProcessingTimeMs:   rawResp.ProcessingTimeMs,
