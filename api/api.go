@@ -3,14 +3,17 @@ package api
 import (
 	"crypto/sha256"
 	"crypto/subtle"
+	"net/http"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/swagger"
 	_ "github.com/krau/btts/api/docs"
+	"github.com/krau/btts/webembed"
 
 	"github.com/bytedance/sonic"
 	"github.com/gofiber/fiber/v2/middleware/cors"
+	"github.com/gofiber/fiber/v2/middleware/filesystem"
 	"github.com/gofiber/fiber/v2/middleware/keyauth"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/krau/btts/config"
@@ -53,6 +56,12 @@ func Serve(addr string) {
 	loggerCfg.Format = "${time} | ${status} | ${latency} | ${ip} | ${method} | ${path} | ${queryParams} | ${error}\n"
 	app.Use(logger.New(loggerCfg))
 	app.Use(cors.New())
+
+	app.Get("/", filesystem.New(filesystem.Config{
+		Root:         http.FS(webembed.Static),
+		NotFoundFile: "404.html",
+	}))
+
 	app.Get("/docs/*", swagger.HandlerDefault)
 	rg := app.Group("/api")
 	if config.C.Api.Key != "" {
