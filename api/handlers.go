@@ -29,7 +29,7 @@ import (
 func GetIndexed(c *fiber.Ctx) error {
 	chats, err := database.GetAllIndexChats(c.Context())
 	if err != nil {
-		return &fiber.Error{Code: fiber.StatusInternalServerError, Message: "Failed to retrieve indexed chats"}
+		return &fiber.Error{Code: fiber.StatusInternalServerError, Message: err.Error()}
 	}
 	if len(chats) == 0 {
 		return &fiber.Error{Code: fiber.StatusNotFound, Message: "No indexed chats found"}
@@ -63,7 +63,7 @@ func GetIndexInfo(c *fiber.Ctx) error {
 	indexChat, err := database.GetIndexChat(c.Context(), int64(chatID))
 	if err != nil {
 		code := fiber.StatusInternalServerError
-		msg := "Failed to retrieve index info"
+		msg := err.Error()
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			code = fiber.StatusNotFound
 			msg = "Index not found for the specified chat"
@@ -93,7 +93,7 @@ func GetIndexInfo(c *fiber.Ctx) error {
 // @Param users query string false "用户ID列表，逗号分隔" example("123456,789012")
 // @Param types query string false "消息类型列表，逗号分隔" example("text,photo,video") Enums(text,photo,video,document,voice,audio,poll,story)
 // @Success 200 {object} map[string]interface{} "成功响应"
-// @Success 200 {object} object{status=string,results=types.MessageSearchResponse} "成功响应示例"
+// @Success 200 {object} object{status=string,results=SearchResponse} "成功响应示例"
 // @Failure 400 {object} map[string]string "请求参数错误"
 // @Failure 401 {object} map[string]string "未授权"
 // @Failure 500 {object} map[string]string "服务器内部错误"
@@ -138,12 +138,9 @@ func SearchOnChatByGet(c *fiber.Ctx) error {
 	}
 	results, err := engine.Instance.Search(c.Context(), req)
 	if err != nil {
-		return &fiber.Error{Code: fiber.StatusInternalServerError, Message: "Failed to search index"}
+		return &fiber.Error{Code: fiber.StatusInternalServerError, Message: err.Error()}
 	}
-	return c.JSON(fiber.Map{
-		"status":  "success",
-		"results": results,
-	})
+	return ResponseSearch(c, results)
 }
 
 // SearchOnChatByPost 使用POST方法在指定聊天中搜索消息
@@ -156,7 +153,7 @@ func SearchOnChatByGet(c *fiber.Ctx) error {
 // @Param chat_id path int true "聊天ID"
 // @Param request body SearchOnChatByPostRequest true "搜索请求参数"
 // @Success 200 {object} map[string]interface{} "成功响应"
-// @Success 200 {object} object{status=string,results=types.MessageSearchResponse} "成功响应示例"
+// @Success 200 {object} object{status=string,results=SearchResponse} "成功响应示例"
 // @Failure 400 {object} map[string]string "请求参数错误"
 // @Failure 401 {object} map[string]string "未授权"
 // @Failure 500 {object} map[string]string "服务器内部错误"
@@ -190,12 +187,9 @@ func SearchOnChatByPost(c *fiber.Ctx) error {
 	}
 	results, err := engine.Instance.Search(c.Context(), req)
 	if err != nil {
-		return &fiber.Error{Code: fiber.StatusInternalServerError, Message: "Failed to search index"}
+		return &fiber.Error{Code: fiber.StatusInternalServerError, Message: err.Error()}
 	}
-	return c.JSON(fiber.Map{
-		"status":  "success",
-		"results": results,
-	})
+	return ResponseSearch(c, results)
 
 }
 
@@ -208,7 +202,7 @@ func SearchOnChatByPost(c *fiber.Ctx) error {
 // @Security ApiKeyAuth
 // @Param request body SearchOnMultiChatByPostRequest true "多聊天搜索请求参数"
 // @Success 200 {object} map[string]interface{} "成功响应"
-// @Success 200 {object} object{status=string,results=types.MessageSearchResponse} "成功响应示例"
+// @Success 200 {object} object{status=string,results=SearchResponse} "成功响应示例"
 // @Failure 400 {object} map[string]string "请求参数错误"
 // @Failure 401 {object} map[string]string "未授权"
 // @Failure 500 {object} map[string]string "服务器内部错误"
@@ -241,10 +235,7 @@ func SearchOnMultiChatByPost(c *fiber.Ctx) error {
 	}
 	results, err := engine.Instance.Search(c.Context(), req)
 	if err != nil {
-		return &fiber.Error{Code: fiber.StatusInternalServerError, Message: "Failed to search index"}
+		return &fiber.Error{Code: fiber.StatusInternalServerError, Message: err.Error()}
 	}
-	return c.JSON(fiber.Map{
-		"status":  "success",
-		"results": results,
-	})
+	return ResponseSearch(c, results)
 }

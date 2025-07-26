@@ -51,7 +51,7 @@ const docTemplate = `{
                             "type": "object",
                             "properties": {
                                 "results": {
-                                    "$ref": "#/definitions/types.MessageSearchResponse"
+                                    "$ref": "#/definitions/api.SearchResponse"
                                 },
                                 "status": {
                                     "type": "string"
@@ -249,7 +249,7 @@ const docTemplate = `{
                             "type": "object",
                             "properties": {
                                 "results": {
-                                    "$ref": "#/definitions/types.MessageSearchResponse"
+                                    "$ref": "#/definitions/api.SearchResponse"
                                 },
                                 "status": {
                                     "type": "string"
@@ -328,7 +328,7 @@ const docTemplate = `{
                             "type": "object",
                             "properties": {
                                 "results": {
-                                    "$ref": "#/definitions/types.MessageSearchResponse"
+                                    "$ref": "#/definitions/api.SearchResponse"
                                 },
                                 "status": {
                                     "type": "string"
@@ -434,6 +434,64 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "api.SearchHit": {
+            "type": "object",
+            "properties": {
+                "_formatted": {
+                    "type": "object",
+                    "properties": {
+                        "chat_id": {
+                            "type": "string"
+                        },
+                        "id": {
+                            "type": "string"
+                        },
+                        "message": {
+                            "type": "string"
+                        },
+                        "timestamp": {
+                            "type": "string"
+                        },
+                        "type": {
+                            "type": "string"
+                        },
+                        "user_id": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "chat_id": {
+                    "description": "The ID of the chat where the message was sent",
+                    "type": "integer"
+                },
+                "chat_title": {
+                    "description": "The title of the chat, if available",
+                    "type": "string"
+                },
+                "id": {
+                    "description": "Telegram MessageID",
+                    "type": "integer"
+                },
+                "message": {
+                    "description": "The original text of the message",
+                    "type": "string"
+                },
+                "timestamp": {
+                    "type": "integer"
+                },
+                "type": {
+                    "type": "string"
+                },
+                "user_full_name": {
+                    "description": "The full name of the user who sent the message, if available",
+                    "type": "string"
+                },
+                "user_id": {
+                    "description": "The ID of the user who sent the message",
+                    "type": "integer"
+                }
+            }
+        },
         "api.SearchOnChatByPostRequest": {
             "type": "object",
             "required": [
@@ -539,6 +597,32 @@ const docTemplate = `{
                 }
             }
         },
+        "api.SearchResponse": {
+            "type": "object",
+            "properties": {
+                "estimatedTotalHits": {
+                    "type": "integer"
+                },
+                "hits": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.SearchHit"
+                    }
+                },
+                "limit": {
+                    "type": "integer"
+                },
+                "offset": {
+                    "type": "integer"
+                },
+                "processingTimeMs": {
+                    "type": "integer"
+                },
+                "semanticHitCount": {
+                    "type": "integer"
+                }
+            }
+        },
         "database.IndexChat": {
             "type": "object",
             "properties": {
@@ -562,82 +646,6 @@ const docTemplate = `{
                 },
                 "watching": {
                     "type": "boolean"
-                }
-            }
-        },
-        "types.MessageSearchResponse": {
-            "type": "object",
-            "properties": {
-                "estimatedTotalHits": {
-                    "type": "integer"
-                },
-                "hits": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/types.SearchHit"
-                    }
-                },
-                "limit": {
-                    "type": "integer"
-                },
-                "offset": {
-                    "type": "integer"
-                },
-                "processingTimeMs": {
-                    "type": "integer"
-                },
-                "raw": {},
-                "semanticHitCount": {
-                    "type": "integer"
-                }
-            }
-        },
-        "types.SearchHit": {
-            "type": "object",
-            "properties": {
-                "_formatted": {
-                    "type": "object",
-                    "properties": {
-                        "chat_id": {
-                            "type": "string"
-                        },
-                        "id": {
-                            "type": "string"
-                        },
-                        "message": {
-                            "type": "string"
-                        },
-                        "timestamp": {
-                            "type": "string"
-                        },
-                        "type": {
-                            "type": "string"
-                        },
-                        "user_id": {
-                            "type": "string"
-                        }
-                    }
-                },
-                "chat_id": {
-                    "type": "integer"
-                },
-                "id": {
-                    "description": "Telegram MessageID",
-                    "type": "integer"
-                },
-                "message": {
-                    "description": "The original text of the message",
-                    "type": "string"
-                },
-                "timestamp": {
-                    "type": "integer"
-                },
-                "type": {
-                    "type": "integer"
-                },
-                "user_id": {
-                    "description": "The ID of the user who sent the message",
-                    "type": "integer"
                 }
             }
         }

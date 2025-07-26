@@ -24,6 +24,17 @@ var MessageTypeToEmoji = map[MessageType]string{
 	MessageTypeStory:    "🪟",
 }
 
+var MessageTypeToString = map[MessageType]string{
+	MessageTypeText:     "text",
+	MessageTypePhoto:    "photo",
+	MessageTypeVideo:    "video",
+	MessageTypeDocument: "document",
+	MessageTypeVoice:    "voice",
+	MessageTypeAudio:    "audio",
+	MessageTypePoll:     "poll",
+	MessageTypeStory:    "story",
+}
+
 var MessageTypeFromString = map[string]MessageType{
 	"text":     MessageTypeText,
 	"photo":    MessageTypePhoto,
