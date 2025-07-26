@@ -10,6 +10,7 @@ import (
 	"github.com/krau/btts/database"
 	"github.com/krau/btts/engine"
 	"github.com/krau/btts/types"
+	"github.com/krau/btts/userclient"
 	"gorm.io/gorm"
 )
 
@@ -129,9 +130,9 @@ func SearchOnChatByGet(c *fiber.Ctx) error {
 		}
 	}
 	if msgTypeStr := c.Query("types"); msgTypeStr != "" {
-		msgTypes := slice.Compact(slice.Map(strings.Split(msgTypeStr, ","), func(i int, msgType string) types.MessageType {
+		msgTypes := slice.Map(strings.Split(msgTypeStr, ","), func(i int, msgType string) types.MessageType {
 			return types.MessageTypeFromString[msgType]
-		}))
+		})
 		if len(msgTypes) > 0 {
 			req.TypeFilters = msgTypes
 		}
@@ -179,9 +180,9 @@ func SearchOnChatByPost(c *fiber.Ctx) error {
 		UserFilters: request.Users,
 	}
 	if len(request.Types) > 0 {
-		if msgTypes := slice.Compact(slice.Map(request.Types, func(i int, msgType string) types.MessageType {
+		if msgTypes := slice.Map(request.Types, func(i int, msgType string) types.MessageType {
 			return types.MessageTypeFromString[msgType]
-		})); len(msgTypes) > 0 {
+		}); len(msgTypes) > 0 {
 			req.TypeFilters = msgTypes
 		}
 	}
@@ -227,9 +228,9 @@ func SearchOnMultiChatByPost(c *fiber.Ctx) error {
 		req.ChatIDs = database.AllChatIDs()
 	}
 	if len(request.Types) > 0 {
-		if msgTypes := slice.Compact(slice.Map(request.Types, func(i int, msgType string) types.MessageType {
+		if msgTypes := slice.Map(request.Types, func(i int, msgType string) types.MessageType {
 			return types.MessageTypeFromString[msgType]
-		})); len(msgTypes) > 0 {
+		}); len(msgTypes) > 0 {
 			req.TypeFilters = msgTypes
 		}
 	}
@@ -238,4 +239,23 @@ func SearchOnMultiChatByPost(c *fiber.Ctx) error {
 		return &fiber.Error{Code: fiber.StatusInternalServerError, Message: err.Error()}
 	}
 	return ResponseSearch(c, results)
+}
+
+func ReplyMessage(c *fiber.Ctx) error {
+	var req ReplyMessageRequest
+	if err := c.BodyParser(&req); err != nil {
+		return &fiber.Error{Code: fiber.StatusBadRequest, Message: "Invalid request body"}
+	}
+	if err := validate.StructCtx(c.Context(), &req); err != nil {
+		return &fiber.Error{Code: fiber.StatusBadRequest, Message: "Validation failed: " + err.Error()}
+	}
+	msg, err := userclient.GetUserClient().ReplyMessage(c.Context(), req.ChatID, req.MessageID, req.Text)
+	if err != nil {
+		return &fiber.Error{Code: fiber.StatusInternalServerError, Message: err.Error()}
+	}
+	return c.JSON(fiber.Map{
+		"status":  "success",
+		"message": "Reply sent successfully",
+		"data":    msg,
+	})
 }

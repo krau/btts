@@ -25,7 +25,14 @@ import (
 	"github.com/ncruces/go-sqlite3/gormlite"
 )
 
-var UC *UserClient
+var uc *UserClient
+
+func GetUserClient() *UserClient {
+	if uc == nil {
+		panic("UserClient is not initialized, call NewUserClient first")
+	}
+	return uc
+}
 
 type UserClient struct {
 	TClient           *gotgproto.Client
@@ -109,8 +116,8 @@ func (u *UserClient) RemoveGlobalIgnoreUser(userID int64) {
 
 func NewUserClient(ctx context.Context) (*UserClient, error) {
 	log.FromContext(ctx).Debug("Initializing user client")
-	if UC != nil {
-		return UC, nil
+	if uc != nil {
+		return uc, nil
 	}
 	res := make(chan struct {
 		client *UserClient
@@ -166,7 +173,7 @@ func NewUserClient(ctx context.Context) (*UserClient, error) {
 		if r.err != nil {
 			return nil, r.err
 		}
-		UC = r.client
-		return UC, nil
+		uc = r.client
+		return uc, nil
 	}
 }

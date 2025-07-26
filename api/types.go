@@ -109,3 +109,9 @@ func ResponseSearch(c *fiber.Ctx, rawResp *types.MessageSearchResponse) error {
 	})
 
 }
+
+type ReplyMessageRequest struct {
+	ChatID    int64  `json:"chat_id" validate:"required" example:"123456789"`            // 聊天ID
+	MessageID int  `json:"message_id" validate:"required" example:"987654321"`         // 消息ID
+	Text      string `json:"text" validate:"required" example:"This is a reply message"` // 回复内容
+}

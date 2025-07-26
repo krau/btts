@@ -67,6 +67,7 @@ func Serve(addr string) {
 	rg.Post("/index/multi-search", SearchOnMultiChatByPost)
 	rg.Get("/index/:chat_id<int>/search", SearchOnChatByGet)
 	rg.Post("/index/:chat_id<int>/search", SearchOnChatByPost)
+	rg.Post("/client/reply", ReplyMessage)
 
 	go func() {
 		if err := app.Listen(addr); err != nil {

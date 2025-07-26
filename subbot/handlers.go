@@ -22,7 +22,7 @@ import (
 
 func CheckPermission(ctx *ext.Context, update *ext.Update) bool {
 	userID := update.GetUserChat().GetID()
-	if userID == userclient.UC.TClient.Self.ID {
+	if userID == userclient.GetUserClient().TClient.Self.ID {
 		return true
 	}
 	if !slice.Contain(config.C.Admins, userID) {

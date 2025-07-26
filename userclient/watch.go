@@ -116,7 +116,7 @@ func WatchHandler(ctx *ext.Context, u *ext.Update) error {
 	if err := database.UpsertUserInfo(ctx, userDB); err != nil {
 		log.Warnf("Failed to upsert user info: %v", err)
 	}
-	if slice.Contain(UC.GlobalIgnoreUsers, userDB.ChatID) {
+	if slice.Contain(uc.GlobalIgnoreUsers, userDB.ChatID) {
 		return dispatcher.SkipCurrentGroup
 	}
 
