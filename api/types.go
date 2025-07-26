@@ -76,7 +76,7 @@ func ResponseSearch(c *fiber.Ctx, rawResp *types.MessageSearchResponse) error {
 		ChatTitle := ""
 		user, err := database.GetUserInfo(c.Context(), hit.UserID)
 		if err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
+			if !errors.Is(err, gorm.ErrRecordNotFound) {
 				return &fiber.Error{Code: fiber.StatusInternalServerError, Message: "Failed to retrieve user info"}
 			}
 			UserFullName = strconv.FormatInt(hit.UserID, 10)
