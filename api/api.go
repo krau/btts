@@ -57,11 +57,6 @@ func Serve(addr string) {
 	app.Use(logger.New(loggerCfg))
 	app.Use(cors.New())
 
-	app.Get("/", filesystem.New(filesystem.Config{
-		Root:         http.FS(webembed.Static),
-		NotFoundFile: "404.html",
-	}))
-
 	app.Get("/docs/*", swagger.HandlerDefault)
 	rg := app.Group("/api")
 	if config.C.Api.Key != "" {
@@ -77,6 +72,11 @@ func Serve(addr string) {
 	rg.Get("/index/:chat_id<int>/search", SearchOnChatByGet)
 	rg.Post("/index/:chat_id<int>/search", SearchOnChatByPost)
 	rg.Post("/client/reply", ReplyMessage)
+
+	app.Use("/", filesystem.New(filesystem.Config{
+		Root:         http.FS(webembed.Static),
+		NotFoundFile: "404.html",
+	}))
 
 	go func() {
 		if err := app.Listen(addr); err != nil {
