@@ -79,8 +79,8 @@ jobs:
 
       - name: Copy frontend dist to webembed
         run: |
-          # Remove existing files in webembed except embed.go
-          find webembed -type f ! -name 'embed.go' -delete
+          # Remove existing files in webembed except embed.go and 404.html
+          find webembed -type f ! -name 'embed.go' ! -name '404.html' -delete
           # Copy dist contents to webembed (without the dist folder itself)
           cp -r frontend/dist/* webembed/
 
