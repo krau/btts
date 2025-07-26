@@ -34,12 +34,12 @@ func ListHandler(ctx *ext.Context, update *ext.Update) error {
 	var chatsStyling []styling.StyledTextOption
 	chatsStyling = append(chatsStyling, styling.Plain(fmt.Sprintf("已添加 %d 个聊天\n\n", len(chats))))
 	selectButtonRow := make([]tg.KeyboardButtonRow, 0)
-	buttons := make([]tg.KeyboardButtonClass, 0, 2)
+	buttons := make([]tg.KeyboardButtonClass, 0)
 	for i, chat := range chats {
 		chatsStyling = append(chatsStyling, styling.Code(fmt.Sprintf("%d", chat.ChatID)))
 		chatsStyling = append(chatsStyling, styling.Plain(fmt.Sprintf(" - %s\n", chat.Title)))
 		if hasPermission {
-			chatsStyling = append(chatsStyling, styling.Plain(fmt.Sprintf("Watching: %t , Public: %t , WatchDelete: %t\n\n", chat.Watching, chat.Public, !chat.NoDelete)))
+			chatsStyling = append(chatsStyling, styling.Plain(fmt.Sprintf("Watching: %t , Public: %t , WatchDelete: %t\n", chat.Watching, chat.Public, !chat.NoDelete)))
 		}
 		button := &tg.KeyboardButtonCallback{
 			Text: func() string {
@@ -51,11 +51,11 @@ func ListHandler(ctx *ext.Context, update *ext.Update) error {
 			Data: fmt.Appendf(nil, "select %d", chat.ChatID),
 		}
 		buttons = append(buttons, button)
-		if len(buttons) == 2 || i == len(chats)-1 {
+		if len(buttons) == 4 || i == len(chats)-1 {
 			selectButtonRow = append(selectButtonRow, tg.KeyboardButtonRow{
 				Buttons: buttons,
 			})
-			buttons = make([]tg.KeyboardButtonClass, 0, 2)
+			buttons = make([]tg.KeyboardButtonClass, 0)
 		}
 	}
 	chatsStyling = append(chatsStyling, styling.Plain("\n点击按钮选择一个聊天进行搜索"))
