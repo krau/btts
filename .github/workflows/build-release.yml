@@ -51,6 +51,39 @@ jobs:
           VERSION=$(echo "${{ github.ref }}" | sed 's/refs\/tags\/v//')
           echo "VERSION=${VERSION}" >> $GITHUB_ENV
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Checkout frontend repository
+        uses: actions/checkout@v4
+        with:
+          repository: "krau/btts-frontend"
+          path: "frontend"
+
+      - name: Install frontend dependencies
+        run: |
+          cd frontend
+          pnpm install
+
+      - name: Build frontend
+        run: |
+          cd frontend
+          pnpm run build
+
+      - name: Copy frontend dist to webembed
+        run: |
+          # Remove existing files in webembed except embed.go
+          find webembed -type f ! -name 'embed.go' -delete
+          # Copy dist contents to webembed (without the dist folder itself)
+          cp -r frontend/dist/* webembed/
+
       - name: Release Go Binary
         uses: wangyoucao577/go-release-action@v1
         with:
