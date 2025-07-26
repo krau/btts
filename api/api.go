@@ -37,14 +37,14 @@ func validateApiKey(ctx *fiber.Ctx, key string) (bool, error) {
 	return true, nil
 }
 
-// @title			BTTS API
-// @version		1.0
-// @description	Better Telegram Search API
-// @BasePath		/api
-// @securityDefinitions.apikey ApiKeyAuth
-// @in header
-// @name Authorization
-// @description Type "Bearer" followed by a space and JWT token.
+// @title						BTTS API
+// @version					1.0
+// @description				Better Telegram Search API
+// @BasePath					/api
+// @securityDefinitions.apikey	ApiKeyAuth
+// @in							header
+// @name						Authorization
+// @description				Type "Bearer" followed by a space and JWT token.
 func Serve(addr string) {
 	app := fiber.New(
 		fiber.Config{
