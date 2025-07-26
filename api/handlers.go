@@ -241,6 +241,20 @@ func SearchOnMultiChatByPost(c *fiber.Ctx) error {
 	return ResponseSearch(c, results)
 }
 
+// ReplyMessage 回复指定消息
+// @Summary 回复指定消息
+// @Description 向指定聊天中的指定消息发送回复
+// @Tags Client
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param request body ReplyMessageRequest true "回复消息请求参数"
+// @Success 200 {object} map[string]interface{} "成功响应"
+// @Success 200 {object} object{status=string,message=string,data=object} "成功响应示例"
+// @Failure 400 {object} map[string]string "请求参数错误"
+// @Failure 401 {object} map[string]string "未授权"
+// @Failure 500 {object} map[string]string "服务器内部错误"
+// @Router /client/reply [post]
 func ReplyMessage(c *fiber.Ctx) error {
 	var req ReplyMessageRequest
 	if err := c.BodyParser(&req); err != nil {

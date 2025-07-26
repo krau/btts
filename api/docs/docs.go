@@ -15,6 +15,83 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/client/reply": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "向指定聊天中的指定消息发送回复",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Client"
+                ],
+                "summary": "回复指定消息",
+                "parameters": [
+                    {
+                        "description": "回复消息请求参数",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.ReplyMessageRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功响应示例",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "data": {
+                                    "type": "object"
+                                },
+                                "message": {
+                                    "type": "string"
+                                },
+                                "status": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "未授权",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/index/multi-search": {
             "post": {
                 "security": [
@@ -434,6 +511,31 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "api.ReplyMessageRequest": {
+            "type": "object",
+            "required": [
+                "chat_id",
+                "message_id",
+                "text"
+            ],
+            "properties": {
+                "chat_id": {
+                    "description": "聊天ID",
+                    "type": "integer",
+                    "example": 123456789
+                },
+                "message_id": {
+                    "description": "消息ID",
+                    "type": "integer",
+                    "example": 987654321
+                },
+                "text": {
+                    "description": "回复内容",
+                    "type": "string",
+                    "example": "This is a reply message"
+                }
+            }
+        },
         "api.SearchHit": {
             "type": "object",
             "properties": {
