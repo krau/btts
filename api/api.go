@@ -3,6 +3,8 @@ package api
 import (
 	"crypto/sha256"
 	"crypto/subtle"
+	"encoding/hex"
+	"fmt"
 	"net/http"
 
 	"github.com/go-playground/validator/v10"
@@ -62,6 +64,9 @@ func Serve(addr string) {
 	if config.C.Api.Key != "" {
 		rg.Use(keyauth.New(keyauth.Config{
 			Validator: validateApiKey,
+			Next: func(c *fiber.Ctx) bool {
+				return c.Path() == "/api/client/filestream"
+			},
 		}))
 		sum := sha256.Sum256([]byte(config.C.Api.Key))
 		copy(storedKeyHash, sum[:])
@@ -73,6 +78,30 @@ func Serve(addr string) {
 	rg.Post("/index/:chat_id<int>/search", SearchOnChatByPost)
 	rg.Post("/client/reply", ReplyMessage)
 	rg.Post("/client/forward", ForwardMessages)
+	rg.Use("/client/filestream", keyauth.New(keyauth.Config{
+		Validator: func(c *fiber.Ctx, s string) (bool, error) {
+			if config.C.Api.Key == "" {
+				return true, nil
+			}
+			if s == "" {
+				return false, keyauth.ErrMissingOrMalformedAPIKey
+			}
+			if c.Query("chat_id", "") == "" || c.Query("message_id", "") == "" {
+				return false, keyauth.ErrMissingOrMalformedAPIKey
+			}
+			validKeyStr := fmt.Sprintf("%s:%s:%s", config.C.Api.Key, c.Query("chat_id", "Hatsune"), c.Query("message_id", "Miku"))
+			validKeyHash := sha256.Sum256([]byte(validKeyStr))
+			hexValidKey := hex.EncodeToString(validKeyHash[:])
+			if len(s) != len(hexValidKey) {
+				return false, keyauth.ErrMissingOrMalformedAPIKey
+			}
+			if subtle.ConstantTimeCompare([]byte(s), []byte(hexValidKey)) != 1 {
+				return false, keyauth.ErrMissingOrMalformedAPIKey
+			}
+			return true, nil
+		},
+		KeyLookup: "query:reqtoken",
+	}))
 	rg.Get("/client/filestream", StreamFile)
 
 	app.Use("/", filesystem.New(filesystem.Config{
