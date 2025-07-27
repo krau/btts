@@ -42,6 +42,13 @@ type UserClient struct {
 	mu                sync.Mutex
 }
 
+func (u *UserClient) GetContext() *ext.Context {
+	if u.ectx == nil {
+		u.ectx = u.TClient.CreateContext()
+	}
+	return u.ectx
+}
+
 func (u *UserClient) StartWatch(ctx context.Context) {
 	disp := u.TClient.Dispatcher
 	disp.AddHandlerToGroup(handlers.NewAnyUpdate(func(ctx *ext.Context, u *ext.Update) error {

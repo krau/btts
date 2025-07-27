@@ -1,7 +1,6 @@
 package api
 
 import (
-	"errors"
 	"strconv"
 	"strings"
 
@@ -10,77 +9,7 @@ import (
 	"github.com/krau/btts/database"
 	"github.com/krau/btts/engine"
 	"github.com/krau/btts/types"
-	"github.com/krau/btts/userclient"
-	"gorm.io/gorm"
 )
-
-// GetIndexed 获取所有已索引的聊天
-//
-//	@Summary		获取所有已索引的聊天
-//	@Description	获取系统中所有已索引的聊天列表
-//	@Tags			Chat
-//	@Accept			json
-//	@Produce		json
-//	@Security		ApiKeyAuth
-//	@Success		200	{object}	map[string]interface{}								"成功响应"
-//	@Success		200	{object}	object{status=string,chats=[]database.IndexChat}	"成功响应示例"
-//	@Failure		401	{object}	map[string]string									"未授权"
-//	@Failure		404	{object}	map[string]string									"未找到已索引的聊天"
-//	@Failure		500	{object}	map[string]string									"服务器内部错误"
-//	@Router			/indexed [get]
-func GetIndexed(c *fiber.Ctx) error {
-	chats, err := database.GetAllIndexChats(c.Context())
-	if err != nil {
-		return &fiber.Error{Code: fiber.StatusInternalServerError, Message: err.Error()}
-	}
-	if len(chats) == 0 {
-		return &fiber.Error{Code: fiber.StatusNotFound, Message: "No indexed chats found"}
-	}
-	return c.JSON(fiber.Map{
-		"status": "success",
-		"chats":  chats,
-	})
-}
-
-// GetIndexInfo 获取指定聊天的索引信息
-//
-//	@Summary		获取指定聊天的索引信息
-//	@Description	根据聊天ID获取该聊天的索引详细信息
-//	@Tags			Chat
-//	@Accept			json
-//	@Produce		json
-//	@Security		ApiKeyAuth
-//	@Param			chat_id	path		int												true	"聊天ID"
-//	@Success		200		{object}	map[string]interface{}							"成功响应"
-//	@Success		200		{object}	object{status=string,index=database.IndexChat}	"成功响应示例"
-//	@Failure		400		{object}	map[string]string								"聊天ID是必需的"
-//	@Failure		401		{object}	map[string]string								"未授权"
-//	@Failure		404		{object}	map[string]string								"未找到指定聊天的索引"
-//	@Failure		500		{object}	map[string]string								"服务器内部错误"
-//	@Router			/index/{chat_id} [get]
-func GetIndexInfo(c *fiber.Ctx) error {
-	chatID, err := c.ParamsInt("chat_id")
-	if err != nil {
-		return &fiber.Error{Code: fiber.StatusBadRequest, Message: "Chat ID is required"}
-	}
-	indexChat, err := database.GetIndexChat(c.Context(), int64(chatID))
-	if err != nil {
-		code := fiber.StatusInternalServerError
-		msg := err.Error()
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			code = fiber.StatusNotFound
-			msg = "Index not found for the specified chat"
-		}
-		return &fiber.Error{Code: code, Message: msg}
-	}
-	if indexChat == nil {
-		return &fiber.Error{Code: fiber.StatusNotFound, Message: "Index not found for the specified chat"}
-	}
-	return c.JSON(fiber.Map{
-		"status": "success",
-		"index":  indexChat,
-	})
-}
 
 // SearchOnChatByGet 使用GET方法在指定聊天中搜索消息
 //
@@ -244,70 +173,4 @@ func SearchOnMultiChatByPost(c *fiber.Ctx) error {
 		return &fiber.Error{Code: fiber.StatusInternalServerError, Message: err.Error()}
 	}
 	return ResponseSearch(c, results)
-}
-
-// ReplyMessage 回复指定消息
-//
-//	@Summary		回复指定消息
-//	@Description	向指定聊天中的指定消息发送回复
-//	@Tags			Client
-//	@Accept			json
-//	@Produce		json
-//	@Security		ApiKeyAuth
-//	@Param			request	body		ReplyMessageRequest									true	"回复消息请求参数"
-//	@Success		200		{object}	map[string]interface{}								"成功响应"
-//	@Success		200		{object}	object{status=string,message=string,data=object}	"成功响应示例"
-//	@Failure		400		{object}	map[string]string									"请求参数错误"
-//	@Failure		401		{object}	map[string]string									"未授权"
-//	@Failure		500		{object}	map[string]string									"服务器内部错误"
-//	@Router			/client/reply [post]
-func ReplyMessage(c *fiber.Ctx) error {
-	var req ReplyMessageRequest
-	if err := c.BodyParser(&req); err != nil {
-		return &fiber.Error{Code: fiber.StatusBadRequest, Message: "Invalid request body"}
-	}
-	if err := validate.StructCtx(c.Context(), &req); err != nil {
-		return &fiber.Error{Code: fiber.StatusBadRequest, Message: "Validation failed: " + err.Error()}
-	}
-	msg, err := userclient.GetUserClient().ReplyMessage(c.Context(), req.ChatID, req.MessageID, req.Text)
-	if err != nil {
-		return &fiber.Error{Code: fiber.StatusInternalServerError, Message: err.Error()}
-	}
-	return c.JSON(fiber.Map{
-		"status":  "success",
-		"message": "Reply sent successfully",
-		"data":    msg,
-	})
-}
-
-// ForwardMessages 转发消息
-//
-//	@Summary		转发消息
-//	@Description	将指定聊天中的消息转发到目标聊天
-//	@Tags			Client
-//	@Accept			json
-//	@Produce		json
-//	@Security		ApiKeyAuth
-//	@Param			request	body		ForwardMessagesRequest							true	"转发消息请求参数"
-//	@Success		200		{object}	map[string]interface{}							"成功响应"
-//	@Success		200		{object}	object{status=string,message=string}			"成功响应示例"
-//	@Failure		400		{object}	map[string]string								"请求参数错误"
-//	@Failure		401		{object}	map[string]string								"未授权"
-//	@Failure		500		{object}	map[string]string								"服务器内部错误"
-//	@Router			/client/forward [post]
-func ForwardMessages(c *fiber.Ctx) error {
-	var req ForwardMessagesRequest
-	if err := c.BodyParser(&req); err != nil {
-		return &fiber.Error{Code: fiber.StatusBadRequest, Message: "Invalid request body"}
-	}
-	if err := validate.StructCtx(c.Context(), &req); err != nil {
-		return &fiber.Error{Code: fiber.StatusBadRequest, Message: "Validation failed: " + err.Error()}
-	}
-	if err := userclient.GetUserClient().ForwardMessages(c.Context(), req.FromChatID, req.ToChatID, req.MessageIDs); err != nil {
-		return &fiber.Error{Code: fiber.StatusInternalServerError, Message: err.Error()}
-	}
-	return c.JSON(fiber.Map{
-		"status":  "success",
-		"message": "Message forwarded successfully",
-	})
 }

@@ -201,6 +201,52 @@ info:
   title: BTTS API
   version: "1.0"
 paths:
+  /client/filestream:
+    get:
+      consumes:
+      - application/json
+      description: 获取指定聊天中指定消息的文件流
+      parameters:
+      - description: 聊天ID
+        format: int64
+        in: query
+        name: chat_id
+        required: true
+        type: integer
+      - description: 消息ID
+        in: query
+        name: message_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 文件流
+          schema:
+            type: file
+        "400":
+          description: 请求参数错误
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: 未授权
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: 服务器内部错误
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      tags:
+      - Client
   /client/forward:
     post:
       consumes:

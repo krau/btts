@@ -73,6 +73,7 @@ func Serve(addr string) {
 	rg.Post("/index/:chat_id<int>/search", SearchOnChatByPost)
 	rg.Post("/client/reply", ReplyMessage)
 	rg.Post("/client/forward", ForwardMessages)
+	rg.Get("/client/filestream", StreamFile)
 
 	app.Use("/", filesystem.New(filesystem.Config{
 		Root:         http.FS(webembed.Static),

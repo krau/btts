@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/celestix/gotgproto"
+	"github.com/celestix/gotgproto/ext"
 	"github.com/celestix/gotgproto/sessionMaker"
 	"github.com/charmbracelet/log"
 	"github.com/krau/btts/config"
@@ -17,10 +18,25 @@ import (
 
 var bi *Bot // Bot Instance
 
+func GetBot() *Bot {
+	if bi == nil {
+		panic("Bot is not initialized, call NewBot first")
+	}
+	return bi
+}
+
 type Bot struct {
 	Client     *gotgproto.Client
 	UserClient *userclient.UserClient
 	Engine     *engine.Engine
+	ectx       *ext.Context // created by Client.CreateContext()
+}
+
+func (b *Bot) GetContext() *ext.Context {
+	if b.ectx == nil {
+		b.ectx = b.Client.CreateContext()
+	}
+	return b.ectx
 }
 
 func (b *Bot) Start(ctx context.Context) {
@@ -92,6 +108,7 @@ func NewBot(ctx context.Context, userClient *userclient.UserClient, engine *engi
 			Client:     r.client,
 			UserClient: userClient,
 			Engine:     engine,
+			ectx:       r.client.CreateContext(),
 		}
 		bi = b
 		if b.Client.Self.ID == 0 {
