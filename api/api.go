@@ -72,6 +72,7 @@ func Serve(addr string) {
 	rg.Get("/index/:chat_id<int>/search", SearchOnChatByGet)
 	rg.Post("/index/:chat_id<int>/search", SearchOnChatByPost)
 	rg.Post("/client/reply", ReplyMessage)
+	rg.Post("/client/forward", ForwardMessages)
 
 	app.Use("/", filesystem.New(filesystem.Config{
 		Root:         http.FS(webembed.Static),

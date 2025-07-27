@@ -279,3 +279,20 @@ func ReplyMessage(c *fiber.Ctx) error {
 		"data":    msg,
 	})
 }
+
+func ForwardMessages(c *fiber.Ctx) error {
+	var req ForwardMessagesRequest
+	if err := c.BodyParser(&req); err != nil {
+		return &fiber.Error{Code: fiber.StatusBadRequest, Message: "Invalid request body"}
+	}
+	if err := validate.StructCtx(c.Context(), &req); err != nil {
+		return &fiber.Error{Code: fiber.StatusBadRequest, Message: "Validation failed: " + err.Error()}
+	}
+	if err := userclient.GetUserClient().ForwardMessages(c.Context(), req.FromChatID, req.ToChatID, req.MessageIDs); err != nil {
+		return &fiber.Error{Code: fiber.StatusInternalServerError, Message: err.Error()}
+	}
+	return c.JSON(fiber.Map{
+		"status":  "success",
+		"message": "Message forwarded successfully",
+	})
+}

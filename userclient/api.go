@@ -31,3 +31,14 @@ func (u *UserClient) ReplyMessage(ctx context.Context, chatID int64, messageID i
 	req.SetReplyTo(replyReq)
 	return u.ectx.SendMessage(chatID, req)
 }
+
+func (u *UserClient) ForwardMessages(ctx context.Context, fromChatID, toChatID int64, messageID []int) error {
+	if u.ectx == nil {
+		u.ectx = u.TClient.CreateContext()
+	}
+	req := &tg.MessagesForwardMessagesRequest{
+		ID: messageID,
+	}
+	_, err := u.ectx.ForwardMessages(fromChatID, toChatID, req)
+	return err
+}

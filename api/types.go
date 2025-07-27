@@ -115,3 +115,9 @@ type ReplyMessageRequest struct {
 	MessageID int    `json:"message_id" validate:"required" example:"987654321"`         // 消息ID
 	Text      string `json:"text" validate:"required" example:"This is a reply message"` // 回复内容
 }
+
+type ForwardMessagesRequest struct {
+	FromChatID int64 `json:"from_chat_id" validate:"required" example:"123456789"`  // 来源聊天ID
+	ToChatID   int64 `json:"to_chat_id" validate:"required" example:"987654321"`    // 目标聊天ID
+	MessageIDs []int `json:"message_ids" validate:"required" example:"123,456,789"` // 消息ID列表
+}
