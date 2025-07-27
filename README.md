@@ -6,18 +6,25 @@ Demo: [@KrauSearchBot](https://t.me/krausearchbot)
 
 ## 部署
 
-在 release 页面下载最新预购建, 并自行部署 [MeiliSearch](https://www.meilisearch.com/docs/home)
+在 release 页面下载最新预购建, 并自行部署 [MeiliSearch](https://www.meilisearch.com/docs/learn/self_hosted/getting_started_with_self_hosted_meilisearch)
 
 然后新建 `config.toml`:
 
 ```toml
+# Telegram Bot 配置
 app_id = 123
 app_hash = "1234567890abcdef1234567890abcdef"
 bot_token= "1234567890:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
 admins = [1234567890, 1234567890]
 [engine]
+# meilisearch 配置
 url = "http://localhost:7700"
 key = "master-key"
+[api]
+# 可选, 开启 api 和 web 界面
+enable = true
+addr = "127.0.0.1:39415"
+key = "qwqowo"
 ```
 
 启动 !
