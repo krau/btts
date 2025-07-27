@@ -1,5 +1,29 @@
 basePath: /api
 definitions:
+  api.ForwardMessagesRequest:
+    properties:
+      from_chat_id:
+        description: 来源聊天ID
+        example: 123456789
+        type: integer
+      message_ids:
+        description: 消息ID列表
+        example:
+        - 123
+        - 456
+        - 789
+        items:
+          type: integer
+        type: array
+      to_chat_id:
+        description: 目标聊天ID
+        example: 987654321
+        type: integer
+    required:
+    - from_chat_id
+    - message_ids
+    - to_chat_id
+    type: object
   api.ReplyMessageRequest:
     properties:
       chat_id:
@@ -177,6 +201,53 @@ info:
   title: BTTS API
   version: "1.0"
 paths:
+  /client/forward:
+    post:
+      consumes:
+      - application/json
+      description: 将指定聊天中的消息转发到目标聊天
+      parameters:
+      - description: 转发消息请求参数
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.ForwardMessagesRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 成功响应示例
+          schema:
+            properties:
+              message:
+                type: string
+              status:
+                type: string
+            type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: 未授权
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: 服务器内部错误
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: 转发消息
+      tags:
+      - Client
   /client/reply:
     post:
       consumes:

@@ -280,6 +280,21 @@ func ReplyMessage(c *fiber.Ctx) error {
 	})
 }
 
+// ForwardMessages 转发消息
+//
+//	@Summary		转发消息
+//	@Description	将指定聊天中的消息转发到目标聊天
+//	@Tags			Client
+//	@Accept			json
+//	@Produce		json
+//	@Security		ApiKeyAuth
+//	@Param			request	body		ForwardMessagesRequest							true	"转发消息请求参数"
+//	@Success		200		{object}	map[string]interface{}							"成功响应"
+//	@Success		200		{object}	object{status=string,message=string}			"成功响应示例"
+//	@Failure		400		{object}	map[string]string								"请求参数错误"
+//	@Failure		401		{object}	map[string]string								"未授权"
+//	@Failure		500		{object}	map[string]string								"服务器内部错误"
+//	@Router			/client/forward [post]
 func ForwardMessages(c *fiber.Ctx) error {
 	var req ForwardMessagesRequest
 	if err := c.BodyParser(&req); err != nil {

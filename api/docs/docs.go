@@ -15,6 +15,80 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/client/forward": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "将指定聊天中的消息转发到目标聊天",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Client"
+                ],
+                "summary": "转发消息",
+                "parameters": [
+                    {
+                        "description": "转发消息请求参数",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.ForwardMessagesRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功响应示例",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "message": {
+                                    "type": "string"
+                                },
+                                "status": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "未授权",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/client/reply": {
             "post": {
                 "security": [
@@ -511,6 +585,38 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "api.ForwardMessagesRequest": {
+            "type": "object",
+            "required": [
+                "from_chat_id",
+                "message_ids",
+                "to_chat_id"
+            ],
+            "properties": {
+                "from_chat_id": {
+                    "description": "来源聊天ID",
+                    "type": "integer",
+                    "example": 123456789
+                },
+                "message_ids": {
+                    "description": "消息ID列表",
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    },
+                    "example": [
+                        123,
+                        456,
+                        789
+                    ]
+                },
+                "to_chat_id": {
+                    "description": "目标聊天ID",
+                    "type": "integer",
+                    "example": 987654321
+                }
+            }
+        },
         "api.ReplyMessageRequest": {
             "type": "object",
             "required": [
