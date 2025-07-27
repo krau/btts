@@ -53,7 +53,7 @@ func GetTGFileReader(ctx context.Context, chatID int64, messageId int) (*TGFileF
 		defer pw.Close()
 		_, err = utils.NewDownloader(tf).Stream(ctx, pw)
 		if err != nil && err != io.EOF {
-			if errors.Is(err, syscall.EPIPE) || errors.Is(err, syscall.ECONNRESET) {
+			if errors.Is(err, syscall.EPIPE) || errors.Is(err, syscall.ECONNRESET) || errors.Is(err, io.ErrClosedPipe) {
 				return
 			}
 			logger.Error("failed to download file", "chat_id", chatID, "message_id", messageId, "error", err)
