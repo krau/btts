@@ -140,7 +140,7 @@ func SearchOnChatByGet(c *fiber.Ctx) error {
 			req.TypeFilters = msgTypes
 		}
 	}
-	results, err := engine.Instance.Search(c.Context(), req)
+	results, err := engine.GetEngine().Search(c.Context(), req)
 	if err != nil {
 		return &fiber.Error{Code: fiber.StatusInternalServerError, Message: err.Error()}
 	}
@@ -190,7 +190,7 @@ func SearchOnChatByPost(c *fiber.Ctx) error {
 			req.TypeFilters = msgTypes
 		}
 	}
-	results, err := engine.Instance.Search(c.Context(), req)
+	results, err := engine.GetEngine().Search(c.Context(), req)
 	if err != nil {
 		return &fiber.Error{Code: fiber.StatusInternalServerError, Message: err.Error()}
 	}
@@ -239,7 +239,7 @@ func SearchOnMultiChatByPost(c *fiber.Ctx) error {
 			req.TypeFilters = msgTypes
 		}
 	}
-	results, err := engine.Instance.Search(c.Context(), req)
+	results, err := engine.GetEngine().Search(c.Context(), req)
 	if err != nil {
 		return &fiber.Error{Code: fiber.StatusInternalServerError, Message: err.Error()}
 	}

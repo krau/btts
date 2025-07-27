@@ -120,7 +120,7 @@ func WatchHandler(ctx *ext.Context, u *ext.Update) error {
 		return dispatcher.SkipCurrentGroup
 	}
 
-	if err := engine.Instance.AddDocumentsFromMessages(ctx, chatDB.ChatID, []*tg.Message{u.EffectiveMessage.Message}); err != nil {
+	if err := engine.GetEngine().AddDocumentsFromMessages(ctx, chatDB.ChatID, []*tg.Message{u.EffectiveMessage.Message}); err != nil {
 		log.Errorf("Failed to add documents: %v", err)
 	}
 	return dispatcher.SkipCurrentGroup
@@ -141,7 +141,7 @@ func DeleteHandler(ctx *ext.Context, u *ext.Update) error {
 	if chatDB.NoDelete {
 		return dispatcher.SkipCurrentGroup
 	}
-	if err := engine.Instance.DeleteDocuments(ctx, chatID, update.GetMessages()); err != nil {
+	if err := engine.GetEngine().DeleteDocuments(ctx, chatID, update.GetMessages()); err != nil {
 		log.Errorf("Failed to delete documents: %v", err)
 	}
 	return dispatcher.SkipCurrentGroup

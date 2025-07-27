@@ -120,7 +120,7 @@ func SearchHandler(ctx *ext.Context, update *ext.Update) error {
 		ChatIDs: chatIDs,
 		Query:   query,
 	}
-	resp, err := engine.Instance.Search(ctx, req)
+	resp, err := engine.GetEngine().Search(ctx, req)
 	if err != nil {
 		log.FromContext(ctx).Errorf("Failed to search: %v", err)
 		ctx.Reply(update, ext.ReplyTextString("Failed to search"), nil)
@@ -188,7 +188,7 @@ func SearchCallbackHandler(ctx *ext.Context, update *ext.Update) error {
 	}
 	offset := (page - 1) * types.PER_SEARCH_LIMIT
 	data.Offset = offset
-	resp, err := engine.Instance.Search(ctx, data)
+	resp, err := engine.GetEngine().Search(ctx, data)
 	if err != nil {
 		log.FromContext(ctx).Errorf("Failed to search: %v", err)
 		ctx.AnswerCallback(&tg.MessagesSetBotCallbackAnswerRequest{
@@ -304,7 +304,7 @@ func FilterCallbackHandler(ctx *ext.Context, update *ext.Update) error {
 	data.TypeFilters = newFilter
 	// 重新触发搜索, 从第一页开始
 	data.Offset = 0
-	resp, err := engine.Instance.Search(ctx, data)
+	resp, err := engine.GetEngine().Search(ctx, data)
 	if err != nil {
 		log.FromContext(ctx).Errorf("Failed to search: %v", err)
 		ctx.AnswerCallback(&tg.MessagesSetBotCallbackAnswerRequest{
