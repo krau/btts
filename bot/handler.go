@@ -17,7 +17,7 @@ import (
 
 func CheckPermission(ctx *ext.Context, update *ext.Update) bool {
 	userID := update.GetUserChat().GetID()
-	if userID == BotInstance.UserClient.TClient.Self.ID {
+	if userID == bi.UserClient.TClient.Self.ID {
 		return true
 	}
 	if !slice.Contain(config.C.Admins, userID) {
@@ -28,7 +28,7 @@ func CheckPermission(ctx *ext.Context, update *ext.Update) bool {
 
 func CheckPermissionsHandler(ctx *ext.Context, update *ext.Update) error {
 	userID := update.GetUserChat().GetID()
-	if userID == BotInstance.UserClient.TClient.Self.ID {
+	if userID == bi.UserClient.TClient.Self.ID {
 		return dispatcher.ContinueGroups
 	}
 	if !slice.Contain(config.C.Admins, userID) {

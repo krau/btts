@@ -51,8 +51,8 @@ func DownloadHandler(ctx *ext.Context, update *ext.Update) error {
 	}
 	chatID := chatDB.ChatID
 
-	uapi := BotInstance.UserClient.TClient.API()
-	upeer := BotInstance.UserClient.TClient.PeerStorage
+	uapi := bi.UserClient.TClient.API()
+	upeer := bi.UserClient.TClient.PeerStorage
 	inputPeer := upeer.GetInputPeerById(chatID)
 	if inputPeer == nil {
 		ctx.Reply(update, ext.ReplyTextString("Failed to get input peer"), nil)
@@ -106,7 +106,7 @@ func DownloadHandler(ctx *ext.Context, update *ext.Update) error {
 		if len(messageBatch) > 0 {
 			processed += len(messageBatch)
 			log.FromContext(ctx).Debugf("Adding batch of messages %d/%d", processed, total)
-			if err := BotInstance.Engine.AddDocumentsFromMessages(ctx, chatID, messageBatch); err != nil {
+			if err := bi.Engine.AddDocumentsFromMessages(ctx, chatID, messageBatch); err != nil {
 				log.FromContext(ctx).Errorf("Failed to add documents: %v", err)
 			}
 		}

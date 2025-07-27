@@ -31,7 +31,7 @@ func SearchHandler(ctx *ext.Context, update *ext.Update) error {
 			return dispatcher.EndGroups
 		}
 
-		resp, err := BotInstance.Engine.Search(ctx, types.SearchRequest{
+		resp, err := bi.Engine.Search(ctx, types.SearchRequest{
 			ChatID: channelID,
 			Query:  query,
 		})
@@ -51,7 +51,7 @@ func SearchHandler(ctx *ext.Context, update *ext.Update) error {
 			log.FromContext(ctx).Errorf("Failed to build reply markup: %v", err)
 			return dispatcher.EndGroups
 		}
-		ctx.Reply(update, ext.ReplyTextStyledTextArray(utils.BuildResultStyling(ctx, resp, BotInstance.GetUsername())), &ext.ReplyOpts{
+		ctx.Reply(update, ext.ReplyTextStyledTextArray(utils.BuildResultStyling(ctx, resp, bi.GetUsername())), &ext.ReplyOpts{
 			Markup: markup})
 		return dispatcher.EndGroups
 	}
@@ -88,7 +88,7 @@ func SearchHandler(ctx *ext.Context, update *ext.Update) error {
 	for i, chat := range chats {
 		chatIDs[i] = chat.ChatID
 	}
-	resp, err := BotInstance.Engine.Search(ctx, types.SearchRequest{
+	resp, err := bi.Engine.Search(ctx, types.SearchRequest{
 		ChatIDs: chatIDs,
 		Query:   query,
 	})
@@ -109,7 +109,7 @@ func SearchHandler(ctx *ext.Context, update *ext.Update) error {
 		log.FromContext(ctx).Errorf("Failed to build reply markup: %v", err)
 		return dispatcher.EndGroups
 	}
-	ctx.Reply(update, ext.ReplyTextStyledTextArray(utils.BuildResultStyling(ctx, resp, BotInstance.GetUsername())), &ext.ReplyOpts{
+	ctx.Reply(update, ext.ReplyTextStyledTextArray(utils.BuildResultStyling(ctx, resp, bi.GetUsername())), &ext.ReplyOpts{
 		Markup: markup,
 	})
 	return dispatcher.EndGroups
@@ -148,7 +148,7 @@ func SearchCallbackHandler(ctx *ext.Context, update *ext.Update) error {
 	}
 	offset := (page - 1) * types.PER_SEARCH_LIMIT
 	data.Offset = offset
-	resp, err := BotInstance.Engine.Search(ctx, data)
+	resp, err := bi.Engine.Search(ctx, data)
 	if err != nil {
 		log.FromContext(ctx).Errorf("Failed to search: %v", err)
 		ctx.AnswerCallback(&tg.MessagesSetBotCallbackAnswerRequest{
@@ -168,7 +168,7 @@ func SearchCallbackHandler(ctx *ext.Context, update *ext.Update) error {
 		return dispatcher.EndGroups
 	}
 	eb := entity.Builder{}
-	if err := styling.Perform(&eb, utils.BuildResultStyling(ctx, resp, BotInstance.GetUsername())...); err != nil {
+	if err := styling.Perform(&eb, utils.BuildResultStyling(ctx, resp, bi.GetUsername())...); err != nil {
 		log.FromContext(ctx).Errorf("Failed to build styling: %v", err)
 		ctx.AnswerCallback(&tg.MessagesSetBotCallbackAnswerRequest{
 			QueryID:   update.CallbackQuery.GetQueryID(),
@@ -250,7 +250,7 @@ func FilterCallbackHandler(ctx *ext.Context, update *ext.Update) error {
 	data.TypeFilters = newFilter
 	// 重新触发搜索, 从第一页开始
 	data.Offset = 0
-	resp, err := BotInstance.Engine.Search(ctx, data)
+	resp, err := bi.Engine.Search(ctx, data)
 	if err != nil {
 		log.FromContext(ctx).Errorf("Failed to search: %v", err)
 		ctx.AnswerCallback(&tg.MessagesSetBotCallbackAnswerRequest{
@@ -270,7 +270,7 @@ func FilterCallbackHandler(ctx *ext.Context, update *ext.Update) error {
 		return dispatcher.EndGroups
 	}
 	eb := entity.Builder{}
-	if err := styling.Perform(&eb, utils.BuildResultStyling(ctx, resp, BotInstance.GetUsername())...); err != nil {
+	if err := styling.Perform(&eb, utils.BuildResultStyling(ctx, resp, bi.GetUsername())...); err != nil {
 		log.FromContext(ctx).Errorf("Failed to build styling: %v", err)
 		ctx.AnswerCallback(&tg.MessagesSetBotCallbackAnswerRequest{
 			QueryID:   update.CallbackQuery.GetQueryID(),

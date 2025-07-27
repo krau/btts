@@ -37,7 +37,7 @@ func StartHandler(ctx *ext.Context, update *ext.Update) error {
 			ctx.Reply(update, ext.ReplyTextString("Invalid message ID"), nil)
 			return dispatcher.EndGroups
 		}
-		if err := BotInstance.UserClient.ForwardMessagesToFav(ctx, chatID, []int{int(messageID)}); err != nil {
+		if err := bi.UserClient.ForwardMessagesToFav(ctx, chatID, []int{int(messageID)}); err != nil {
 			log.FromContext(ctx).Errorf("Failed to forward message: %v", err)
 			ctx.Reply(update, ext.ReplyTextString("Failed to forward message"), nil)
 			return dispatcher.EndGroups

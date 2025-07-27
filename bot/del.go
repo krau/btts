@@ -28,7 +28,7 @@ func DelHandler(ctx *ext.Context, update *ext.Update) error {
 		ctx.Reply(update, ext.ReplyTextString("Failed to delete chat"), nil)
 		return dispatcher.EndGroups
 	}
-	if err := BotInstance.Engine.DeleteIndex(ctx, int64(chatID)); err != nil {
+	if err := bi.Engine.DeleteIndex(ctx, int64(chatID)); err != nil {
 		log.FromContext(ctx).Error("Failed to delete index", "chat_id", chatID, "error", err)
 		ctx.Reply(update, ext.ReplyTextString("Failed to delete index"), nil)
 		return dispatcher.EndGroups

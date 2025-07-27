@@ -15,7 +15,7 @@ import (
 	"github.com/ncruces/go-sqlite3/gormlite"
 )
 
-var BotInstance *Bot
+var bi *Bot // Bot Instance
 
 type Bot struct {
 	Client     *gotgproto.Client
@@ -56,8 +56,8 @@ func (b *Bot) GetUsername() string {
 func NewBot(ctx context.Context, userClient *userclient.UserClient, engine *engine.Engine) (*Bot, error) {
 	log := log.FromContext(ctx)
 	log.Debug("Initializing bot")
-	if BotInstance != nil {
-		return BotInstance, nil
+	if bi != nil {
+		return bi, nil
 	}
 	res := make(chan struct {
 		client *gotgproto.Client
@@ -93,11 +93,11 @@ func NewBot(ctx context.Context, userClient *userclient.UserClient, engine *engi
 			UserClient: userClient,
 			Engine:     engine,
 		}
-		BotInstance = b
+		bi = b
 		if b.Client.Self.ID == 0 {
 			log.Fatalf("Failed to get bot ID")
 		}
 		userClient.AddGlobalIgnoreUser(b.Client.Self.ID)
-		return BotInstance, nil
+		return bi, nil
 	}
 }

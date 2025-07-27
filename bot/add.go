@@ -26,7 +26,7 @@ func AddHandler(ctx *ext.Context, update *ext.Update) error {
 
 	chatArg := args[1]
 	var inputPeer tg.InputPeerClass
-	utclient := BotInstance.UserClient.TClient
+	utclient := bi.UserClient.TClient
 
 	chatId, err := strconv.ParseInt(chatArg, 10, 64)
 	if err != nil {
@@ -51,7 +51,7 @@ func AddHandler(ctx *ext.Context, update *ext.Update) error {
 		return dispatcher.EndGroups
 	}
 
-	if err := BotInstance.Engine.CreateIndex(ctx, chatId); err != nil {
+	if err := bi.Engine.CreateIndex(ctx, chatId); err != nil {
 		ctx.Reply(update, ext.ReplyTextString("Failed to create index: "+err.Error()), nil)
 		return dispatcher.EndGroups
 	}
@@ -59,7 +59,7 @@ func AddHandler(ctx *ext.Context, update *ext.Update) error {
 	var gerr error
 	defer func() {
 		if gerr != nil {
-			if err := BotInstance.Engine.DeleteIndex(ctx, chatId); err != nil {
+			if err := bi.Engine.DeleteIndex(ctx, chatId); err != nil {
 				log.Errorf("Failed to delete index: %v", err)
 			}
 			if err := database.DeleteIndexChat(ctx, chatId); err != nil {
@@ -115,7 +115,7 @@ func AddHandler(ctx *ext.Context, update *ext.Update) error {
 			processed++
 			if len(messageBatch) >= 100 {
 				log.Debugf("Adding batch of messages %d/%d", processed, total)
-				if err := BotInstance.Engine.AddDocumentsFromMessages(ctx, chatId, messageBatch); err != nil {
+				if err := bi.Engine.AddDocumentsFromMessages(ctx, chatId, messageBatch); err != nil {
 					log.Errorf("Failed to add documents: %v", err)
 				}
 				messageBatch = messageBatch[:0]
@@ -131,7 +131,7 @@ func AddHandler(ctx *ext.Context, update *ext.Update) error {
 	}
 	if len(messageBatch) > 0 {
 		log.Debugf("Adding final batch of messages %d/%d", processed, total)
-		if err := BotInstance.Engine.AddDocumentsFromMessages(ctx, chatId, messageBatch); err != nil {
+		if err := bi.Engine.AddDocumentsFromMessages(ctx, chatId, messageBatch); err != nil {
 			log.Errorf("Failed to add documents: %v", err)
 		}
 	}
