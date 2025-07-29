@@ -96,9 +96,8 @@ func AddHandler(ctx *ext.Context, update *ext.Update) error {
 	queryHistoryBuilder := query.Messages(utclient.API()).GetHistory(inputPeer).BatchSize(100)
 	total, err := queryHistoryBuilder.Count(ctx)
 	if err != nil {
-		gerr = err
+		total = -1
 		ctx.Reply(update, ext.ReplyTextString("Failed to count messages: "+err.Error()), nil)
-		return dispatcher.EndGroups
 	}
 
 	ctx.Reply(update, ext.ReplyTextString("Total messages: "+strconv.Itoa(total)), nil)
