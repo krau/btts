@@ -4,3 +4,5 @@ data/
 .vscode/
 tmp/
 .meilisearch/
+go.work
+go.work.sum

@@ -8,6 +8,7 @@ require (
 	github.com/charmbracelet/huh v0.7.0
 	github.com/charmbracelet/log v0.4.2
 	github.com/dgraph-io/ristretto/v2 v2.2.0
+	github.com/gabriel-vasile/mimetype v1.4.9
 	github.com/go-faster/errors v0.7.1
 	github.com/gofiber/fiber/v2 v2.52.9
 	github.com/gofiber/swagger v1.1.1
@@ -40,7 +41,6 @@ require (
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
-	github.com/gabriel-vasile/mimetype v1.4.9 // indirect
 	github.com/glebarez/go-sqlite v1.22.0 // indirect
 	github.com/glebarez/sqlite v1.11.0 // indirect
 	github.com/go-logfmt/logfmt v0.6.0 // indirect
