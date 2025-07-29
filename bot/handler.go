@@ -20,10 +20,10 @@ func CheckPermission(ctx *ext.Context, update *ext.Update) bool {
 	if userID == bi.UserClient.TClient.Self.ID {
 		return true
 	}
-	if !slice.Contain(config.C.Admins, userID) {
-		return false
+	if slice.Contain(config.C.Admins, userID) {
+		return true
 	}
-	return true
+	return false
 }
 
 func CheckPermissionsHandler(ctx *ext.Context, update *ext.Update) error {

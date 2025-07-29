@@ -11,6 +11,7 @@ import (
 
 func DelHandler(ctx *ext.Context, update *ext.Update) error {
 	if !CheckPermission(ctx, update) {
+		log.FromContext(ctx).Warn("Unauthorized access attempt", "user_id", update.GetUserChat().GetID())
 		return dispatcher.EndGroups
 	}
 	args := update.Args()
