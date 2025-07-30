@@ -55,6 +55,7 @@ func (b *Bot) RegisterHandlers(ctx context.Context) {
 	disp.AddHandler(handlers.NewCommand("addsub", AddSubHandler))
 	disp.AddHandler(handlers.NewCommand("delsub", DelSubHandler))
 	disp.AddHandler(handlers.NewCommand("lssub", ListSubHandler))
+	disp.AddHandler(handlers.NewCommand("syncpeers", SyncPeersHandler))
 	disp.AddHandler(handlers.NewCallbackQuery(filters.CallbackQuery.Prefix("search"), SearchCallbackHandler))
 	disp.AddHandler(handlers.NewCallbackQuery(filters.CallbackQuery.Prefix("filter"), FilterCallbackHandler))
 	disp.AddHandler(handlers.NewCallbackQuery(filters.CallbackQuery.Prefix("select"), SelectCallbackHandler))
