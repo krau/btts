@@ -30,7 +30,7 @@ func WatchHandler(ctx *ext.Context, u *ext.Update) error {
 	}
 	if c := u.GetChannel(); c != nil {
 		chatDB.ChatID = c.GetID()
-		chatDB.Title = c.Title
+		chatDB.Title = c.GetTitle()
 		chatDB.Username = c.Username
 		chatDB.Type = int(database.ChatTypeChannel)
 	} else if c := u.GetChat(); c != nil {
@@ -47,6 +47,9 @@ func WatchHandler(ctx *ext.Context, u *ext.Update) error {
 	}
 	// 那我问你 你不 watch 是怎么进来的
 	chatDB.Watching = true
+	if chatDB.Title == "" {
+		log.Warn("Chat title is empty", "update", u)
+	}
 	if err := database.UpsertIndexChat(ctx, chatDB); err != nil {
 		log.Warnf("Failed to upsert index chat: %v", err)
 	}
