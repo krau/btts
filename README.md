@@ -6,9 +6,24 @@ Demo: [@KrauSearchBot](https://t.me/krausearchbot)
 
 ## 部署
 
-在 release 页面下载最新预购建, 并自行部署 [MeiliSearch](https://www.meilisearch.com/docs/learn/self_hosted/getting_started_with_self_hosted_meilisearch)
+首先部署 [meilisearch](https://www.meilisearch.com/docs/learn/self_hosted/getting_started_with_self_hosted_meilisearch) , 它是 btts 的搜索引擎.
 
-然后新建 `config.toml`:
+这个安装脚本会把最新版 meilisearch 下载到当前目录:
+
+```bash
+# Install Meilisearch
+curl -L https://install.meilisearch.com | sh
+```
+
+启动 meilisearch, `master-key` 为你自己设置的密钥
+
+```bash
+./meilisearch --master-key 'master-key'
+```
+
+然后在本项目 [release](https://github.com/krau/btts/releases) 页面下载最新 btts 版本并解压, 然后进入解压后的目录.
+
+创建 `config.toml` 配置文件, 参考下面的配置:
 
 ```toml
 # Telegram Bot 配置
@@ -24,7 +39,7 @@ key = "master-key"
 # 可选, 开启 api 和 web 界面
 enable = true
 addr = "127.0.0.1:39415"
-key = "qwqowo"
+key = "qwqowo" # api 密钥, 访问时需要提供
 ```
 
 启动 !
