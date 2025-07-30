@@ -142,4 +142,4 @@ require (
 	rsc.io/qr v0.2.0 // indirect
 )
 
-replace github.com/celestix/gotgproto => github.com/krau/gotgproto v0.0.0-20250725120916-d91fede4a4bf
+replace github.com/celestix/gotgproto => github.com/krau/gotgproto v0.0.0-20250730080659-caaadb4b1f35
