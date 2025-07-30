@@ -65,31 +65,29 @@ func (u *UserClient) StartWatch(ctx context.Context) {
 	}), 1)
 	disp.AddHandlerToGroup(handlers.NewAnyUpdate(DeleteHandler), 1)
 	disp.AddHandlerToGroup(handlers.NewMessage(filters.Message.All, func(ctx *ext.Context, u *ext.Update) error {
+		if u.EffectiveMessage == nil || u.EffectiveMessage.Message == nil {
+			return dispatcher.SkipCurrentGroup
+		}
+		if u.EffectiveMessage.IsService {
+			return dispatcher.SkipCurrentGroup
+		}
 		if u.Entities == nil || u.Entities.Short {
 			u = ext.GetNewUpdate(ctx, ctx.Raw, ctx.Self.ID, ctx.PeerStorage, u.Entities, u.UpdateClass)
 		}
 		chatID := u.EffectiveChat().GetID()
 		if chatID == 0 {
-			if u.Entities == nil || !u.Entities.Short {
+			if u.Entities == nil || !u.Entities.Short || !u.EffectiveChat().IsAUser() {
 				log.FromContext(ctx).Error("Unexpected zero chat ID", "entities", u.Entities, "update", u)
 				return dispatcher.SkipCurrentGroup
 			}
-			if u.Entities != nil && u.Entities.Short {
-				pu := utils.GetUpdatePeerUser(u)
-				if pu == nil {
-					log.FromContext(ctx).Error("Failed to get PeerUser from update", "update", u)
-					return dispatcher.SkipCurrentGroup
-				}
-				chatID = pu.GetUserID()
+			pu := utils.GetUpdatePeerUser(u)
+			if pu == nil {
+				log.FromContext(ctx).Error("Failed to get PeerUser from update", "update", u)
+				return dispatcher.SkipCurrentGroup
 			}
+			chatID = pu.GetUserID()
 		}
 		if !database.Watching(chatID) {
-			return dispatcher.SkipCurrentGroup
-		}
-		if u.EffectiveMessage == nil || u.EffectiveMessage.Message == nil {
-			return dispatcher.SkipCurrentGroup
-		}
-		if u.EffectiveMessage.IsService {
 			return dispatcher.SkipCurrentGroup
 		}
 		return dispatcher.ContinueGroups
