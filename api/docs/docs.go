@@ -467,6 +467,99 @@ const docTemplate = `{
                 }
             }
         },
+        "/index/{chat_id}/msgs/fetch": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "根据消息ID列表从索引中获取消息内容",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chat"
+                ],
+                "summary": "从索引中获取指定消息",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "聊天ID",
+                        "name": "chat_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "请求参数",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.FetchMessagesRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功响应示例",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "messages": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/definitions/types.SearchHit"
+                                    }
+                                },
+                                "status": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "未授权",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "未找到指定聊天的索引",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/index/{chat_id}/search": {
             "get": {
                 "security": [
@@ -731,6 +824,25 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "api.FetchMessagesRequest": {
+            "type": "object",
+            "required": [
+                "ids"
+            ],
+            "properties": {
+                "ids": {
+                    "description": "消息ID列表",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "123456789",
+                        "987654321"
+                    ]
+                }
+            }
+        },
         "api.ForwardMessagesRequest": {
             "type": "object",
             "required": [
@@ -1000,6 +1112,55 @@ const docTemplate = `{
                 },
                 "watching": {
                     "type": "boolean"
+                }
+            }
+        },
+        "types.SearchHit": {
+            "type": "object",
+            "properties": {
+                "_formatted": {
+                    "type": "object",
+                    "properties": {
+                        "chat_id": {
+                            "type": "string"
+                        },
+                        "id": {
+                            "type": "string"
+                        },
+                        "message": {
+                            "type": "string"
+                        },
+                        "timestamp": {
+                            "type": "string"
+                        },
+                        "type": {
+                            "type": "string"
+                        },
+                        "user_id": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "chat_id": {
+                    "type": "integer"
+                },
+                "id": {
+                    "description": "Telegram MessageID",
+                    "type": "integer"
+                },
+                "message": {
+                    "description": "The original text of the message",
+                    "type": "string"
+                },
+                "timestamp": {
+                    "type": "integer"
+                },
+                "type": {
+                    "type": "integer"
+                },
+                "user_id": {
+                    "description": "The ID of the user who sent the message",
+                    "type": "integer"
                 }
             }
         }

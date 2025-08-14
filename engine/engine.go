@@ -29,6 +29,12 @@ func GetEngine() *Engine {
 	return instance
 }
 
+func (e *Engine) Index(chatID int64) meilisearch.IndexManager {
+	indexName := fmt.Sprintf("btts_%d", chatID)
+	index := e.Client.Index(indexName)
+	return index
+}
+
 func NewEngine(ctx context.Context, selfID int64) (*Engine, error) {
 	if instance != nil {
 		return instance, nil

@@ -126,3 +126,7 @@ type StreamFileRequest struct {
 	ChatID    int64 `json:"chat_id" validate:"required" example:"123456789"`    // 聊天ID
 	MessageID int   `json:"message_id" validate:"required" example:"987654321"` // 消息ID
 }
+
+type FetchMessagesRequest struct {
+	IDs []string `json:"ids" validate:"required" example:"123456789,987654321"` // 消息ID列表
+}

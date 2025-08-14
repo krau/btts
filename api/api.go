@@ -76,6 +76,7 @@ func Serve(addr string) {
 	rg.Post("/index/multi-search", SearchOnMultiChatByPost)
 	rg.Get("/index/:chat_id<int>/search", SearchOnChatByGet)
 	rg.Post("/index/:chat_id<int>/search", SearchOnChatByPost)
+	rg.Post("/index/:chat_id<int>/msgs/fetch", FetchMessages)
 	rg.Post("/client/reply", ReplyMessage)
 	rg.Post("/client/forward", ForwardMessages)
 	rg.Use("/client/filestream", keyauth.New(keyauth.Config{

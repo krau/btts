@@ -3,8 +3,12 @@ package api
 import (
 	"errors"
 
+	"github.com/bytedance/sonic"
 	"github.com/gofiber/fiber/v2"
 	"github.com/krau/btts/database"
+	"github.com/krau/btts/engine"
+	"github.com/krau/btts/types"
+	"github.com/meilisearch/meilisearch-go"
 	"gorm.io/gorm"
 )
 
@@ -74,4 +78,67 @@ func GetIndexInfo(c *fiber.Ctx) error {
 		"status": "success",
 		"index":  indexChat,
 	})
+}
+
+// FetchMessages 从索引中获取指定消息
+//
+//	@Summary		从索引中获取指定消息
+//	@Description	根据消息ID列表从索引中获取消息内容
+//	@Tags			Chat
+//	@Accept			json
+//	@Produce		json
+//	@Security		ApiKeyAuth
+//	@Param			chat_id	path		int												true	"聊天ID"
+//	@Param			request	body		FetchMessagesRequest								true	"请求参数"
+//	@Success		200		{object}	map[string]interface{}							"成功响应"
+//	@Success		200		{object}	object{status=string,messages=[]types.SearchHit}	"成功响应示例"
+//	@Failure		400		{object}	map[string]string								"请求参数错误"
+//	@Failure		401		{object}	map[string]string								"未授权"
+//	@Failure		404		{object}	map[string]string								"未找到指定聊天的索引"
+//	@Failure		500		{object}	map[string]string								"服务器内部错误"
+//	@Router			/index/{chat_id}/msgs/fetch [post]
+func FetchMessages(c *fiber.Ctx) error {
+	chatID, err := c.ParamsInt("chat_id")
+	if err != nil {
+		return &fiber.Error{Code: fiber.StatusBadRequest, Message: "Chat ID is required"}
+	}
+	request := new(FetchMessagesRequest)
+	if err := c.BodyParser(request); err != nil {
+		return &fiber.Error{Code: fiber.StatusBadRequest, Message: "Invalid request body"}
+	}
+	if err := validate.StructCtx(c.Context(), request); err != nil {
+		return &fiber.Error{Code: fiber.StatusBadRequest, Message: "Validation failed: " + err.Error()}
+	}
+	indexManager := engine.GetEngine().Index(int64(chatID))
+	if indexManager == nil {
+		return &fiber.Error{Code: fiber.StatusNotFound, Message: "Index not found for the specified chat"}
+	}
+	var resp meilisearch.DocumentsResult
+	// [TODO] 不知道为什么传给 meilisearch 的 ids 总是空的
+	err = indexManager.GetDocumentReader().GetDocumentsWithContext(c.Context(), &meilisearch.DocumentsQuery{
+		Limit:  20,
+		Offset: 0,
+		Ids:    request.IDs,
+	}, &resp)
+	if err != nil {
+		return &fiber.Error{Code: fiber.StatusInternalServerError, Message: "Failed to fetch messages: " + err.Error()}
+	}
+	hitBytes, err := sonic.Marshal(resp.Results)
+	if err != nil {
+		return &fiber.Error{Code: fiber.StatusInternalServerError, Message: "Failed to marshal response: " + err.Error()}
+	}
+	var hits []types.SearchHit
+	err = sonic.Unmarshal(hitBytes, &hits)
+	if err != nil {
+		return &fiber.Error{Code: fiber.StatusInternalServerError, Message: "Failed to unmarshal response: " + err.Error()}
+	}
+	searchResp := &types.MessageSearchResponse{
+		Raw:                &resp,
+		Hits:               hits,
+		EstimatedTotalHits: resp.Total,
+		Offset:             resp.Offset,
+		Limit:              resp.Limit,
+		ProcessingTimeMs:   0,
+	}
+	return ResponseSearch(c, searchResp)
 }
