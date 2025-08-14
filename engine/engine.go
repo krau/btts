@@ -198,7 +198,7 @@ func (e *Engine) CreateIndex(ctx context.Context, chatID int64) error {
 	if config.C.Engine.Embedder.Name != "" {
 		embedSettings := config.C.Engine.Embedder
 		embedder := meilisearch.Embedder{
-			Source:           embedSettings.Source,
+			Source:           meilisearch.EmbedderSource(embedSettings.Source),
 			APIKey:           embedSettings.ApiKey,
 			Dimensions:       embedSettings.Dimensions,
 			DocumentTemplate: embedSettings.DocumentTemplate,
@@ -272,7 +272,8 @@ func (e *Engine) AddDocuments(ctx context.Context, chatID int64, docs []*types.M
 		return nil
 	}
 	indexName := fmt.Sprintf("btts_%d", chatID)
-	_, err = e.Client.Index(indexName).UpdateDocumentsWithContext(ctx, jsonData, "id")
+	primaryKey := "id"
+	_, err = e.Client.Index(indexName).UpdateDocumentsWithContext(ctx, jsonData, &primaryKey)
 	return err
 }
 

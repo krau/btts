@@ -201,6 +201,55 @@ info:
   title: BTTS API
   version: "1.0"
 paths:
+  /client/callexten/{exten}:
+    post:
+      consumes:
+      - application/json
+      description: 调用用户客户端扩展API
+      parameters:
+      - description: 扩展名
+        in: path
+        name: exten
+        required: true
+        type: string
+      - description: 扩展API请求参数
+        in: body
+        name: input
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 成功响应
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: 未授权
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: 服务器内部错误
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: 调用用户客户端扩展API
+      tags:
+      - Client
   /client/filestream:
     get:
       consumes:

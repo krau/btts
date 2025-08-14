@@ -114,3 +114,37 @@ func StreamFile(c *fiber.Ctx) error {
 	}
 	return c.SendStream(file, int(file.Size))
 }
+
+// CallClientExtension 调用用户客户端扩展API
+//
+//	@Summary		调用用户客户端扩展API
+//	@Description	调用用户客户端扩展API
+//	@Tags			Client
+//	@Accept			json
+//	@Produce		json
+//	@Security		ApiKeyAuth
+//	@Param			exten		path	string	true	"扩展名"
+//	@Param			input		body	map[string]any	true	"扩展API请求参数"
+//	@Success		200			{object}	map[string]any	"成功响应"
+//	@Failure		400			{object}	map[string]string	"请求参数错误"
+//	@Failure		401			{object}	map[string]string	"未授权"
+//	@Failure		500			{object}	map[string]string	"服务器内部错误"
+//	@Router			/client/callexten/{exten} [post]
+func CallClientExtension(c *fiber.Ctx) error {
+	exten := c.Params("exten")
+	if exten == "" {
+		return &fiber.Error{Code: fiber.StatusBadRequest, Message: "Extension name is required"}
+	}
+	if userclient.GetUserClient() == nil {
+		return &fiber.Error{Code: fiber.StatusInternalServerError, Message: "User client is not initialized"}
+	}
+	var input map[string]any
+	if err := c.BodyParser(&input); err != nil {
+		return &fiber.Error{Code: fiber.StatusBadRequest, Message: "Invalid request body"}
+	}
+	result, err := userclient.GetUserClient().CallExtenApi(c.Context(), exten, input)
+	if err != nil {
+		return &fiber.Error{Code: fiber.StatusInternalServerError, Message: err.Error()}
+	}
+	return c.JSON(result)
+}

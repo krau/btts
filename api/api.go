@@ -103,6 +103,7 @@ func Serve(addr string) {
 		KeyLookup: "query:reqtoken",
 	}))
 	rg.Get("/client/filestream", StreamFile)
+	rg.Post("/client/callexten/:exten<string>", CallClientExtension)
 
 	app.Use("/", filesystem.New(filesystem.Config{
 		Root:         http.FS(webembed.Static),
