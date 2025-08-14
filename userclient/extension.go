@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/celestix/gotgproto/ext"
+	"github.com/charmbracelet/log"
 	"github.com/gotd/td/telegram/uploader"
 	"github.com/gotd/td/tg"
 	"github.com/rs/xid"
@@ -51,6 +52,7 @@ var ExtenSetProfile = func(ctx context.Context, ectx *ext.Context, input map[str
 		return nil, errors.New("no profile data provided")
 	}
 	raw := ectx.Raw
+	var errs []error
 	if firstName != "" || lastName != "" {
 		req := &tg.AccountUpdateProfileRequest{}
 		req.SetFirstName(firstName)
@@ -58,7 +60,6 @@ var ExtenSetProfile = func(ctx context.Context, ectx *ext.Context, input map[str
 		if bio != "" {
 			req.SetAbout(bio)
 		}
-		var errs []error
 		_, err := raw.AccountUpdateProfile(ctx, req)
 		if err != nil {
 			errs = append(errs, fmt.Errorf("failed to update profile: %w", err))
@@ -66,15 +67,43 @@ var ExtenSetProfile = func(ctx context.Context, ectx *ext.Context, input map[str
 	} else if bio != "" {
 		req := &tg.AccountUpdateProfileRequest{}
 		req.SetAbout(bio)
-		var errs []error
 		_, err := raw.AccountUpdateProfile(ctx, req)
 		if err != nil {
 			errs = append(errs, fmt.Errorf("failed to update bio: %w", err))
 		}
 	}
-	var errs []error
 	if avatarUrl != "" {
 		err := func() error {
+			deleteOldErr := func() error {
+				req := &tg.PhotosGetUserPhotosRequest{
+					UserID: ectx.Self.AsInput(),
+					Limit:  1,
+					Offset: 1,
+				}
+				photos, err := raw.PhotosGetUserPhotos(ctx, req)
+				if err != nil {
+					return fmt.Errorf("failed to get user photos: %w", err)
+				}
+				if len(photos.GetPhotos()) == 0 {
+					return nil // no photos to delete
+				}
+				photo := photos.GetPhotos()[0]
+				if photo == nil {
+					return nil // no photo to delete
+				}
+				photoInput, ok := photo.AsNotEmpty()
+				if !ok {
+					return fmt.Errorf("unexpected empty photo in response")
+				}
+				_, deleteOldErr := raw.PhotosDeletePhotos(ctx, []tg.InputPhotoClass{photoInput.AsInput()})
+				if deleteOldErr != nil {
+					return fmt.Errorf("failed to delete old profile photo: %w", deleteOldErr)
+				}
+				return nil
+			}()
+			if deleteOldErr != nil {
+				log.FromContext(ctx).Warn("failed to delete old profile photo", "error", deleteOldErr)
+			}
 			var file tg.InputFileClass
 			var err error
 			if strings.HasPrefix(avatarUrl, "http") {
