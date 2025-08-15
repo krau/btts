@@ -35,7 +35,7 @@ require (
 	github.com/charmbracelet/lipgloss v1.1.0 // indirect
 	github.com/charmbracelet/x/ansi v0.10.1 // indirect
 	github.com/charmbracelet/x/cellbuf v0.0.13 // indirect
-	github.com/charmbracelet/x/exp/strings v0.0.0-20250812135814-932da4e322f4 // indirect
+	github.com/charmbracelet/x/exp/strings v0.0.0-20250814162307-57b675fecd71 // indirect
 	github.com/charmbracelet/x/term v0.2.1 // indirect
 	github.com/cloudwego/base64x v0.1.6 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
@@ -86,7 +86,7 @@ require (
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ulikunitz/xz v0.5.12 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
-	github.com/valyala/fasthttp v1.64.0 // indirect
+	github.com/valyala/fasthttp v1.65.0 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	golang.org/x/arch v0.20.0 // indirect
 	golang.org/x/oauth2 v0.30.0 // indirect
@@ -142,4 +142,4 @@ require (
 	rsc.io/qr v0.2.0 // indirect
 )
 
-replace github.com/celestix/gotgproto => github.com/krau/gotgproto v0.0.0-20250814084726-af6d2b69afaf
+replace github.com/celestix/gotgproto => github.com/krau/gotgproto v0.0.0-20250815074212-7fbd56c33c00
