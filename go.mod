@@ -143,4 +143,4 @@ require (
 )
 
 // go mod edit -replace=github.com/celestix/gotgproto=github.com/krau/gotgproto@$(git ls-remote https://github.com/krau/gotgproto.git | grep refs/heads/dev | cut -f1) && go mod tidy
-replace github.com/celestix/gotgproto => github.com/krau/gotgproto v0.0.0-20250815074212-7fbd56c33c00
+replace github.com/celestix/gotgproto => github.com/krau/gotgproto v0.0.0-20250816001449-27be9698c71d
