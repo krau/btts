@@ -37,9 +37,6 @@ func SearchOnChatByGet(c *fiber.Ctx) error {
 		return &fiber.Error{Code: fiber.StatusBadRequest, Message: "Chat ID is required"}
 	}
 	query := c.Query("q")
-	if query == "" {
-		return &fiber.Error{Code: fiber.StatusBadRequest, Message: "Query parameter 'q' is required"}
-	}
 	offset := c.QueryInt("offset")
 	limit := c.QueryInt("limit", 10)
 
