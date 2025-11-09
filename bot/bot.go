@@ -46,11 +46,11 @@ func (b *Bot) Start(ctx context.Context) {
 	b.RegisterHandlers(ctx)
 
 	b.UserClient.StartWatch(ctx)
-	sbs, err := subbot.StartStored(ctx)
+	err := subbot.StartStored(ctx)
 	if err != nil {
 		log.Errorf("Failed to start sub bots: %v", err)
 	}
-	for _, sb := range sbs {
+	for _, sb := range subbot.GetAll() {
 		b.UserClient.AddGlobalIgnoreUser(sb.ID)
 	}
 
@@ -59,6 +59,9 @@ func (b *Bot) Start(ctx context.Context) {
 	log.Info("Exiting...")
 	if err := b.UserClient.Close(); err != nil {
 		log.Errorf("Failed to close user client: %v", err)
+	}
+	for _, sb := range subbot.GetAll() {
+		sb.Stop()
 	}
 }
 

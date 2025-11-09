@@ -74,7 +74,7 @@ func ListSubHandler(ctx *ext.Context, update *ext.Update) error {
 		ctx.Reply(update, ext.ReplyTextString("Failed to get sub bots: "+err.Error()), nil)
 		return dispatcher.EndGroups
 	}
-	runningSbs := subbot.GetAll(ctx)
+	runningSbs := subbot.GetAll()
 	if len(sbs) != len(runningSbs) {
 		log.FromContext(ctx).Errorf("Sub bot count mismatch: %d != %d", len(sbs), len(runningSbs))
 		ctx.Reply(update, ext.ReplyTextString("Sub bot count mismatch!!!"), nil)

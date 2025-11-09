@@ -3,6 +3,7 @@ package subbot
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/celestix/gotgproto"
@@ -58,6 +59,7 @@ func (s *SubBot) Stop() {
 }
 
 var subBots = make(map[int64]*SubBot)
+var subBotMu = sync.RWMutex{}
 
 type SubBotKey struct{}
 
@@ -143,13 +145,17 @@ func NewSubBot(ctx context.Context, token string, chats []int64) (*SubBot, error
 			ID:     r.client.Self.ID,
 			Name:   r.client.Self.Username,
 		}
+		subBotMu.Lock()
 		subBots[r.client.Self.ID] = b
+		subBotMu.Unlock()
 		return b, nil
 	}
 }
 
 func GetSubBot(ctx context.Context, botID int64) (*SubBot, error) {
 	log := log.FromContext(ctx)
+	subBotMu.RLock()
+	defer subBotMu.RUnlock()
 	bot, ok := subBots[botID]
 	if !ok {
 		log.Errorf("Sub bot %d not found", botID)
@@ -161,6 +167,8 @@ func GetSubBot(ctx context.Context, botID int64) (*SubBot, error) {
 func DelSubBot(ctx context.Context, botID int64) error {
 	log := log.FromContext(ctx)
 	log.Debugf("Deleting sub bot %d", botID)
+	subBotMu.Lock()
+	defer subBotMu.Unlock()
 	bot, ok := subBots[botID]
 	if !ok {
 		log.Errorf("Sub bot %d not found", botID)
@@ -177,39 +185,40 @@ func DelSubBot(ctx context.Context, botID int64) error {
 	return nil
 }
 
-func GetAll(ctx context.Context) []*SubBot {
+func GetAll() []*SubBot {
 	var subBotsList []*SubBot
+	subBotMu.RLock()
+	defer subBotMu.RUnlock()
 	for _, bot := range subBots {
 		subBotsList = append(subBotsList, bot)
 	}
 	return subBotsList
 }
 
-func StartStored(ctx context.Context) (map[int64]*SubBot, error) {
+func StartStored(ctx context.Context) error {
 	bots, err := database.GetAllSubBots(ctx)
 	if err != nil {
 		log.FromContext(ctx).Errorf("Failed to get sub bots: %v", err)
-		return nil, err
+		return err
 	}
-	eg, ectx := errgroup.WithContext(ctx)
+	eg, _ := errgroup.WithContext(ctx)
 	for _, bot := range bots {
 		eg.Go(func() error {
 			if bot.Token == "" {
 				return fmt.Errorf("sub bot %d has no token", bot.BotID)
 			}
-			log.FromContext(ectx).Debugf("Starting sub bot %d", bot.BotID)
-			subBot, err := NewSubBot(ectx, bot.Token, bot.ChatIDs)
+			log.FromContext(ctx).Debugf("Starting sub bot %d", bot.BotID)
+			subBot, err := NewSubBot(ctx, bot.Token, bot.ChatIDs)
 			if err != nil {
 				return fmt.Errorf("failed to start sub bot %d: %v", bot.BotID, err)
 			}
 			subBot.Start()
-			subBots[subBot.ID] = subBot
-			log.FromContext(ectx).Debugf("Sub bot %s started", subBot.Name)
+			log.FromContext(ctx).Debugf("Sub bot %s started", subBot.Name)
 			return nil
 		})
 	}
 	if err := eg.Wait(); err != nil {
-		return nil, err
+		return err
 	}
-	return subBots, nil
+	return nil
 }
