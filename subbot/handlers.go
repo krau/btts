@@ -386,7 +386,7 @@ func InlineQueryHandler(ctx *ext.Context, update *ext.Update) error {
 	userID := update.InlineQuery.GetUserID()
 	logger := log.FromContext(ctx)
 	// 检查权限
-	chatIds := make([]int64, 0)
+	var chatIds []int64
 	sb, err := database.GetSubBot(ctx, ctx.Self.ID)
 	if err != nil {
 		logger.Errorf("Failed to get sub bot: %v", err)
