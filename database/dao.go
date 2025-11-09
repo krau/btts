@@ -87,3 +87,49 @@ func DeleteSubBot(ctx context.Context, botID int64) error {
 	}
 	return nil
 }
+
+func AddMemberToIndexChat(ctx context.Context, chatID int64, userInfo *UserInfo) error {
+	var indexChat IndexChat
+	if err := db.WithContext(ctx).Where("chat_id = ?", chatID).First(&indexChat).Error; err != nil {
+		return err
+	}
+
+	var count int64
+	if err := db.Table("index_chat_members").
+		Where("index_chat_id = ? AND user_chat_id = ?", chatID, userInfo.ChatID).
+		Count(&count).Error; err != nil {
+		return err
+	}
+
+	if count > 0 {
+		return nil
+	}
+
+	if err := db.WithContext(ctx).Model(&indexChat).Association("Members").Append(userInfo); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func RemoveMemberFromIndexChat(ctx context.Context, chatID int64, userInfo *UserInfo) error {
+	var indexChat IndexChat
+	if err := db.WithContext(ctx).Where("chat_id = ?", chatID).First(&indexChat).Error; err != nil {
+		return err
+	}
+	if err := db.WithContext(ctx).Model(&indexChat).Association("Members").Delete(userInfo); err != nil {
+		return err
+	}
+	return nil
+}
+
+func IsMemberInIndexChat(ctx context.Context, chatID int64, userChatID int64) (bool, error) {
+	var count int64
+	err := db.WithContext(ctx).Table("index_chat_members").
+		Where("index_chat_chat_id = ? AND user_info_chat_id = ?", chatID, userChatID).
+		Count(&count).Error
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}

@@ -12,6 +12,18 @@ type UserInfo struct {
 	Username  string
 	FirstName string
 	LastName  string
+
+	IndexChats []IndexChat `gorm:"many2many:index_chat_members;constraint:OnDelete:CASCADE;joinForeignKey:UserChatID;joinReferences:IndexChatID" json:"index_chats"`
+}
+
+func (u *UserInfo) FullName() string {
+	if u.FirstName == "" {
+		return u.LastName
+	}
+	if u.LastName == "" {
+		return u.FirstName
+	}
+	return u.FirstName + " " + u.LastName
 }
 
 type ChatType int
@@ -29,6 +41,8 @@ type IndexChat struct {
 	Watching bool   `gorm:"default:true" json:"watching"`
 	NoDelete bool   `json:"no_delete"`
 	Public   bool   `gorm:"default:false" json:"public"`
+
+	Members []UserInfo `gorm:"many2many:index_chat_members;constraint:OnDelete:CASCADE;joinForeignKey:IndexChatID;joinReferences:UserChatID" json:"members"`
 }
 
 type SubBot struct {

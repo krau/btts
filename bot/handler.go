@@ -72,6 +72,7 @@ func (b *Bot) RegisterHandlers(ctx context.Context) {
 			return false
 		}
 	}, SearchHandler))
+	disp.AddHandlerToGroup(handlers.NewInlineQuery(filters.InlineQuery.All, InlineQueryHandler), 1)
 
 	_, err := b.Client.API().BotsSetBotCommands(ctx, &tg.BotsSetBotCommandsRequest{
 		Scope: &tg.BotCommandScopeDefault{},

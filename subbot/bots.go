@@ -3,7 +3,6 @@ package subbot
 import (
 	"context"
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/celestix/gotgproto"
@@ -18,6 +17,7 @@ import (
 	"github.com/krau/btts/middlewares"
 	"github.com/krau/btts/utils"
 	"github.com/ncruces/go-sqlite3/gormlite"
+	"golang.org/x/sync/errgroup"
 )
 
 type SubBot struct {
@@ -188,26 +188,25 @@ func StartStored(ctx context.Context) (map[int64]*SubBot, error) {
 		log.FromContext(ctx).Errorf("Failed to get sub bots: %v", err)
 		return nil, err
 	}
-	wg := sync.WaitGroup{}
+	eg, ectx := errgroup.WithContext(ctx)
 	for _, bot := range bots {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		eg.Go(func() error {
 			if bot.Token == "" {
-				log.FromContext(ctx).Errorf("Sub bot %d has no token", bot.BotID)
-				return
+				return fmt.Errorf("sub bot %d has no token", bot.BotID)
 			}
-			log.FromContext(ctx).Debugf("Starting sub bot %d", bot.BotID)
-			subBot, err := NewSubBot(ctx, bot.Token, bot.ChatIDs)
+			log.FromContext(ectx).Debugf("Starting sub bot %d", bot.BotID)
+			subBot, err := NewSubBot(ectx, bot.Token, bot.ChatIDs)
 			if err != nil {
-				log.FromContext(ctx).Errorf("Failed to start sub bot %s: %v", bot.Token, err)
-				return
+				return fmt.Errorf("failed to start sub bot %d: %v", bot.BotID, err)
 			}
 			subBot.Start()
 			subBots[subBot.ID] = subBot
-			log.FromContext(ctx).Debugf("Sub bot %s started", subBot.Name)
-		}()
+			log.FromContext(ectx).Debugf("Sub bot %s started", subBot.Name)
+			return nil
+		})
 	}
-	wg.Wait()
+	if err := eg.Wait(); err != nil {
+		return nil, err
+	}
 	return subBots, nil
 }

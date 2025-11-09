@@ -122,6 +122,9 @@ func WatchHandler(ctx *ext.Context, u *ext.Update) error {
 	if slice.Contain(uc.GlobalIgnoreUsers, userDB.ChatID) {
 		return dispatcher.SkipCurrentGroup
 	}
+	if err := database.AddMemberToIndexChat(ctx, chatDB.ChatID, userDB); err != nil {
+		log.Warnf("Failed to add member to index chat: %v", err)
+	}
 
 	if err := engine.GetEngine().AddDocumentsFromMessages(ctx, chatDB.ChatID, []*tg.Message{u.EffectiveMessage.Message}); err != nil {
 		log.Errorf("Failed to add documents: %v", err)

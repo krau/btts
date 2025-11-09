@@ -59,6 +59,37 @@ func (u *UserClient) StartWatch(ctx context.Context) {
 				return dispatcher.SkipCurrentGroup
 			}
 			return dispatcher.ContinueGroups
+		case *tg.UpdateChannelParticipant:
+			chatID := update.GetChannelID()
+			if chatID == 0 || !database.Watching(chatID) {
+				return dispatcher.SkipCurrentGroup
+			}
+			_, ok1 := update.GetPrevParticipant()
+			now, ok2 := update.GetNewParticipant()
+			var userId int64
+			if ok1 && !ok2 {
+				// user left
+				userId = update.GetUserID()
+			} else if ok1 && ok2 {
+				switch now.(type) {
+				case *tg.ChannelParticipantBanned:
+					// user was banned
+					userId = update.GetUserID()
+				case *tg.ChannelParticipantLeft:
+					// user left
+					userId = update.GetUserID()
+				}
+			}
+			if userId == 0 {
+				return dispatcher.SkipCurrentGroup
+			}
+			user, err := database.GetUserInfo(ctx, chatID)
+			if err != nil {
+				log.FromContext(ctx).Error("Failed to get user info", "chat_id", chatID, "error", err)
+				return dispatcher.SkipCurrentGroup
+			}
+			database.RemoveMemberFromIndexChat(ctx, chatID, user)
+			return dispatcher.SkipCurrentGroup
 		default:
 			return dispatcher.SkipCurrentGroup
 		}

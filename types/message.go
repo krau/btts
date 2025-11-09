@@ -1,5 +1,7 @@
 package types
 
+import "fmt"
+
 type MessageType int
 
 const (
@@ -76,6 +78,10 @@ type SearchHit struct {
 		ChatID    string `json:"chat_id"`
 		Timestamp string `json:"timestamp"`
 	} `json:"_formatted"`
+}
+
+func (s SearchHit) MessageLink() string {
+	return fmt.Sprintf("https://t.me/c/%d/%d", s.ChatID, s.ID)
 }
 
 type MessageSearchResponse struct {
