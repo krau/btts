@@ -126,7 +126,7 @@ func RemoveMemberFromIndexChat(ctx context.Context, chatID int64, userInfo *User
 func IsMemberInIndexChat(ctx context.Context, chatID int64, userChatID int64) (bool, error) {
 	var count int64
 	err := db.WithContext(ctx).Table("index_chat_members").
-		Where("index_chat_chat_id = ? AND user_info_chat_id = ?", chatID, userChatID).
+		Where("index_chat_id = ? AND user_chat_id = ?", chatID, userChatID).
 		Count(&count).Error
 	if err != nil {
 		return false, err

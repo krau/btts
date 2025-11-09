@@ -1,6 +1,8 @@
 package bot
 
 import (
+	"fmt"
+
 	"github.com/celestix/gotgproto/dispatcher"
 	"github.com/celestix/gotgproto/ext"
 	"github.com/duke-git/lancet/v2/slice"
@@ -13,10 +15,16 @@ import (
 
 func InlineQueryHandler(ctx *ext.Context, update *ext.Update) error {
 	userID := update.InlineQuery.GetUserID()
-	if userID == bi.UserClient.TClient.Self.ID {
-		return dispatcher.EndGroups
-	}
-	if slice.Contain(config.C.Admins, userID) {
+	// 检查权限
+	if !func() bool {
+		if userID == bi.UserClient.TClient.Self.ID {
+			return true
+		}
+		if slice.Contain(config.C.Admins, userID) {
+			return true
+		}
+		return false
+	}() {
 		return dispatcher.EndGroups
 	}
 
@@ -36,13 +44,18 @@ func InlineQueryHandler(ctx *ext.Context, update *ext.Update) error {
 			title = user.FullName()
 		}
 		results = append(results, inline.Article(
-			title, inline.MessageText(hit.Formatted.Message).Row(
+			title, inline.MessageText(hit.Message).Row(
 				&tg.KeyboardButtonURL{
 					Text: title,
 					URL:  hit.MessageLink(),
 				},
 			),
-		))
+		).Description(hit.Formatted.Message))
+	}
+	if len(results) == 0 {
+		results = append(results, inline.Article(
+			"No Results", inline.MessageText(fmt.Sprintf("No results found for query '%s'", query)),
+		).Description("Try different keywords"))
 	}
 	_, err = ctx.Sender.Inline(update.InlineQuery).Private(true).
 		Set(ctx, results...)

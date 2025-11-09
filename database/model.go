@@ -1,6 +1,7 @@
 package database
 
 import (
+	"context"
 	"slices"
 
 	"github.com/charmbracelet/log"
@@ -50,6 +51,32 @@ type SubBot struct {
 	Token string
 	// which chats this bot can search
 	ChatIDs []int64 `gorm:"serializer:json;type:json"`
+}
+
+// public + user joined chats
+func (s *SubBot) UserCanSearchChats(ctx context.Context, userId int64) []int64 {
+	logger := log.FromContext(ctx)
+	chats := make([]int64, 0)
+	for _, id := range s.ChatIDs {
+		chat, err := GetIndexChat(ctx, id)
+		if err != nil {
+			logger.Errorf("UserCanSearchChats: failed to get index chat %d: %v", id, err)
+			continue
+		}
+		if chat.Public {
+			chats = append(chats, id)
+			continue
+		}
+		isMember, err := IsMemberInIndexChat(ctx, id, userId)
+		if err != nil {
+			logger.Errorf("UserCanSearchChats: failed to check membership for chat %d user %d: %v", id, userId, err)
+			continue
+		}
+		if isMember {
+			chats = append(chats, id)
+		}
+	}
+	return chats
 }
 
 func (ic *IndexChat) AfterSave(tx *gorm.DB) error {

@@ -1,6 +1,7 @@
 package subbot
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/duke-git/lancet/v2/slice"
 	"github.com/gotd/td/telegram/message/entity"
+	"github.com/gotd/td/telegram/message/inline"
 	"github.com/gotd/td/telegram/message/styling"
 	"github.com/gotd/td/tg"
 	"github.com/krau/btts/config"
@@ -20,15 +22,15 @@ import (
 	"github.com/krau/btts/utils/cache"
 )
 
-func CheckPermission(ctx *ext.Context, update *ext.Update) bool {
+func CheckAdmin(ctx *ext.Context, update *ext.Update) bool {
 	userID := update.GetUserChat().GetID()
 	if userID == userclient.GetUserClient().TClient.Self.ID {
 		return true
 	}
-	if !slice.Contain(config.C.Admins, userID) {
-		return false
+	if slice.Contain(config.C.Admins, userID) {
+		return true
 	}
-	return true
+	return false
 }
 
 func StartHandler(ctx *ext.Context, update *ext.Update) error {
@@ -70,7 +72,6 @@ func StartHandler(ctx *ext.Context, update *ext.Update) error {
 	return dispatcher.EndGroups
 }
 
-// yes i have no insterest in code reuse and just want it work :D
 func SearchHandler(ctx *ext.Context, update *ext.Update) error {
 	query := strings.TrimPrefix(strings.TrimPrefix(update.EffectiveMessage.GetMessage(), "/search"), "@"+ctx.Self.Username)
 	if query == "" {
@@ -87,6 +88,7 @@ func SearchHandler(ctx *ext.Context, update *ext.Update) error {
 		return dispatcher.EndGroups
 	}
 
+	userId := update.GetUserChat().GetID()
 	chatIDs := make([]int64, 0)
 
 	isChannel := update.GetChannel() != nil
@@ -95,9 +97,12 @@ func SearchHandler(ctx *ext.Context, update *ext.Update) error {
 		channelID = update.GetChannel().GetID()
 	}
 
-	if CheckPermission(ctx, update) {
+	if CheckAdmin(ctx, update) {
+		// admin 可以搜索所有聊天
 		chatIDs = sbModel.ChatIDs
 	} else {
+		// 非 admin 只能搜索公开聊天，或者当前频道（群组）聊天
+		// 以及用户所在的频道(群组)
 		for _, chatID := range sbModel.ChatIDs {
 			chat, err := database.GetIndexChat(ctx, chatID)
 			if err != nil {
@@ -105,16 +110,34 @@ func SearchHandler(ctx *ext.Context, update *ext.Update) error {
 				continue
 			}
 			if chat.Public {
+				// 公开聊天
 				chatIDs = append(chatIDs, chatID)
-			} else if isChannel && chat.ChatID == channelID {
-				chatIDs = append(chatIDs, chatID)
+			} else if isChannel {
+				if chatID == channelID {
+					// 当前聊天
+					chatIDs = append(chatIDs, chatID)
+				}
+			} else {
+				// 在私聊中, 检测用户是哪些聊天的成员
+				isMember, err := database.IsMemberInIndexChat(ctx, chatID, userId)
+				if err != nil {
+					log.FromContext(ctx).Errorf("Failed to check member in index chat: %v", err)
+					continue
+				}
+				if isMember {
+					chatIDs = append(chatIDs, chatID)
+				}
 			}
 		}
 	}
+
 	if len(chatIDs) == 0 {
 		ctx.Reply(update, ext.ReplyTextString("No indexed chats found"), nil)
 		return dispatcher.EndGroups
 	}
+
+	// 以防万一去个重...
+	chatIDs = slice.Unique(chatIDs)
 
 	req := types.SearchRequest{
 		ChatIDs: chatIDs,
@@ -357,4 +380,59 @@ func FilterCallbackHandler(ctx *ext.Context, update *ext.Update) error {
 	}
 	cache.Set(dataid, data)
 	return dispatcher.EndGroups
+}
+
+func InlineQueryHandler(ctx *ext.Context, update *ext.Update) error {
+	userID := update.InlineQuery.GetUserID()
+	logger := log.FromContext(ctx)
+	// 检查权限
+	chatIds := make([]int64, 0)
+	sb, err := database.GetSubBot(ctx, ctx.Self.ID)
+	if err != nil {
+		logger.Errorf("Failed to get sub bot: %v", err)
+		return dispatcher.EndGroups
+	}
+	if userID == userclient.GetUserClient().TClient.Self.ID ||
+		slice.Contain(config.C.Admins, userID) {
+		// admin
+		chatIds = sb.ChatIDs
+	} else {
+		chatIds = sb.UserCanSearchChats(ctx, userID)
+	}
+	if len(chatIds) == 0 {
+		return dispatcher.EndGroups
+	}
+	query := update.InlineQuery.GetQuery()
+	resp, err := engine.GetEngine().Search(ctx,
+		types.SearchRequest{Query: query,
+			ChatIDs:     chatIds,
+			TypeFilters: []types.MessageType{types.MessageTypeText}})
+	if err != nil {
+		logger.Errorf("Failed to search: %v", err)
+		return dispatcher.EndGroups
+	}
+	results := make([]inline.ResultOption, 0, len(resp.Hits))
+	for _, hit := range resp.Hits {
+		title := hit.Formatted.UserID
+		user, err := database.GetUserInfo(ctx, hit.UserID)
+		if err == nil {
+			title = user.FullName()
+		}
+		results = append(results, inline.Article(
+			title, inline.MessageText(hit.Message).Row(
+				&tg.KeyboardButtonURL{
+					Text: title,
+					URL:  hit.MessageLink(),
+				},
+			),
+		).Description(hit.Formatted.Message))
+	}
+	if len(results) == 0 {
+		results = append(results, inline.Article(
+			"No Results", inline.MessageText(fmt.Sprintf("No results found for query '%s'", query)),
+		).Description("Try different keywords"))
+	}
+	_, err = ctx.Sender.Inline(update.InlineQuery).Private(true).
+		Set(ctx, results...)
+	return err
 }

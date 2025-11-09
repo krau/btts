@@ -35,17 +35,20 @@ func (s *SubBot) Start() {
 	disp.AddHandler(handlers.NewCallbackQuery(filters.CallbackQuery.Prefix("filter"), FilterCallbackHandler))
 	disp.AddHandler(handlers.NewMessage(filters.Message.ChatType(filters.ChatTypeUser), SearchHandler))
 	disp.AddHandler(handlers.NewMessage(func(m *types.Message) bool {
+		// 处理在群组中回复 bot 消息的情况
 		if m == nil || m.ReplyToMessage == nil || m.ReplyToMessage.FromID == nil {
 			return false
 		}
 		peer := m.ReplyToMessage.FromID
 		switch p := peer.(type) {
 		case *tg.PeerUser:
+			// bot 被回复
 			return p.GetUserID() == s.Client.Self.ID
 		default:
 			return false
 		}
 	}, SearchHandler))
+	disp.AddHandlerToGroup(handlers.NewInlineQuery(filters.InlineQuery.All, InlineQueryHandler), 1)
 }
 
 func (s *SubBot) Stop() {
