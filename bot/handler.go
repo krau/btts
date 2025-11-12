@@ -8,7 +8,6 @@ import (
 	"github.com/gotd/td/tg"
 	"github.com/krau/btts/config"
 
-	"github.com/celestix/gotgproto/dispatcher"
 	"github.com/celestix/gotgproto/dispatcher/handlers"
 	"github.com/celestix/gotgproto/dispatcher/handlers/filters"
 	"github.com/celestix/gotgproto/ext"
@@ -26,35 +25,36 @@ func CheckPermission(ctx *ext.Context, update *ext.Update) bool {
 	return false
 }
 
-func CheckPermissionsHandler(ctx *ext.Context, update *ext.Update) error {
-	userID := update.GetUserChat().GetID()
-	if userID == bi.UserClient.TClient.Self.ID {
-		return dispatcher.ContinueGroups
-	}
-	if !slice.Contain(config.C.Admins, userID) {
-		return dispatcher.EndGroups
-	}
-	return dispatcher.ContinueGroups
+type commandHandler struct {
+	handlerFunc func(ctx *ext.Context, update *ext.Update) error
+	cmd         string
+	help        string
+}
+
+var commandHandlers = []commandHandler{
+	{StartHandler, "start", "开始使用"},
+	{SearchHandler, "search", "搜索消息"},
+	{ListHandler, "ls", "列出已索引聊天"},
+	{AddHandler, "add", "添加聊天到索引"},
+	{DelHandler, "del", "删除聊天索引"},
+	{PubHandler, "pub", "将一个聊天设为公开"},
+	{UnPubHandler, "unpub", "将一个聊天设为私有"},
+	{WatchHandler, "watch", "监听一个聊天"},
+	{UnWatchHandler, "unwatch", "取消监听一个聊天"},
+	{WatchDelHandler, "watchdel", "监听一个聊天的删除事件"},
+	{UnWatchDelHandler, "unwatchdel", "取消监听一个聊天的删除事件"},
+	{DownloadHandler, "dl", "下载消息"},
+	{AddSubHandler, "addsub", "添加子 bot"},
+	{DelSubHandler, "delsub", "删除子 bot"},
+	{ListSubHandler, "lssub", "列出子 bot"},
+	{StartHandler, "help", "帮助"},
 }
 
 func (b *Bot) RegisterHandlers(ctx context.Context) {
 	disp := b.Client.Dispatcher
-	disp.AddHandler(handlers.NewCommand("start", StartHandler))
-	disp.AddHandler(handlers.NewCommand("help", StartHandler))
-	disp.AddHandler(handlers.NewCommand("search", SearchHandler))
-	disp.AddHandler(handlers.NewCommand("add", AddHandler))
-	disp.AddHandler(handlers.NewCommand("del", DelHandler))
-	disp.AddHandler(handlers.NewCommand("pub", PubHandler))
-	disp.AddHandler(handlers.NewCommand("unpub", UnPubHandler))
-	disp.AddHandler(handlers.NewCommand("watch", WatchHandler))
-	disp.AddHandler(handlers.NewCommand("unwatch", UnWatchHandler))
-	disp.AddHandler(handlers.NewCommand("watchdel", WatchDelHandler))
-	disp.AddHandler(handlers.NewCommand("unwatchdel", UnWatchDelHandler))
-	disp.AddHandler(handlers.NewCommand("ls", ListHandler))
-	disp.AddHandler(handlers.NewCommand("dl", DownloadHandler))
-	disp.AddHandler(handlers.NewCommand("addsub", AddSubHandler))
-	disp.AddHandler(handlers.NewCommand("delsub", DelSubHandler))
-	disp.AddHandler(handlers.NewCommand("lssub", ListSubHandler))
+	for _, cmdHandler := range commandHandlers {
+		disp.AddHandler(handlers.NewCommand(cmdHandler.cmd, cmdHandler.handlerFunc))
+	}
 	disp.AddHandler(handlers.NewCommand("syncpeers", SyncPeersHandler))
 	disp.AddHandler(handlers.NewCallbackQuery(filters.CallbackQuery.Prefix("search"), SearchCallbackHandler))
 	disp.AddHandler(handlers.NewCallbackQuery(filters.CallbackQuery.Prefix("filter"), FilterCallbackHandler))
@@ -87,28 +87,18 @@ func (b *Bot) RegisterHandlers(ctx context.Context) {
 		log.FromContext(ctx).Error("Failed to set bot commands", "error", err)
 	}
 	if peer := b.Client.PeerStorage.GetInputPeerById(b.UserClient.TClient.Self.ID); peer != nil {
+		var botCmds []tg.BotCommand
+		for _, cmdHandler := range commandHandlers {
+			botCmds = append(botCmds, tg.BotCommand{
+				Command:     cmdHandler.cmd,
+				Description: cmdHandler.help,
+			})
+		}
 		if _, err = b.Client.API().BotsSetBotCommands(ctx, &tg.BotsSetBotCommandsRequest{
 			Scope: &tg.BotCommandScopePeer{
 				Peer: peer,
 			},
-			Commands: []tg.BotCommand{
-				{Command: "search", Description: "搜索消息"},
-				{Command: "ls", Description: "列出已索引聊天"},
-				{Command: "start", Description: "开始使用"},
-				{Command: "help", Description: "帮助"},
-				{Command: "add", Description: "添加聊天到索引"},
-				{Command: "del", Description: "删除聊天索引"},
-				{Command: "pub", Description: "将一个聊天设为公开"},
-				{Command: "unpub", Description: "将一个聊天设为私有"},
-				{Command: "watch", Description: "监听一个聊天"},
-				{Command: "unwatch", Description: "取消监听一个聊天"},
-				{Command: "watchdel", Description: "监听一个聊天的删除事件"},
-				{Command: "unwatchdel", Description: "取消监听一个聊天的删除事件"},
-				{Command: "addsub", Description: "添加子 bot"},
-				{Command: "delsub", Description: "删除子 bot"},
-				{Command: "lssub", Description: "列出子 bot"},
-				{Command: "dl", Description: "下载消息"},
-			},
+			Commands: botCmds,
 		}); err != nil {
 			log.FromContext(ctx).Error("Failed to set bot commands", "error", err)
 		}
