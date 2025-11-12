@@ -404,7 +404,9 @@ func InlineQueryHandler(ctx *ext.Context, update *ext.Update) error {
 	}
 	query := update.InlineQuery.GetQuery()
 	resp, err := engine.GetEngine().Search(ctx,
-		types.SearchRequest{Query: query,
+		types.SearchRequest{
+			Limit:       48,
+			Query:       query,
 			ChatIDs:     chatIds,
 			TypeFilters: []types.MessageType{types.MessageTypeText}})
 	if err != nil {
