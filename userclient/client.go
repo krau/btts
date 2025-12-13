@@ -175,7 +175,7 @@ func NewUserClient(ctx context.Context) (*UserClient, error) {
 			gotgproto.ClientTypePhone(""),
 			&gotgproto.ClientOpts{
 				Session:          sessionMaker.SqlSession(gormlite.Open("data/session_user.db")),
-				AuthConversator:  &termialAuthConversator{},
+				AuthConversator:  &terminalAuthConversator{},
 				Logger:           tclientLog,
 				Context:          ctx,
 				DisableCopyright: true,
