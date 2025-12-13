@@ -68,7 +68,7 @@ func (e *Engine) Search(ctx context.Context, req types.SearchRequest) (*types.Me
 		return e.multiSearch(ctx, req)
 	}
 	if req.ChatID == 0 {
-		return nil, fmt.Errorf("chatID is required")
+		return nil, fmt.Errorf("ChatID is required")
 	}
 	indexName := fmt.Sprintf("btts_%d", req.ChatID)
 	limit := req.Limit

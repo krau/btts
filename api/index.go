@@ -31,12 +31,32 @@ func GetIndexed(c *fiber.Ctx) error {
 	if err != nil {
 		return &fiber.Error{Code: fiber.StatusInternalServerError, Message: err.Error()}
 	}
+	master := isMasterAPIKey(c)
+	if !master {
+		// 对子 API key，仅返回其作用域内的聊天
+		allowed := getScopedChats(c)
+		if len(allowed) == 0 {
+			return &fiber.Error{Code: fiber.StatusForbidden, Message: "No chats allowed for this API key"}
+		}
+		allowedSet := make(map[int64]struct{}, len(allowed))
+		for _, id := range allowed {
+			allowedSet[id] = struct{}{}
+		}
+		filtered := make([]*database.IndexChat, 0, len(chats))
+		for _, ch := range chats {
+			if _, ok := allowedSet[ch.ChatID]; ok {
+				filtered = append(filtered, ch)
+			}
+		}
+		chats = filtered
+	}
 	if len(chats) == 0 {
 		return &fiber.Error{Code: fiber.StatusNotFound, Message: "No indexed chats found"}
 	}
 	return c.JSON(fiber.Map{
 		"status": "success",
 		"chats":  chats,
+		"master": master,
 	})
 }
 
@@ -60,6 +80,9 @@ func GetIndexInfo(c *fiber.Ctx) error {
 	chatID, err := c.ParamsInt("chat_id")
 	if err != nil {
 		return &fiber.Error{Code: fiber.StatusBadRequest, Message: "Chat ID is required"}
+	}
+	if err := ensureChatAllowed(c, int64(chatID)); err != nil {
+		return err
 	}
 	indexChat, err := database.GetIndexChat(c.Context(), int64(chatID))
 	if err != nil {
@@ -101,6 +124,9 @@ func FetchMessages(c *fiber.Ctx) error {
 	chatID, err := c.ParamsInt("chat_id")
 	if err != nil {
 		return &fiber.Error{Code: fiber.StatusBadRequest, Message: "Chat ID is required"}
+	}
+	if err := ensureChatAllowed(c, int64(chatID)); err != nil {
+		return err
 	}
 	request := new(FetchMessagesRequest)
 	if err := c.BodyParser(request); err != nil {

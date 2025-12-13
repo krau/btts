@@ -26,6 +26,9 @@ import (
 //	@Failure		500		{object}	map[string]string									"服务器内部错误"
 //	@Router			/client/reply [post]
 func ReplyMessage(c *fiber.Ctx) error {
+	if !isMasterAPIKey(c) {
+		return &fiber.Error{Code: fiber.StatusForbidden, Message: "This operation requires master API key"}
+	}
 	var req ReplyMessageRequest
 	if err := c.BodyParser(&req); err != nil {
 		return &fiber.Error{Code: fiber.StatusBadRequest, Message: "Invalid request body"}
@@ -60,6 +63,9 @@ func ReplyMessage(c *fiber.Ctx) error {
 //	@Failure		500		{object}	map[string]string								"服务器内部错误"
 //	@Router			/client/forward [post]
 func ForwardMessages(c *fiber.Ctx) error {
+	if !isMasterAPIKey(c) {
+		return &fiber.Error{Code: fiber.StatusForbidden, Message: "This operation requires master API key"}
+	}
 	var req ForwardMessagesRequest
 	if err := c.BodyParser(&req); err != nil {
 		return &fiber.Error{Code: fiber.StatusBadRequest, Message: "Invalid request body"}
@@ -131,6 +137,9 @@ func StreamFile(c *fiber.Ctx) error {
 //	@Failure		500			{object}	map[string]string	"服务器内部错误"
 //	@Router			/client/callexten/{exten} [post]
 func CallClientExtension(c *fiber.Ctx) error {
+	if !isMasterAPIKey(c) {
+		return &fiber.Error{Code: fiber.StatusForbidden, Message: "This operation requires master API key"}
+	}
 	exten := c.Params("exten")
 	if exten == "" {
 		return &fiber.Error{Code: fiber.StatusBadRequest, Message: "Extension name is required"}

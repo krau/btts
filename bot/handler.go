@@ -47,6 +47,11 @@ var commandHandlers = []commandHandler{
 	{AddSubHandler, "addsub", "添加子 bot"},
 	{DelSubHandler, "delsub", "删除子 bot"},
 	{ListSubHandler, "lssub", "列出子 bot"},
+	{GenApiKeyHandler, "genapikey", "生成随机 api key"},
+	{AddApiKeyHandler, "addapikey", "添加子 api key"},
+	{DelApiKeyHandler, "delapikey", "删除子 api key"},
+	{ListApiKeyHandler, "lsapikey", "列出子 api key"},
+	{SetApiKeyHandler, "setapikey", "设置子 api key 作用域"},
 	{StartHandler, "help", "帮助"},
 }
 

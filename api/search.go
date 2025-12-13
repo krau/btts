@@ -6,7 +6,6 @@ import (
 
 	"github.com/duke-git/lancet/v2/slice"
 	"github.com/gofiber/fiber/v2"
-	"github.com/krau/btts/database"
 	"github.com/krau/btts/engine"
 	"github.com/krau/btts/types"
 )
@@ -35,6 +34,9 @@ func SearchOnChatByGet(c *fiber.Ctx) error {
 	chatID, err := c.ParamsInt("chat_id")
 	if err != nil {
 		return &fiber.Error{Code: fiber.StatusBadRequest, Message: "Chat ID is required"}
+	}
+	if err := ensureChatAllowed(c, int64(chatID)); err != nil {
+		return err
 	}
 	query := c.Query("q")
 	offset := c.QueryInt("offset")
@@ -94,6 +96,9 @@ func SearchOnChatByPost(c *fiber.Ctx) error {
 	if err != nil {
 		return &fiber.Error{Code: fiber.StatusBadRequest, Message: "Chat ID is required"}
 	}
+	if err := ensureChatAllowed(c, int64(chatID)); err != nil {
+		return err
+	}
 	request := new(SearchOnChatByPostRequest)
 	if err := c.BodyParser(request); err != nil {
 		return &fiber.Error{Code: fiber.StatusBadRequest, Message: "Invalid request body"}
@@ -148,15 +153,16 @@ func SearchOnMultiChatByPost(c *fiber.Ctx) error {
 		return &fiber.Error{Code: fiber.StatusBadRequest, Message: "Validation failed: " + err.Error()}
 	}
 
+	chatIDs, err := filterAllowedChats(c, request.ChatIDs)
+	if err != nil {
+		return err
+	}
 	req := types.SearchRequest{
-		ChatIDs:     request.ChatIDs,
+		ChatIDs:     chatIDs,
 		Query:       request.Query,
 		Offset:      request.Offset,
 		Limit:       request.Limit,
 		UserFilters: request.Users,
-	}
-	if len(request.ChatIDs) == 0 {
-		req.ChatIDs = database.AllChatIDs()
 	}
 	if len(request.Types) > 0 {
 		if msgTypes := slice.Map(request.Types, func(i int, msgType string) types.MessageType {

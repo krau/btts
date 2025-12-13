@@ -53,6 +53,15 @@ type SubBot struct {
 	ChatIDs []int64 `gorm:"serializer:json;type:json"`
 }
 
+// ApiKey 表示 Web API 的子 API Key
+// KeyHash 使用 sha256 的十六进制字符串，ChatIDs 为该 key 可访问的聊天作用域
+type ApiKey struct {
+	ID      uint    `gorm:"primaryKey"`
+	Name    string  `json:"name"`
+	KeyHash string  `gorm:"uniqueIndex;size:64" json:"-"`
+	ChatIDs []int64 `gorm:"serializer:json;type:json" json:"chat_ids"`
+}
+
 // public + user joined chats
 func (s *SubBot) UserCanSearchChats(ctx context.Context, userId int64) []int64 {
 	logger := log.FromContext(ctx)

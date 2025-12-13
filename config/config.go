@@ -49,4 +49,7 @@ func init() {
 	if err := viper.Unmarshal(&C); err != nil {
 		log.Fatalf("Unable to decode into struct, %v", err)
 	}
+	if C.Api.Enable && C.Api.Key == "" {
+		log.Warn("API is enabled but API key is not set!\nThis should only be used for testing purposes!")
+	}
 }

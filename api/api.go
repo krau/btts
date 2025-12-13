@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -19,23 +20,40 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/keyauth"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/krau/btts/config"
+	"github.com/krau/btts/database"
+	"gorm.io/gorm"
 )
 
-var storedKeyHash = make([]byte, sha256.Size)
+var storedKeyHash []byte
 var validate = validator.New()
 
 func validateApiKey(ctx *fiber.Ctx, key string) (bool, error) {
-	if config.C.Api.Key == "" || storedKeyHash == nil {
-		return true, nil // No API key required
+	// 未配置主 API key 时，保持原有行为：不要求鉴权
+	if config.C.Api.Key == "" {
+		return true, nil
 	}
 	if key == "" {
 		return false, keyauth.ErrMissingOrMalformedAPIKey
 	}
 	inputsum := sha256.Sum256([]byte(key))
 	inputHash := inputsum[:]
-	if subtle.ConstantTimeCompare(inputHash, storedKeyHash) != 1 {
-		return false, keyauth.ErrMissingOrMalformedAPIKey
+	// 先校验是否为超级管理 key
+	if storedKeyHash != nil && subtle.ConstantTimeCompare(inputHash, storedKeyHash) == 1 {
+		ctx.Locals("api_master", true)
+		return true, nil
 	}
+	// 再尝试匹配子 API key（按哈希查询）
+	hexHash := hex.EncodeToString(inputHash)
+	apiKey, err := database.GetApiKeyByHash(ctx.Context(), hexHash)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return false, keyauth.ErrMissingOrMalformedAPIKey
+		}
+		return false, err
+	}
+	ctx.Locals("api_master", false)
+	ctx.Locals("api_key_id", apiKey.ID)
+	ctx.Locals("api_key_chats", apiKey.ChatIDs)
 	return true, nil
 }
 
@@ -69,7 +87,7 @@ func Serve(addr string) {
 			},
 		}))
 		sum := sha256.Sum256([]byte(config.C.Api.Key))
-		copy(storedKeyHash, sum[:])
+		storedKeyHash = sum[:]
 	}
 	rg.Get("/indexed", GetIndexed)
 	rg.Get("/index/:chat_id<int>", GetIndexInfo)

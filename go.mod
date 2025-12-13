@@ -108,7 +108,7 @@ require (
 	github.com/go-faster/xor v1.0.0 // indirect
 	github.com/go-faster/yaml v0.4.6 // indirect
 	github.com/go-playground/validator/v10 v10.28.0
-	github.com/google/uuid v1.6.0 // indirect
+	github.com/google/uuid v1.6.0
 	github.com/gotd/ige v0.2.2 // indirect
 	github.com/gotd/neo v0.1.5 // indirect
 	github.com/klauspost/compress v1.18.2 // indirect

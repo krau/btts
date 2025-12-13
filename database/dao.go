@@ -133,3 +133,41 @@ func IsMemberInIndexChat(ctx context.Context, chatID int64, userChatID int64) (b
 	}
 	return count > 0, nil
 }
+
+func UpsertApiKey(ctx context.Context, apiKey *ApiKey) error {
+	if err := db.WithContext(ctx).Save(apiKey).Error; err != nil {
+		return err
+	}
+	return nil
+}
+
+func GetApiKeyByID(ctx context.Context, id uint) (*ApiKey, error) {
+	var apiKey ApiKey
+	if err := db.WithContext(ctx).Where("id = ?", id).First(&apiKey).Error; err != nil {
+		return nil, err
+	}
+	return &apiKey, nil
+}
+
+func GetApiKeyByHash(ctx context.Context, hash string) (*ApiKey, error) {
+	var apiKey ApiKey
+	if err := db.WithContext(ctx).Where("key_hash = ?", hash).First(&apiKey).Error; err != nil {
+		return nil, err
+	}
+	return &apiKey, nil
+}
+
+func GetAllApiKeys(ctx context.Context) ([]*ApiKey, error) {
+	var apiKeys []*ApiKey
+	if err := db.WithContext(ctx).Find(&apiKeys).Error; err != nil {
+		return nil, err
+	}
+	return apiKeys, nil
+}
+
+func DeleteApiKey(ctx context.Context, id uint) error {
+	if err := db.WithContext(ctx).Where("id = ?", id).Delete(&ApiKey{}).Error; err != nil {
+		return err
+	}
+	return nil
+}

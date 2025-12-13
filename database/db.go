@@ -24,7 +24,7 @@ func InitDatabase(ctx context.Context) error {
 		return err
 	}
 	db = openDb
-	if err := db.AutoMigrate(&UserInfo{}, &IndexChat{}, &SubBot{}); err != nil {
+	if err := db.AutoMigrate(&UserInfo{}, &IndexChat{}, &SubBot{}, &ApiKey{}); err != nil {
 		return err
 	}
 	chats, err := GetAllIndexChats(ctx)
