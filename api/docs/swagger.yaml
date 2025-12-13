@@ -128,8 +128,6 @@ definitions:
         items:
           type: integer
         type: array
-    required:
-    - query
     type: object
   api.SearchOnMultiChatByPostRequest:
     properties:
@@ -171,8 +169,6 @@ definitions:
         items:
           type: integer
         type: array
-    required:
-    - query
     type: object
   api.SearchResponse:
     properties:
@@ -195,6 +191,10 @@ definitions:
     properties:
       chat_id:
         type: integer
+      members:
+        items:
+          $ref: '#/definitions/database.UserInfo'
+        type: array
       no_delete:
         type: boolean
       public:
@@ -207,6 +207,21 @@ definitions:
         type: string
       watching:
         type: boolean
+    type: object
+  database.UserInfo:
+    properties:
+      chatID:
+        type: integer
+      firstName:
+        type: string
+      index_chats:
+        items:
+          $ref: '#/definitions/database.IndexChat'
+        type: array
+      lastName:
+        type: string
+      username:
+        type: string
     type: object
   types.SearchHit:
     properties:

@@ -2,6 +2,7 @@ package api
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/bytedance/sonic"
 	"github.com/gofiber/fiber/v2"
@@ -139,13 +140,17 @@ func FetchMessages(c *fiber.Ctx) error {
 	if indexManager == nil {
 		return &fiber.Error{Code: fiber.StatusNotFound, Message: "Index not found for the specified chat"}
 	}
+	ids := make([]string, len(request.IDs))
+	for i, id := range request.IDs {
+		ids[i] = fmt.Sprintf("%d", id)
+	}
 	var resp meilisearch.DocumentsResult
-	// [TODO] 不知道为什么传给 meilisearch 的 ids 总是空的
-	err = indexManager.GetDocumentReader().GetDocumentsWithContext(c.Context(), &meilisearch.DocumentsQuery{
-		Limit:  20,
-		Offset: 0,
-		Ids:    request.IDs,
-	}, &resp)
+	err = indexManager.GetDocumentReader().
+		GetDocumentsWithContext(c.Context(), &meilisearch.DocumentsQuery{
+			Limit:  20,
+			Offset: 0,
+			Ids:    ids,
+		}, &resp)
 	if err != nil {
 		return &fiber.Error{Code: fiber.StatusInternalServerError, Message: "Failed to fetch messages: " + err.Error()}
 	}

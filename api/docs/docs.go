@@ -960,9 +960,6 @@ const docTemplate = `{
         },
         "api.SearchOnChatByPostRequest": {
             "type": "object",
-            "required": [
-                "query"
-            ],
             "properties": {
                 "limit": {
                     "description": "限制数量，用于分页",
@@ -1007,9 +1004,6 @@ const docTemplate = `{
         },
         "api.SearchOnMultiChatByPostRequest": {
             "type": "object",
-            "required": [
-                "query"
-            ],
             "properties": {
                 "chat_ids": {
                     "description": "聊天ID列表，如果为空则搜索所有聊天",
@@ -1095,6 +1089,12 @@ const docTemplate = `{
                 "chat_id": {
                     "type": "integer"
                 },
+                "members": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/database.UserInfo"
+                    }
+                },
                 "no_delete": {
                     "type": "boolean"
                 },
@@ -1112,6 +1112,29 @@ const docTemplate = `{
                 },
                 "watching": {
                     "type": "boolean"
+                }
+            }
+        },
+        "database.UserInfo": {
+            "type": "object",
+            "properties": {
+                "chatID": {
+                    "type": "integer"
+                },
+                "firstName": {
+                    "type": "string"
+                },
+                "index_chats": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/database.IndexChat"
+                    }
+                },
+                "lastName": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
                 }
             }
         },

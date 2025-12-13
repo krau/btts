@@ -128,5 +128,5 @@ type StreamFileRequest struct {
 }
 
 type FetchMessagesRequest struct {
-	IDs []string `json:"ids" validate:"required" example:"123456789,987654321"` // 消息ID列表
+	IDs []int `json:"ids" validate:"required" example:"123456789,987654321"` // 消息ID列表
 }
