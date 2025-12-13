@@ -53,7 +53,7 @@ func validateApiKey(ctx *fiber.Ctx, key string) (bool, error) {
 	}
 	ctx.Locals("api_master", false)
 	ctx.Locals("api_key_id", apiKey.ID)
-	ctx.Locals("api_key_chats", apiKey.ChatIDs)
+	ctx.Locals("api_key_chats", apiKey.ChatIDs())
 	return true, nil
 }
 

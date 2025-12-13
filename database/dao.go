@@ -143,7 +143,7 @@ func UpsertApiKey(ctx context.Context, apiKey *ApiKey) error {
 
 func GetApiKeyByID(ctx context.Context, id uint) (*ApiKey, error) {
 	var apiKey ApiKey
-	if err := db.WithContext(ctx).Where("id = ?", id).First(&apiKey).Error; err != nil {
+	if err := db.WithContext(ctx).Preload("Chats").Where("id = ?", id).First(&apiKey).Error; err != nil {
 		return nil, err
 	}
 	return &apiKey, nil
@@ -151,7 +151,7 @@ func GetApiKeyByID(ctx context.Context, id uint) (*ApiKey, error) {
 
 func GetApiKeyByHash(ctx context.Context, hash string) (*ApiKey, error) {
 	var apiKey ApiKey
-	if err := db.WithContext(ctx).Where("key_hash = ?", hash).First(&apiKey).Error; err != nil {
+	if err := db.WithContext(ctx).Preload("Chats").Where("key_hash = ?", hash).First(&apiKey).Error; err != nil {
 		return nil, err
 	}
 	return &apiKey, nil
@@ -159,7 +159,7 @@ func GetApiKeyByHash(ctx context.Context, hash string) (*ApiKey, error) {
 
 func GetAllApiKeys(ctx context.Context) ([]*ApiKey, error) {
 	var apiKeys []*ApiKey
-	if err := db.WithContext(ctx).Find(&apiKeys).Error; err != nil {
+	if err := db.WithContext(ctx).Preload("Chats").Find(&apiKeys).Error; err != nil {
 		return nil, err
 	}
 	return apiKeys, nil

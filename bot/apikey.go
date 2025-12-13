@@ -37,10 +37,14 @@ func AddApiKeyHandler(ctx *ext.Context, update *ext.Update) error {
 	}
 	sum := sha256.Sum256([]byte(plainKey))
 	hash := hex.EncodeToString(sum[:])
+	chats := make([]database.IndexChat, 0, len(chatIDs))
+	for _, id := range chatIDs {
+		chats = append(chats, database.IndexChat{ChatID: id})
+	}
 	apiKey := &database.ApiKey{
 		Name:    name,
 		KeyHash: hash,
-		ChatIDs: chatIDs,
+		Chats:   chats,
 	}
 	if err := database.UpsertApiKey(ctx, apiKey); err != nil {
 		ctx.Reply(update, ext.ReplyTextString("Failed to save api key: "+err.Error()), nil)
@@ -124,7 +128,8 @@ func ListApiKeyHandler(ctx *ext.Context, update *ext.Update) error {
 			styling.Plain("\nID: "), styling.Code(strconv.FormatUint(uint64(k.ID), 10)),
 			styling.Plain(" Name: "), styling.Code(k.Name),
 			styling.Plain(" Chats: "))
-		for i, id := range k.ChatIDs {
+		chatIDs := k.ChatIDs()
+		for i, id := range chatIDs {
 			if i > 0 {
 				st = append(st, styling.Plain(", "))
 			}
@@ -156,16 +161,16 @@ func SetApiKeyHandler(ctx *ext.Context, update *ext.Update) error {
 		return dispatcher.EndGroups
 	}
 	chatIDsArgs := args[2:]
-	chatIDs := make([]int64, 0, len(chatIDsArgs))
+	chats := make([]database.IndexChat, 0, len(chatIDsArgs))
 	for _, idStr := range chatIDsArgs {
 		id, err := strconv.ParseInt(idStr, 10, 64)
 		if err != nil {
 			ctx.Reply(update, ext.ReplyTextString("Invalid chat ID: "+idStr), nil)
 			return dispatcher.EndGroups
 		}
-		chatIDs = append(chatIDs, id)
+		chats = append(chats, database.IndexChat{ChatID: id})
 	}
-	apiKey.ChatIDs = chatIDs
+	apiKey.Chats = chats
 	if err := database.UpsertApiKey(ctx, apiKey); err != nil {
 		ctx.Reply(update, ext.ReplyTextString("Failed to update api key: "+err.Error()), nil)
 		return dispatcher.EndGroups

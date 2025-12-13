@@ -54,12 +54,24 @@ type SubBot struct {
 }
 
 // ApiKey 表示 Web API 的子 API Key
-// KeyHash 使用 sha256 的十六进制字符串，ChatIDs 为该 key 可访问的聊天作用域
+// KeyHash 使用 sha256 的十六进制字符串，Chats 通过关联表描述可访问聊天
 type ApiKey struct {
-	ID      uint    `gorm:"primaryKey"`
-	Name    string  `json:"name"`
-	KeyHash string  `gorm:"uniqueIndex;size:64" json:"-"`
-	ChatIDs []int64 `gorm:"serializer:json;type:json" json:"chat_ids"`
+	ID      uint        `gorm:"primaryKey"`
+	Name    string      `json:"name"`
+	KeyHash string      `gorm:"uniqueIndex;size:64" json:"-"`
+	Chats   []IndexChat `gorm:"many2many:api_key_chats;constraint:OnDelete:CASCADE;joinForeignKey:ApiKeyID;joinReferences:IndexChatID" json:"chats"`
+}
+
+// ChatIDs 返回当前 ApiKey 可访问的聊天 ID 列表
+func (a *ApiKey) ChatIDs() []int64 {
+	res := make([]int64, 0)
+	if a == nil {
+		return res
+	}
+	for _, ch := range a.Chats {
+		res = append(res, ch.ChatID)
+	}
+	return res
 }
 
 // public + user joined chats
