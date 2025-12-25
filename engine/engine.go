@@ -324,7 +324,7 @@ func (e *Engine) AddDocumentsFromMessages(ctx context.Context, chatID int64, mes
 		var messageType types.MessageType
 		media, ok := message.GetMedia()
 		if ok {
-			text, mt := utils.ExtraMessageMediaText(media)
+			text, mt := utils.ExtractMessageMediaText(media)
 			if text != "" {
 				messageSB.WriteString(text)
 			}

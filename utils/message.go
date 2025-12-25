@@ -18,7 +18,7 @@ import (
 	"github.com/rs/xid"
 )
 
-func ExtraMessageMediaText(media tg.MessageMediaClass) (string, types.MessageType) {
+func ExtractMessageMediaText(media tg.MessageMediaClass) (string, types.MessageType) {
 	messageType := types.MessageTypeText
 	var messageSB strings.Builder
 	switch m := media.(type) {
