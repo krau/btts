@@ -19,6 +19,10 @@ func StartHandler(ctx *ext.Context, update *ext.Update) error {
 	payload := update.Args()[1]
 	action := strings.Split(payload, "_")[0]
 	args := strings.Split(payload, "_")[1:]
+	if !CheckPermission(ctx, update) {
+		ctx.Reply(update, ext.ReplyTextString("Yet Another Bot For Telegram Search..."), nil)
+		return dispatcher.EndGroups
+	}
 	switch action {
 	case "fav":
 		if len(args) != 2 {
@@ -51,7 +55,8 @@ func StartHandler(ctx *ext.Context, update *ext.Update) error {
 		}
 		ctx.DeleteMessages(update.EffectiveChat().GetID(), []int{update.EffectiveMessage.GetID()})
 	default:
-		ctx.Reply(update, ext.ReplyTextString("Yet Another Bot For Telegram Search..."), nil)
+		ctx.Reply(update, ext.ReplyTextString("Unknown action: "+action), nil)
+		return dispatcher.EndGroups
 	}
 	return dispatcher.EndGroups
 }

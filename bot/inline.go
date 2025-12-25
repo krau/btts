@@ -5,26 +5,14 @@ import (
 
 	"github.com/celestix/gotgproto/dispatcher"
 	"github.com/celestix/gotgproto/ext"
-	"github.com/duke-git/lancet/v2/slice"
 	"github.com/gotd/td/telegram/message/inline"
 	"github.com/gotd/td/tg"
-	"github.com/krau/btts/config"
 	"github.com/krau/btts/database"
 	"github.com/krau/btts/types"
 )
 
 func InlineQueryHandler(ctx *ext.Context, update *ext.Update) error {
-	userID := update.InlineQuery.GetUserID()
-	// 检查权限
-	if !func() bool {
-		if userID == bi.UserClient.TClient.Self.ID {
-			return true
-		}
-		if slice.Contain(config.C.Admins, userID) {
-			return true
-		}
-		return false
-	}() {
+	if !CheckPermission(ctx,update) {
 		return dispatcher.EndGroups
 	}
 
