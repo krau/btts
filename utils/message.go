@@ -137,7 +137,7 @@ func BuildSearchReplyMarkup(ctx context.Context, currentPage int64, data types.S
 	for i := range len(types.MessageTypeToEmoji) {
 		text := types.MessageTypeToEmoji[types.MessageType(i)]
 		if data.TypeFilters != nil && slice.Contain(data.TypeFilters, types.MessageType(i)) {
-			text += " √"
+			text += " ✓"
 		}
 		mtbuttons = append(mtbuttons, &tg.KeyboardButtonCallback{
 			Text: text,
