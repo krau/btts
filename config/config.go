@@ -32,7 +32,8 @@ type AppConfig struct {
 		Enable bool   `toml:"enable" mapstructure:"enable"`
 		Type   string `toml:"type" mapstructure:"type"` // "paddle"
 		Paddle struct {
-			Url string `toml:"url" mapstructure:"url"`
+			Url       string  `toml:"url" mapstructure:"url"`
+			Threshold float64 `toml:"threshold" mapstructure:"threshold"`
 		}
 	}
 	Api struct {

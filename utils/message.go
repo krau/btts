@@ -32,7 +32,8 @@ type paddleResponse struct {
 
 type paddleOcrResult struct {
 	PrunedResult struct {
-		RecTexts []string `json:"rec_texts"`
+		RecTexts  []string  `json:"rec_texts"`
+		RecScores []float64 `json:"rec_scores"`
 	} `json:"prunedResult"`
 }
 
@@ -82,7 +83,10 @@ func paddleOcr(ctx context.Context, client *ext.Context, media tg.MessageMediaCl
 	}
 	var ocrText strings.Builder
 	for _, ocr := range result.Result.OcrResults {
-		for _, text := range ocr.PrunedResult.RecTexts {
+		for i, text := range ocr.PrunedResult.RecTexts {
+			if i < len(ocr.PrunedResult.RecScores) && ocr.PrunedResult.RecScores[i] < config.C.Ocr.Paddle.Threshold {
+				continue
+			}
 			ocrText.WriteString(text + " ")
 		}
 	}
