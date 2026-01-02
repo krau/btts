@@ -125,7 +125,7 @@ func WatchHandler(ctx *ext.Context, u *ext.Update) error {
 	if err := database.AddMemberToIndexChat(ctx, chatDB.ChatID, userDB); err != nil {
 		log.Warnf("Failed to add member to index chat: %v", err)
 	}
-	docs := engine.DocumentsFromMessages(ctx, []*tg.Message{u.EffectiveMessage.Message}, ctx.Self.ID, ctx)
+	docs := engine.DocumentsFromMessages(ctx, []*tg.Message{u.EffectiveMessage.Message}, ctx.Self.ID, ctx, true)
 	if err := engine.GetEngine().AddDocuments(ctx, chatDB.ChatID, docs); err != nil {
 		log.Errorf("Failed to add documents: %v", err)
 	}

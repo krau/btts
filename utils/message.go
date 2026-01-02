@@ -89,13 +89,13 @@ func paddleOcr(ctx context.Context, client *ext.Context, media tg.MessageMediaCl
 	return strings.TrimSpace(ocrText.String()), nil
 }
 
-func ExtractMessageMediaText(ctx context.Context, client *ext.Context, media tg.MessageMediaClass) (string, types.MessageType) {
+func ExtractMessageMediaText(ctx context.Context, client *ext.Context, media tg.MessageMediaClass, downloadMedia bool) (string, types.MessageType) {
 	messageType := types.MessageTypeText
 	var messageSB strings.Builder
 	switch m := media.(type) {
 	case *tg.MessageMediaPhoto:
 		messageType = types.MessageTypePhoto
-		if config.C.Ocr.Enable {
+		if config.C.Ocr.Enable && downloadMedia {
 			switch config.C.Ocr.Type {
 			case "paddle", "paddleocr":
 				ocrText, err := paddleOcr(ctx, client, media)
