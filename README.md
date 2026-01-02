@@ -34,9 +34,22 @@ curl -L https://install.meilisearch.com | sh
 
 Bleve 是嵌入式搜索引擎，无需额外部署，只需在配置文件中指定即可。
 
+### OCR (可选)
+
+目前支持 [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR/) 的格式, 参考其文档的[推理部署](https://www.paddleocr.ai/latest/version3.x/deployment/serving.html), 然后使用下面的配置
+
+```toml
+[ocr]
+enable = true
+type = "paddle"  # 使用 PaddleOCR
+[ocr.paddle]
+url = "http://localhost:8000/ocr"  # PaddleOCR 服务地址
+threshold = 0.8 # 置信度阈值
+```
+
 ### 配置和启动
 
-然后在本项目 [release](https://github.com/krau/btts/releases) 页面下载最新 btts 版本并解压, 然后进入解压后的目录.
+在本项目 [release](https://github.com/krau/btts/releases) 页面下载最新 btts 版本并解压, 然后进入解压后的目录.
 
 创建 `config.toml` 配置文件, 参考下面的配置:
 
@@ -106,3 +119,12 @@ key = "qwqowo" # api 密钥, 访问时需要提供
 /delsub - 删除一个子 bot
 
 /lssub - 列出所有子 bot
+
+可创建子 api key, 同子 bot 的设计一样, 子 api key 只能搜索指定的一些聊天, 在 web 端填入后即可使用
+
+/addapikey - 添加一个子 api key
+
+/delapikey - 删除一个子 api key
+
+/lsapikey - 列出所有子 api key
+
