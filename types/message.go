@@ -37,6 +37,17 @@ var MessageTypeToString = map[MessageType]string{
 	MessageTypeStory:    "story",
 }
 
+var MessageTypeToDisplayString = map[MessageType]string{
+	MessageTypeText:     "文本",
+	MessageTypePhoto:    "图片",
+	MessageTypeVideo:    "视频",
+	MessageTypeDocument: "文件",
+	MessageTypeVoice:    "语音",
+	MessageTypeAudio:    "音频",
+	MessageTypePoll:     "投票",
+	MessageTypeStory:    "动态",
+}
+
 var MessageTypeFromString = map[string]MessageType{
 	"text":     MessageTypeText,
 	"photo":    MessageTypePhoto,

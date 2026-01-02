@@ -16,6 +16,9 @@ import (
 
 func CheckPermission(ctx *ext.Context, update *ext.Update) bool {
 	userID := update.GetUserChat().GetID()
+	if userID == 0 {
+		userID = update.InlineQuery.GetUserID()
+	}
 	if userID == bi.UserClient.TClient.Self.ID {
 		return true
 	}
@@ -60,6 +63,7 @@ func (b *Bot) RegisterHandlers(ctx context.Context) {
 	for _, cmdHandler := range commandHandlers {
 		disp.AddHandler(handlers.NewCommand(cmdHandler.cmd, cmdHandler.handlerFunc))
 	}
+	disp.AddHandlerToGroup(handlers.NewInlineQuery(filters.InlineQuery.All, InlineQueryHandler), 1)
 	disp.AddHandler(handlers.NewCommand("syncpeers", SyncPeersHandler))
 	disp.AddHandler(handlers.NewCallbackQuery(filters.CallbackQuery.Prefix("search"), SearchCallbackHandler))
 	disp.AddHandler(handlers.NewCallbackQuery(filters.CallbackQuery.Prefix("filter"), FilterCallbackHandler))
@@ -77,7 +81,6 @@ func (b *Bot) RegisterHandlers(ctx context.Context) {
 			return false
 		}
 	}, SearchHandler))
-	disp.AddHandlerToGroup(handlers.NewInlineQuery(filters.InlineQuery.All, InlineQueryHandler), 1)
 
 	_, err := b.Client.API().BotsSetBotCommands(ctx, &tg.BotsSetBotCommandsRequest{
 		Scope: &tg.BotCommandScopeDefault{},

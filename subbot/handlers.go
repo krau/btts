@@ -405,25 +405,26 @@ func InlineQueryHandler(ctx *ext.Context, update *ext.Update) error {
 	query := update.InlineQuery.GetQuery()
 	resp, err := engine.GetEngine().Search(ctx,
 		types.SearchRequest{
-			Limit:       48,
-			Query:       query,
-			ChatIDs:     chatIds,
-			TypeFilters: []types.MessageType{types.MessageTypeText}})
+			Limit:   48,
+			Query:   query,
+			ChatIDs: chatIds,
+		})
 	if err != nil {
 		logger.Errorf("Failed to search: %v", err)
 		return dispatcher.EndGroups
 	}
 	results := make([]inline.ResultOption, 0, len(resp.Hits))
 	for _, hit := range resp.Hits {
-		title := hit.Formatted.UserID
+		userName := hit.Formatted.UserID
 		user, err := database.GetUserInfo(ctx, hit.UserID)
 		if err == nil {
-			title = user.FullName()
+			userName = user.FullName()
 		}
+		title := fmt.Sprintf("%s [%s]", userName, types.MessageTypeToDisplayString[types.MessageType(hit.Type)])
 		results = append(results, inline.Article(
 			title, inline.MessageText(hit.Message).Row(
 				&tg.KeyboardButtonURL{
-					Text: title,
+					Text: userName,
 					URL:  hit.MessageLink(),
 				},
 			),

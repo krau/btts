@@ -12,31 +12,31 @@ import (
 )
 
 func InlineQueryHandler(ctx *ext.Context, update *ext.Update) error {
-	if !CheckPermission(ctx,update) {
+	if !CheckPermission(ctx, update) {
 		return dispatcher.EndGroups
 	}
-
 	query := update.InlineQuery.GetQuery()
 	resp, err := bi.Engine.Search(ctx,
 		types.SearchRequest{
-			Query:       query,
-			Limit:       48,
-			ChatIDs:     database.AllChatIDs(),
-			TypeFilters: []types.MessageType{types.MessageTypeText}})
+			Query:   query,
+			Limit:   48,
+			ChatIDs: database.AllChatIDs(),
+		})
 	if err != nil {
 		return err
 	}
 	results := make([]inline.ResultOption, 0, len(resp.Hits))
 	for _, hit := range resp.Hits {
-		title := hit.Formatted.UserID
+		userName := hit.Formatted.UserID
 		user, err := database.GetUserInfo(ctx, hit.UserID)
 		if err == nil {
-			title = user.FullName()
+			userName = user.FullName()
 		}
+		title := fmt.Sprintf("%s [%s]", userName, types.MessageTypeToDisplayString[types.MessageType(hit.Type)])
 		results = append(results, inline.Article(
 			title, inline.MessageText(hit.Message).Row(
 				&tg.KeyboardButtonURL{
-					Text: title,
+					Text: userName,
 					URL:  hit.MessageLink(),
 				},
 			),
