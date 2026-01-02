@@ -9,6 +9,7 @@ import (
 	"github.com/celestix/gotgproto/ext"
 	"github.com/charmbracelet/log"
 	"github.com/gotd/td/tg"
+	"github.com/krau/btts/engine"
 	"github.com/krau/btts/utils"
 )
 
@@ -106,7 +107,8 @@ func DownloadHandler(ctx *ext.Context, update *ext.Update) error {
 		if len(messageBatch) > 0 {
 			processed += len(messageBatch)
 			log.FromContext(ctx).Debugf("Adding batch of messages %d/%d", processed, total)
-			if err := bi.Engine.AddDocumentsFromMessages(ctx, chatID, messageBatch); err != nil {
+			docs := engine.DocumentsFromMessages(ctx, messageBatch, bi.UserClient.TClient.Self.ID)
+			if err := bi.Engine.AddDocuments(ctx, chatID, docs); err != nil {
 				log.FromContext(ctx).Errorf("Failed to add documents: %v", err)
 			}
 		}

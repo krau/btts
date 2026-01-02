@@ -11,6 +11,7 @@ import (
 	"github.com/gotd/td/telegram/query"
 	"github.com/gotd/td/tg"
 	"github.com/krau/btts/database"
+	"github.com/krau/btts/engine"
 )
 
 func AddHandler(ctx *ext.Context, update *ext.Update) error {
@@ -114,7 +115,8 @@ func AddHandler(ctx *ext.Context, update *ext.Update) error {
 			processed++
 			if len(messageBatch) >= 100 {
 				log.Debugf("Adding batch of messages %d/%d", processed, total)
-				if err := bi.Engine.AddDocumentsFromMessages(ctx, chatId, messageBatch); err != nil {
+				docs := engine.DocumentsFromMessages(ctx, messageBatch, bi.UserClient.TClient.Self.ID)
+				if err := bi.Engine.AddDocuments(ctx, chatId, docs); err != nil {
 					log.Errorf("Failed to add documents: %v", err)
 				}
 				messageBatch = messageBatch[:0]
@@ -130,7 +132,8 @@ func AddHandler(ctx *ext.Context, update *ext.Update) error {
 	}
 	if len(messageBatch) > 0 {
 		log.Debugf("Adding final batch of messages %d/%d", processed, total)
-		if err := bi.Engine.AddDocumentsFromMessages(ctx, chatId, messageBatch); err != nil {
+		docs := engine.DocumentsFromMessages(ctx, messageBatch, bi.UserClient.TClient.Self.ID)
+		if err := bi.Engine.AddDocuments(ctx, chatId, docs); err != nil {
 			log.Errorf("Failed to add documents: %v", err)
 		}
 	}

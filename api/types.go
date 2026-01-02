@@ -107,7 +107,47 @@ func ResponseSearch(c *fiber.Ctx, rawResp *types.MessageSearchResponse) error {
 		"status":  "success",
 		"results": resp,
 	})
+}
 
+func ResponseDocuments(c *fiber.Ctx, docs []*types.MessageDocument) error {
+	if len(docs) == 0 {
+		return &fiber.Error{Code: fiber.StatusNotFound, Message: "No documents found"}
+	}
+	resp := &SearchResponse{
+		Hits: make([]SearchHit, len(docs)),
+	}
+	for i, doc := range docs {
+		userFullName := ""
+		chatTitle := ""
+		user, err := database.GetUserInfo(c.Context(), doc.UserID)
+		if err != nil {
+			if !errors.Is(err, gorm.ErrRecordNotFound) {
+				return &fiber.Error{Code: fiber.StatusInternalServerError, Message: "Failed to retrieve user info"}
+			}
+			userFullName = strconv.FormatInt(doc.UserID, 10)
+		} else {
+			userFullName = strings.TrimSpace(fmt.Sprintf("%s %s", user.FirstName, user.LastName))
+		}
+		chat, err := database.GetIndexChat(c.Context(), doc.ChatID)
+		if err != nil {
+			return &fiber.Error{Code: fiber.StatusInternalServerError, Message: "Failed to retrieve chat info"}
+		}
+		chatTitle = strings.TrimSpace(chat.Title)
+		resp.Hits[i] = SearchHit{
+			ID:           doc.ID,
+			Type:         types.MessageTypeToString[types.MessageType(doc.Type)],
+			Message:      doc.Message,
+			UserID:       doc.UserID,
+			UserFullName: userFullName,
+			ChatID:       doc.ChatID,
+			ChatTitle:    chatTitle,
+			Timestamp:    doc.Timestamp,
+		}
+	}
+	return c.JSON(fiber.Map{
+		"status":  "success",
+		"results": resp,
+	})
 }
 
 type ReplyMessageRequest struct {

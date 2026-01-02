@@ -2,14 +2,10 @@ package api
 
 import (
 	"errors"
-	"fmt"
 
-	"github.com/bytedance/sonic"
 	"github.com/gofiber/fiber/v2"
 	"github.com/krau/btts/database"
 	"github.com/krau/btts/engine"
-	"github.com/krau/btts/types"
-	"github.com/meilisearch/meilisearch-go"
 	"gorm.io/gorm"
 )
 
@@ -136,40 +132,9 @@ func FetchMessages(c *fiber.Ctx) error {
 	if err := validate.StructCtx(c.Context(), request); err != nil {
 		return &fiber.Error{Code: fiber.StatusBadRequest, Message: "Validation failed: " + err.Error()}
 	}
-	indexManager := engine.GetEngine().Index(int64(chatID))
-	if indexManager == nil {
-		return &fiber.Error{Code: fiber.StatusNotFound, Message: "Index not found for the specified chat"}
-	}
-	ids := make([]string, len(request.IDs))
-	for i, id := range request.IDs {
-		ids[i] = fmt.Sprintf("%d", id)
-	}
-	var resp meilisearch.DocumentsResult
-	err = indexManager.GetDocumentReader().
-		GetDocumentsWithContext(c.Context(), &meilisearch.DocumentsQuery{
-			Limit:  20,
-			Offset: 0,
-			Ids:    ids,
-		}, &resp)
+	docs, err := engine.GetEngine().GetDocuments(c.Context(), int64(chatID), request.IDs)
 	if err != nil {
 		return &fiber.Error{Code: fiber.StatusInternalServerError, Message: "Failed to fetch messages: " + err.Error()}
 	}
-	hitBytes, err := sonic.Marshal(resp.Results)
-	if err != nil {
-		return &fiber.Error{Code: fiber.StatusInternalServerError, Message: "Failed to marshal response: " + err.Error()}
-	}
-	var hits []types.SearchHit
-	err = sonic.Unmarshal(hitBytes, &hits)
-	if err != nil {
-		return &fiber.Error{Code: fiber.StatusInternalServerError, Message: "Failed to unmarshal response: " + err.Error()}
-	}
-	searchResp := &types.MessageSearchResponse{
-		Raw:                &resp,
-		Hits:               hits,
-		EstimatedTotalHits: resp.Total,
-		Offset:             resp.Offset,
-		Limit:              resp.Limit,
-		ProcessingTimeMs:   0,
-	}
-	return ResponseSearch(c, searchResp)
+	return ResponseDocuments(c, docs)
 }

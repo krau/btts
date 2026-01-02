@@ -28,7 +28,7 @@ func GetBot() *Bot {
 type Bot struct {
 	Client     *gotgproto.Client
 	UserClient *userclient.UserClient
-	Engine     *engine.Engine
+	Engine     engine.Searcher
 	ectx       *ext.Context // created by Client.CreateContext()
 }
 
@@ -72,7 +72,7 @@ func (b *Bot) GetUsername() string {
 	return b.Client.Self.Username
 }
 
-func NewBot(ctx context.Context, userClient *userclient.UserClient, engine *engine.Engine) (*Bot, error) {
+func NewBot(ctx context.Context, userClient *userclient.UserClient, engine engine.Searcher) (*Bot, error) {
 	log := log.FromContext(ctx)
 	log.Debug("Initializing bot")
 	if bi != nil {
