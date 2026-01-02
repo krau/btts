@@ -14,8 +14,10 @@ type AppConfig struct {
 	BotToken string  `toml:"bot_token" mapstructure:"bot_token"`
 	Admins   []int64 `toml:"admins" mapstructure:"admins"`
 	Engine   struct {
+		Type     string `toml:"type" mapstructure:"type"` // "meilisearch" or "bleve"
 		Url      string `toml:"url" mapstructure:"url"`
 		Key      string `toml:"key" mapstructure:"key"`
+		Path     string `toml:"path" mapstructure:"path"` // For bleve: path to index directory
 		Embedder struct {
 			Name             string `toml:"name" mapstructure:"name"`
 			Source           string `toml:"source" mapstructure:"source"`

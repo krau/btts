@@ -4,6 +4,7 @@ go 1.24.2
 
 require (
 	github.com/blang/semver v3.5.1+incompatible
+	github.com/blevesearch/bleve/v2 v2.5.7
 	github.com/celestix/gotgproto v1.0.0-beta22
 	github.com/charmbracelet/log v0.4.2
 	github.com/dgraph-io/ristretto/v2 v2.3.0
@@ -24,8 +25,27 @@ require (
 require (
 	github.com/AnimeKaizoku/cacher v1.0.3 // indirect
 	github.com/KyleBanks/depth v1.2.1 // indirect
+	github.com/RoaringBitmap/roaring/v2 v2.4.5 // indirect
 	github.com/andybalholm/brotli v1.2.0 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
+	github.com/bits-and-blooms/bitset v1.24.4 // indirect
+	github.com/blevesearch/bleve_index_api v1.2.11 // indirect
+	github.com/blevesearch/geo v0.2.4 // indirect
+	github.com/blevesearch/go-faiss v1.0.26 // indirect
+	github.com/blevesearch/go-porterstemmer v1.0.3 // indirect
+	github.com/blevesearch/gtreap v0.1.1 // indirect
+	github.com/blevesearch/mmap-go v1.0.4 // indirect
+	github.com/blevesearch/scorch_segment_api/v2 v2.3.13 // indirect
+	github.com/blevesearch/segment v0.9.1 // indirect
+	github.com/blevesearch/snowballstem v0.9.0 // indirect
+	github.com/blevesearch/upsidedown_store_api v1.0.2 // indirect
+	github.com/blevesearch/vellum v1.1.0 // indirect
+	github.com/blevesearch/zapx/v11 v11.4.2 // indirect
+	github.com/blevesearch/zapx/v12 v12.4.2 // indirect
+	github.com/blevesearch/zapx/v13 v13.4.2 // indirect
+	github.com/blevesearch/zapx/v14 v14.4.2 // indirect
+	github.com/blevesearch/zapx/v15 v15.4.2 // indirect
+	github.com/blevesearch/zapx/v16 v16.2.8 // indirect
 	github.com/bytedance/gopkg v0.1.3 // indirect
 	github.com/bytedance/sonic/loader v0.4.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
@@ -57,19 +77,23 @@ require (
 	github.com/go-playground/universal-translator v0.18.1 // indirect
 	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
 	github.com/golang-jwt/jwt/v4 v4.5.2 // indirect
+	github.com/golang/snappy v0.0.4 // indirect
 	github.com/google/go-github/v30 v30.1.0 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/inconshreveable/go-update v0.0.0-20160112193335-8152e7eb6ccf // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
+	github.com/json-iterator/go v0.0.0-20171115153421-f7279a603ede // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/lucasb-eyer/go-colorful v1.3.0 // indirect
 	github.com/mattn/go-runewidth v0.0.19 // indirect
+	github.com/mschoch/smat v0.2.0 // indirect
 	github.com/muesli/termenv v0.16.0 // indirect
 	github.com/ncruces/go-strftime v1.0.0 // indirect
 	github.com/ncruces/julianday v1.0.0 // indirect
+	github.com/onsi/gomega v1.4.3 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
@@ -87,9 +111,11 @@ require (
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasthttp v1.68.0 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
+	go.etcd.io/bbolt v1.4.3 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/arch v0.23.0 // indirect
 	golang.org/x/oauth2 v0.34.0 // indirect
+	google.golang.org/protobuf v1.36.8 // indirect
 	modernc.org/libc v1.67.1 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect

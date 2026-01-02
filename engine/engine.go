@@ -2,11 +2,13 @@ package engine
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/charmbracelet/log"
 	"github.com/gotd/td/tg"
 	"github.com/krau/btts/config"
+	"github.com/krau/btts/engine/bleve"
 	"github.com/krau/btts/engine/meili"
 	"github.com/krau/btts/types"
 	"github.com/krau/btts/utils"
@@ -23,6 +25,7 @@ type Searcher interface {
 }
 
 var _ Searcher = (*meili.Meilisearch)(nil)
+var _ Searcher = (*bleve.BleveSearcher)(nil)
 
 var instance Searcher
 
@@ -38,15 +41,41 @@ func NewEngine(ctx context.Context, selfID int64) (Searcher, error) {
 	if instance != nil {
 		return instance, nil
 	}
-	log.FromContext(ctx).Debug("Initializing searcher")
-	sm := meilisearch.New(config.C.Engine.Url, meilisearch.WithAPIKey(config.C.Engine.Key))
-	_, err := sm.HealthWithContext(ctx)
-	if err != nil {
-		return nil, err
+	log.FromContext(ctx).Debug("Initializing searcher", "engine_type", config.C.Engine.Type)
+
+	var err error
+	engineType := strings.ToLower(config.C.Engine.Type)
+	if engineType == "" {
+		engineType = "meilisearch" // 默认使用 Meilisearch
 	}
-	instance = &meili.Meilisearch{
-		Client: sm,
+
+	switch engineType {
+	case "meilisearch":
+		sm := meilisearch.New(config.C.Engine.Url, meilisearch.WithAPIKey(config.C.Engine.Key))
+		_, err = sm.HealthWithContext(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("meilisearch health check failed: %w", err)
+		}
+		instance = &meili.Meilisearch{
+			Client: sm,
+		}
+		log.FromContext(ctx).Info("Meilisearch engine initialized")
+
+	case "bleve":
+		indexPath := config.C.Engine.Path
+		if indexPath == "" {
+			indexPath = "data/bleve_indexes" // 默认路径
+		}
+		instance, err = bleve.NewBleveSearcher(indexPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to initialize bleve: %w", err)
+		}
+		log.FromContext(ctx).Info("Bleve engine initialized", "index_path", indexPath)
+
+	default:
+		return nil, fmt.Errorf("unsupported engine type: %s (supported: meilisearch, bleve)", config.C.Engine.Type)
 	}
+
 	return instance, nil
 }
 
