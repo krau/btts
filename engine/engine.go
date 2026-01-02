@@ -46,7 +46,6 @@ func NewEngine(ctx context.Context, selfID int64) (Searcher, error) {
 	}
 	instance = &meili.Meilisearch{
 		Client: sm,
-		SelfID: selfID,
 	}
 	return instance, nil
 }

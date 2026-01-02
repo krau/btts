@@ -13,7 +13,6 @@ import (
 
 type Meilisearch struct {
 	Client meilisearch.ServiceManager
-	SelfID int64
 }
 
 // AddDocuments implements engine.Searcher.
