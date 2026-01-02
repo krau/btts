@@ -1,29 +1,115 @@
 package utils
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/celestix/gotgproto/ext"
+	"github.com/charmbracelet/log"
 	"github.com/duke-git/lancet/v2/slice"
 	"github.com/gotd/td/telegram/message/styling"
 	"github.com/gotd/td/tg"
+	"github.com/krau/btts/config"
 	"github.com/krau/btts/database"
 	"github.com/krau/btts/types"
 	"github.com/krau/btts/utils/cache"
 	"github.com/rs/xid"
 )
 
-func ExtractMessageMediaText(media tg.MessageMediaClass) (string, types.MessageType) {
+type paddleResponse struct {
+	Result struct {
+		OcrResults []paddleOcrResult `json:"ocrResults"`
+	} `json:"result"`
+}
+
+type paddleOcrResult struct {
+	PrunedResult struct {
+		RecTexts []string `json:"rec_texts"`
+	} `json:"prunedResult"`
+}
+
+func paddleOcr(ctx context.Context, client *ext.Context, media tg.MessageMediaClass) (string, error) {
+	photo, ok := media.(*tg.MessageMediaPhoto)
+	if !ok {
+		return "", errors.New("media is not photo")
+	}
+	var buf bytes.Buffer
+
+	encoder := base64.NewEncoder(base64.StdEncoding, &buf)
+
+	if _, err := client.DownloadMedia(photo, ext.DownloadOutputStream{
+		Writer: encoder,
+	}, nil); err != nil {
+		encoder.Close()
+		return "", err
+	}
+	if err := encoder.Close(); err != nil {
+		return "", err
+	}
+	fileBase64 := buf.String()
+	data := map[string]any{
+		"file":     fileBase64,
+		"fileType": 1,
+	}
+	jsonData, err := json.Marshal(data)
+	if err != nil {
+		return "", err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, config.C.Ocr.Paddle.Url, bytes.NewReader(jsonData))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("paddle ocr request failed with status: %s", resp.Status)
+	}
+	var result paddleResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "", err
+	}
+	var ocrText strings.Builder
+	for _, ocr := range result.Result.OcrResults {
+		for _, text := range ocr.PrunedResult.RecTexts {
+			ocrText.WriteString(text + " ")
+		}
+	}
+	return strings.TrimSpace(ocrText.String()), nil
+}
+
+func ExtractMessageMediaText(ctx context.Context, client *ext.Context, media tg.MessageMediaClass) (string, types.MessageType) {
 	messageType := types.MessageTypeText
 	var messageSB strings.Builder
 	switch m := media.(type) {
 	case *tg.MessageMediaPhoto:
 		messageType = types.MessageTypePhoto
+		if config.C.Ocr.Enable {
+			switch config.C.Ocr.Type {
+			case "paddle", "paddleocr":
+				ocrText, err := paddleOcr(ctx, client, media)
+				if ocrText != "" && err == nil {
+					messageSB.WriteString(ocrText + " ")
+					log.FromContext(ctx).Debug("Paddle OCR succeeded", "text", ocrText)
+				} else if err != nil {
+					log.FromContext(ctx).Warnf("Paddle OCR failed: %v", err)
+				}
+			default:
+				// do nothing
+			}
+
+		}
 	case *tg.MessageMediaDocument:
 		doc, ok := m.Document.AsNotEmpty()
 		if !ok {

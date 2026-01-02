@@ -162,7 +162,6 @@ func (b *BleveSearcher) AddDocuments(ctx context.Context, chatID int64, docs []*
 		return fmt.Errorf("failed to execute batch: %w", err)
 	}
 
-	log.FromContext(ctx).Debug("Added documents", "chat_id", chatID, "count", len(docs))
 	return nil
 }
 
