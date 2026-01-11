@@ -44,7 +44,7 @@ func run() {
 		return
 	}
 
-	engine, err := engine.NewEngine(ctx, userClient.TClient.Self.ID)
+	engine, err := engine.NewEngine(ctx)
 	if err != nil {
 		log.Errorf("Failed to create engine: %v", err)
 		return

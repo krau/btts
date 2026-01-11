@@ -126,7 +126,7 @@ func (m *Meilisearch) GetDocuments(ctx context.Context, chatID int64, ids []int)
 	idsStr := slice.Map(ids, func(i int, item int) string {
 		return fmt.Sprintf("%d", item)
 	})
-	err := m.Index(chatID).GetDocumentReader().GetDocumentsWithContext(ctx, &meilisearch.DocumentsQuery{
+	err := m.Index(chatID).GetDocumentsWithContext(ctx, &meilisearch.DocumentsQuery{
 		Ids: idsStr,
 	}, &resp)
 	if err != nil {

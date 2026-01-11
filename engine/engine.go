@@ -38,7 +38,7 @@ func GetEngine() Searcher {
 }
 
 // selfID is the userclient's telegram id
-func NewEngine(ctx context.Context, selfID int64) (Searcher, error) {
+func NewEngine(ctx context.Context) (Searcher, error) {
 	if instance != nil {
 		return instance, nil
 	}

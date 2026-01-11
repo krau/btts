@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"github.com/charmbracelet/log"
+	"github.com/krau/btts/cmd/migrate"
 	"github.com/spf13/cobra"
 )
 
@@ -10,6 +11,10 @@ var rootCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		run()
 	},
+}
+
+func init() {
+	migrate.RegisterCmd(rootCmd)
 }
 
 func Execute() {
