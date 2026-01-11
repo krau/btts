@@ -209,7 +209,7 @@ func SearchCallbackHandler(ctx *ext.Context, update *ext.Update) error {
 		})
 		return dispatcher.EndGroups
 	}
-	offset := (page - 1) * types.PER_SEARCH_LIMIT
+	offset := (page - 1) * types.PerSearchLimit
 	data.Offset = offset
 	resp, err := engine.GetEngine().Search(ctx, data)
 	if err != nil {

@@ -22,7 +22,7 @@ type MessageDocumentV1 struct {
 }
 
 type SearchHitV1 struct {
-	MessageDocument
+	MessageDocumentV1
 	Formatted struct {
 		ID        string `json:"id"`
 		Type      string `json:"type"`

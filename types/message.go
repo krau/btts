@@ -64,7 +64,7 @@ var (
 )
 
 const (
-	PER_SEARCH_LIMIT = 12
+	PerSearchLimit = 12
 )
 
 type MessageDocument struct {

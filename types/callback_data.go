@@ -12,13 +12,18 @@ type SearchRequest struct {
 	ChatIDs     []int64       `json:"chat_ids"`
 	TypeFilters []MessageType `json:"type_filters"`
 	UserFilters []int64       `json:"user_filters"`
+	Ocred       bool          `json:"ocred"`
+	AIGenerated bool          `json:"ai_generated"`
 	Limit       int64         `json:"limit"`
 	Offset      int64         `json:"offset"`
 }
 
 func (r SearchRequest) FilterExpression() string {
 	if len(r.UserFilters) == 0 && len(r.TypeFilters) == 0 {
-		return ""
+		if len(r.ChatIDs) > 0 {
+			return fmt.Sprintf("chat_id IN [%s]", slice.Join(r.ChatIDs, ","))
+		}
+		return fmt.Sprintf("chat_id = %d", r.ChatID)
 	}
 	var filters []string
 	if len(r.UserFilters) > 0 {

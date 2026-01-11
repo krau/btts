@@ -53,13 +53,15 @@ type SearchHit struct {
 		ID        string `json:"id"`
 		Type      string `json:"type"`
 		Message   string `json:"message"`
+		Ocred     string `json:"ocred"`
 		UserID    string `json:"user_id"`
 		ChatID    string `json:"chat_id"`
+		MessageID string `json:"message_id"`
 		Timestamp string `json:"timestamp"`
 	} `json:"_formatted"`
 }
 
-func ResponseSearch(c *fiber.Ctx, rawResp *types.MessageSearchResponse) error {
+func ResponseSearch(c *fiber.Ctx, rawResp *types.MessageSearchResponseV1) error {
 	if rawResp == nil {
 		return &fiber.Error{Code: fiber.StatusInternalServerError, Message: "Search response is nil"}
 	}
@@ -109,7 +111,7 @@ func ResponseSearch(c *fiber.Ctx, rawResp *types.MessageSearchResponse) error {
 	})
 }
 
-func ResponseDocuments(c *fiber.Ctx, docs []*types.MessageDocument) error {
+func ResponseDocuments(c *fiber.Ctx, docs []*types.MessageDocumentV1) error {
 	if len(docs) == 0 {
 		return &fiber.Error{Code: fiber.StatusNotFound, Message: "No documents found"}
 	}

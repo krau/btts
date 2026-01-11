@@ -55,7 +55,7 @@ func migrateToV1(ctx context.Context, dropOld bool) error {
 		return fmt.Errorf("meilisearch health check failed: %w", err)
 	}
 	_, err = client.CreateIndexWithContext(ctx, &meilisearch.IndexConfig{
-		Uid:        "btts",
+		Uid:        cfg.Engine.Index,
 		PrimaryKey: "id",
 	})
 	if err != nil {

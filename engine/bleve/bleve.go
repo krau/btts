@@ -327,7 +327,7 @@ func (b *BleveSearcher) Search(ctx context.Context, req types.SearchRequest) (*t
 	limit := req.Limit
 	offset := req.Offset
 	if limit == 0 {
-		limit = types.PER_SEARCH_LIMIT
+		limit = types.PerSearchLimit
 	}
 	if offset == 0 {
 		offset = 0
@@ -417,7 +417,7 @@ func (b *BleveSearcher) multiSearch(ctx context.Context, req types.SearchRequest
 	limit := req.Limit
 	offset := req.Offset
 	if limit == 0 {
-		limit = types.PER_SEARCH_LIMIT
+		limit = types.PerSearchLimit
 	}
 	if offset == 0 {
 		offset = 0

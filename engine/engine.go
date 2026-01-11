@@ -9,7 +9,6 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/gotd/td/tg"
 	"github.com/krau/btts/config"
-	"github.com/krau/btts/engine/bleve"
 	"github.com/krau/btts/engine/meili"
 	"github.com/krau/btts/types"
 	"github.com/krau/btts/utils"
@@ -19,14 +18,15 @@ import (
 type Searcher interface {
 	CreateIndex(ctx context.Context, chatID int64) error
 	DeleteIndex(ctx context.Context, chatID int64) error
-	AddDocuments(ctx context.Context, chatID int64, docs []*types.MessageDocument) error
+	AddDocuments(ctx context.Context, chatID int64, docs []*types.MessageDocumentV1) error
 	DeleteDocuments(ctx context.Context, chatID int64, ids []int) error
-	Search(ctx context.Context, req types.SearchRequest) (*types.MessageSearchResponse, error)
-	GetDocuments(ctx context.Context, chatID int64, ids []int) ([]*types.MessageDocument, error)
+	Search(ctx context.Context, req types.SearchRequest) (*types.MessageSearchResponseV1, error)
+	GetDocuments(ctx context.Context, chatID int64, ids []int) ([]*types.MessageDocumentV1, error)
 }
 
 var _ Searcher = (*meili.Meilisearch)(nil)
-var _ Searcher = (*bleve.BleveSearcher)(nil)
+
+// var _ Searcher = (*bleve.BleveSearcher)(nil)
 
 var instance Searcher
 
@@ -63,16 +63,16 @@ func NewEngine(ctx context.Context) (Searcher, error) {
 		log.FromContext(ctx).Info("Meilisearch engine initialized")
 
 	case "bleve":
-		indexPath := config.C.Engine.Path
-		if indexPath == "" {
-			indexPath = "data/bleve_indexes" // 默认路径
-		}
-		instance, err = bleve.NewBleveSearcher(indexPath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to initialize bleve: %w", err)
-		}
-		log.FromContext(ctx).Info("Bleve engine initialized", "index_path", indexPath)
-
+		// indexPath := config.C.Engine.Path
+		// if indexPath == "" {
+		// 	indexPath = "data/bleve_indexes" // 默认路径
+		// }
+		// instance, err = bleve.NewBleveSearcher(indexPath)
+		// if err != nil {
+		// 	return nil, fmt.Errorf("failed to initialize bleve: %w", err)
+		// }
+		// log.FromContext(ctx).Info("Bleve engine initialized", "index_path", indexPath)
+		panic("not impl")
 	default:
 		return nil, fmt.Errorf("unsupported engine type: %s (supported: meilisearch, bleve)", config.C.Engine.Type)
 	}
@@ -80,8 +80,8 @@ func NewEngine(ctx context.Context) (Searcher, error) {
 	return instance, nil
 }
 
-func DocumentsFromMessages(ctx context.Context, messages []*tg.Message, self int64, ectx *ext.Context, downloadMedia bool) []*types.MessageDocument {
-	docs := make([]*types.MessageDocument, 0, len(messages))
+func DocumentsFromMessages(ctx context.Context, messages []*tg.Message, self int64, ectx *ext.Context, downloadMedia bool) []*types.MessageDocumentV1 {
+	docs := make([]*types.MessageDocumentV1, 0, len(messages))
 	for _, message := range messages {
 		var userID int64
 
@@ -132,7 +132,7 @@ func DocumentsFromMessages(ctx context.Context, messages []*tg.Message, self int
 		if messageText == "" {
 			continue
 		}
-		docs = append(docs, &types.MessageDocument{
+		docs = append(docs, &types.MessageDocumentV1{
 			ID:        int64(message.GetID()),
 			Message:   messageText,
 			Type:      int(messageType),
