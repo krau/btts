@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/krau/btts/config"
 	"github.com/krau/btts/database"
+	"github.com/krau/btts/types"
 	"github.com/krau/btts/utils"
 	"github.com/meilisearch/meilisearch-go"
 	"github.com/spf13/cobra"
@@ -19,6 +20,7 @@ v1 主要变更是更改了索引切分策略
 */
 
 func RegisterCmd(root *cobra.Command) {
+	var dropOld bool
 	migrateCmd := &cobra.Command{
 		Use:   "migrate",
 		Short: "Migrate database to v1 format",
@@ -26,12 +28,13 @@ func RegisterCmd(root *cobra.Command) {
 			ctx := cmd.Context()
 			logger := log.FromContext(ctx)
 			logger.Info("Starting migration...")
-			if err := migrateToV1(ctx); err != nil {
+			if err := migrateToV1(ctx, dropOld); err != nil {
 				logger.Error("Migration failed", "error", err)
 				return
 			}
 		},
 	}
+	migrateCmd.Flags().BoolVar(&dropOld, "drop-old", false, "Drop old indexes after migration")
 	root.AddCommand(migrateCmd)
 }
 
@@ -39,7 +42,7 @@ func indexKey(chatID int64) string {
 	return fmt.Sprintf("btts_%d", chatID)
 }
 
-func migrateToV1(ctx context.Context) error {
+func migrateToV1(ctx context.Context, dropOld bool) error {
 	logger := log.FromContext(ctx)
 	logger.Info("Starting migration to v1 format")
 	cfg := config.C
@@ -73,7 +76,7 @@ func migrateToV1(ctx context.Context) error {
 			"chat_id",
 		},
 		SearchableAttributes: []string{
-			"message",
+			"message", "ocred", "aigenerated",
 		},
 	})
 	if err != nil {
@@ -90,7 +93,17 @@ func migrateToV1(ctx context.Context) error {
 		if err := migrateChat(ctx, oldIndex, newIndex); err != nil {
 			return fmt.Errorf("failed to migrate chat %d: %w", chatID, err)
 		}
+		if dropOld {
+			logger.Info("Dropping old index", "index", indexKey(chatID))
+			_, err := client.DeleteIndexWithContext(ctx, indexKey(chatID))
+			if err != nil {
+				logger.Warn("Failed to drop old index", "index", indexKey(chatID), "error", err)
+			} else {
+				logger.Info("Dropped old index", "index", indexKey(chatID))
+			}
+		}
 	}
+	logger.Info("Migration completed successfully")
 	return nil
 }
 
@@ -126,7 +139,7 @@ func migrateChat(ctx context.Context, oldIndex, newIndex meilisearch.IndexManage
 		if err != nil {
 			return fmt.Errorf("failed to marshal documents: %w", err)
 		}
-		hits := make([]*MessageDocumentV1, 0, len(resp.Results))
+		hits := make([]*types.MessageDocumentV1, 0, len(resp.Results))
 		err = sonic.Unmarshal(hitBytes, &hits)
 		if err != nil {
 			return fmt.Errorf("failed to unmarshal documents: %w", err)
@@ -146,19 +159,4 @@ func migrateChat(ctx context.Context, oldIndex, newIndex meilisearch.IndexManage
 		offset += batchSize
 	}
 	return nil
-}
-
-type MessageDocumentV1 struct {
-	// Cantor paired ID of (chat_id, message_id)
-	// [NOTE] Cantor 需要两个非负整数
-	ID   int64 `json:"id"`
-	Type int   `json:"type"`
-	// The original text of the message
-	Message string `json:"message"`
-	// The ID of the user who sent the message
-	UserID int64 `json:"user_id"`
-	ChatID int64 `json:"chat_id"`
-	// Telegram MessageID
-	MessageID int64 `json:"message_id"`
-	Timestamp int64 `json:"timestamp"`
 }
