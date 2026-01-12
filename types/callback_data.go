@@ -19,7 +19,7 @@ type SearchRequest struct {
 	Offset            int64         `json:"offset"`
 }
 
-func (r *SearchRequest) FilterExpression() string {
+func (r SearchRequest) FilterExpression() string {
 	var filters []string
 
 	addInt64Filter := func(field string, ids []int64) {
