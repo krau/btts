@@ -18,7 +18,6 @@ type AppConfig struct {
 		Url      string `toml:"url" mapstructure:"url"`
 		Index    string `toml:"index" mapstructure:"index"` // For meilisearch: index uid
 		Key      string `toml:"key" mapstructure:"key"`
-		Path     string `toml:"path" mapstructure:"path"` // For bleve: path to index directory
 		Embedder struct {
 			Name             string `toml:"name" mapstructure:"name"`
 			Source           string `toml:"source" mapstructure:"source"`
@@ -55,6 +54,7 @@ func init() {
 	viper.AutomaticEnv()
 
 	viper.SetDefault("engine.index", "btts")
+	viper.SetDefault("engine.type", "meilisearch")
 
 	if err := viper.ReadInConfig(); err != nil {
 		log.Fatalf("Error reading config file, %s", err)

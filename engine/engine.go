@@ -81,7 +81,7 @@ func NewEngine(ctx context.Context) (Searcher, error) {
 	return instance, nil
 }
 
-func DocumentsFromMessages(ctx context.Context, messages []*tg.Message, self int64, ectx *ext.Context, downloadMedia bool) []*types.MessageDocument {
+func DocumentsFromMessages(ctx context.Context, messages []*tg.Message, chatID, self int64, ectx *ext.Context, downloadMedia bool) []*types.MessageDocument {
 	docs := make([]*types.MessageDocument, 0, len(messages))
 	for _, message := range messages {
 		var userID int64
@@ -120,13 +120,15 @@ func DocumentsFromMessages(ctx context.Context, messages []*tg.Message, self int
 
 		var messageSB strings.Builder
 		var messageType types.MessageType
+		var ocred string
 		media, ok := message.GetMedia()
 		if ok {
-			text, mt := utils.ExtractMessageMediaText(ctx, ectx, media, downloadMedia)
-			if text != "" {
-				messageSB.WriteString(text)
+			result := utils.ExtractMessageMediaText(ctx, ectx, media, downloadMedia)
+			if result != nil {
+				messageSB.WriteString(result.Text)
+				ocred = result.Ocred
 			}
-			messageType = mt
+			messageType = result.Type
 		}
 		messageSB.WriteString(message.GetMessage())
 		messageText := messageSB.String()
@@ -136,8 +138,10 @@ func DocumentsFromMessages(ctx context.Context, messages []*tg.Message, self int
 		docs = append(docs, &types.MessageDocument{
 			ID:        int64(message.GetID()),
 			Message:   messageText,
+			Ocred:     ocred,
 			Type:      int(messageType),
 			UserID:    userID,
+			ChatID:    chatID,
 			Timestamp: int64(message.GetDate()),
 		})
 	}
