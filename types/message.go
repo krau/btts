@@ -1,6 +1,9 @@
 package types
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 type MessageType int
 
@@ -64,15 +67,19 @@ var (
 )
 
 const (
-	PER_SEARCH_LIMIT = 12
+	PerSearchLimit = 12
 )
 
 type MessageDocument struct {
-	// Telegram MessageID
+	// Telegram message ID
 	ID   int64 `json:"id"`
 	Type int   `json:"type"`
 	// The original text of the message
 	Message string `json:"message"`
+	// The OCRed text of the message
+	Ocred string `json:"ocred"`
+	// [TODO] The AI generated text of the message(summarization, caption, tagging, etc.)
+	AIGenerated string `json:"aigenerated"`
 	// The ID of the user who sent the message
 	UserID    int64 `json:"user_id"`
 	ChatID    int64 `json:"chat_id"`
@@ -81,21 +88,33 @@ type MessageDocument struct {
 
 type SearchHit struct {
 	MessageDocument
-	Formatted struct {
-		ID        string `json:"id"`
-		Type      string `json:"type"`
-		Message   string `json:"message"`
-		UserID    string `json:"user_id"`
-		ChatID    string `json:"chat_id"`
-		Timestamp string `json:"timestamp"`
-	} `json:"_formatted"`
+	Formatted SearchHitFormatted `json:"_formatted"`
+}
+
+type SearchHitFormatted struct {
+	ID          string `json:"id"`
+	Type        string `json:"type"`
+	Message     string `json:"message"`
+	Ocred       string `json:"ocred"`
+	AIGenerated string `json:"aigenerated"`
+	UserID      string `json:"user_id"`
+	ChatID      string `json:"chat_id"`
+	Timestamp   string `json:"timestamp"`
 }
 
 func (s SearchHit) MessageLink() string {
 	return fmt.Sprintf("https://t.me/c/%d/%d", s.ChatID, s.ID)
 }
 
-type MessageSearchResponse struct {
+func (s SearchHit) FullFormattedText() string {
+	return strings.TrimSpace(s.Formatted.Message + " " + s.Formatted.Ocred + " " + s.Formatted.AIGenerated)
+}
+
+func (s SearchHit) FullText() string {
+	return strings.TrimSpace(s.Message + " " + s.Ocred + " " + s.AIGenerated)
+}
+
+type SearchResponse struct {
 	Hits               []SearchHit `json:"hits,omitempty"`
 	ProcessingTimeMs   int64       `json:"processingTimeMs,omitempty"`
 	Offset             int64       `json:"offset,omitempty"`

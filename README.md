@@ -6,15 +6,6 @@ Demo: [@KrauSearchBot](https://t.me/krausearchbot)
 
 ## 部署
 
-### 选择和部署搜索引擎
-
-BTTS 支持两种搜索引擎：
-
-1. **Meilisearch**(推荐) - Rust 实现的功能强大的搜索引擎
-2. **Bleve** - 纯 Go 实现的嵌入式搜索引擎，无需额外部署
-
-#### 使用 Meilisearch
-
 首先部署 [meilisearch](https://www.meilisearch.com/docs/learn/self_hosted/getting_started_with_self_hosted_meilisearch) , 它是 btts 的搜索引擎.
 
 这个安装脚本会把最新版 meilisearch 下载到当前目录:
@@ -29,10 +20,6 @@ curl -L https://install.meilisearch.com | sh
 ```bash
 ./meilisearch --master-key 'master-key'
 ```
-
-#### 使用 Bleve
-
-Bleve 是嵌入式搜索引擎，无需额外部署，只需在配置文件中指定即可。
 
 ### OCR (可选)
 
@@ -53,8 +40,6 @@ threshold = 0.8 # 置信度阈值
 
 创建 `config.toml` 配置文件, 参考下面的配置:
 
-**使用 Meilisearch 的配置：**
-
 ```toml
 # Telegram Bot 配置
 app_id = 123
@@ -65,32 +50,13 @@ admins = [1234567890, 1234567890]
 type = "meilisearch"  # 使用 meilisearch 引擎
 url = "http://localhost:7700"
 key = "master-key"
+index = "btts" # 索引名称
 [api]
 # 可选, 开启 api 和 web 界面
 enable = true
 addr = "127.0.0.1:39415"
 key = "qwqowo" # api 密钥, 访问时需要提供
 ```
-
-**使用 Bleve 的配置：**
-
-```toml
-# Telegram Bot 配置
-app_id = 123
-app_hash = "1234567890abcdef1234567890abcdef"
-bot_token= "1234567890:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
-admins = [1234567890, 1234567890]
-[engine]
-type = "bleve"  # 使用 bleve 嵌入式引擎
-path = "data/bleve_indexes"  # 索引存储路径，默认为 data/bleve_indexes
-[api]
-# 可选, 开启 api 和 web 界面
-enable = true
-addr = "127.0.0.1:39415"
-key = "qwqowo" # api 密钥, 访问时需要提供
-```
-
-> 如果不指定 `engine.type`，默认使用 `meilisearch`。
 
 启动 !
 

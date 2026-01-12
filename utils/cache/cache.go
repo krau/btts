@@ -10,6 +10,8 @@ import (
 
 var cache *ristretto.Cache[string, any]
 
+var DefaultTTL = time.Hour * 24
+
 func init() {
 	c, err := ristretto.NewCache(&ristretto.Config[string, any]{
 		NumCounters: 1e5,
@@ -25,8 +27,8 @@ func init() {
 	cache = c
 }
 
-func Set(key string, value any) error {
-	ok := cache.SetWithTTL(key, value, 0, 86400*time.Second)
+func Set(key string, value any, ttl time.Duration) error {
+	ok := cache.SetWithTTL(key, value, 0, ttl)
 	if !ok {
 		return fmt.Errorf("failed to set value in cache")
 	}

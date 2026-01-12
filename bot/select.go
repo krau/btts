@@ -34,7 +34,7 @@ func SelectCallbackHandler(ctx *ext.Context, update *ext.Update) error {
 	}
 	cahceKey := strconv.Itoa(update.CallbackQuery.GetMsgID())
 	log.FromContext(ctx).Debug("Cache key", "key", cahceKey)
-	if err := cache.Set(cahceKey, int64(chatID)); err != nil {
+	if err := cache.Set(cahceKey, int64(chatID), cache.DefaultTTL); err != nil {
 		ctx.AnswerCallback(&tg.MessagesSetBotCallbackAnswerRequest{
 			Alert:   true,
 			QueryID: update.CallbackQuery.GetQueryID(),

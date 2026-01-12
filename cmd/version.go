@@ -6,8 +6,8 @@ import (
 
 	"github.com/blang/semver"
 	"github.com/charmbracelet/log"
-	"github.com/rhysd/go-github-selfupdate/selfupdate"
 	"github.com/spf13/cobra"
+	selfupdate "github.com/unvgo/ghselfupdate"
 )
 
 var (
@@ -16,7 +16,7 @@ var (
 	GitCommit = "unknown"
 )
 
-var VersionCmd = &cobra.Command{
+var versionCmd = &cobra.Command{
 	Use:     "version",
 	Aliases: []string{"v"},
 	Short:   "Print the version number of btts",
@@ -46,6 +46,6 @@ var upgradeCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.AddCommand(VersionCmd)
+	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(upgradeCmd)
 }

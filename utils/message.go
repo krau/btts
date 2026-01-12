@@ -93,18 +93,26 @@ func paddleOcr(ctx context.Context, client *ext.Context, media tg.MessageMediaCl
 	return strings.TrimSpace(ocrText.String()), nil
 }
 
-func ExtractMessageMediaText(ctx context.Context, client *ext.Context, media tg.MessageMediaClass, downloadMedia bool) (string, types.MessageType) {
-	messageType := types.MessageTypeText
+type MessageMediaExtractResult struct {
+	Text  string
+	Ocred string
+	Type  types.MessageType
+}
+
+func ExtractMessageMediaText(ctx context.Context, client *ext.Context, media tg.MessageMediaClass, downloadMedia bool) *MessageMediaExtractResult {
+	result := &MessageMediaExtractResult{
+		Type: types.MessageTypeText,
+	}
 	var messageSB strings.Builder
 	switch m := media.(type) {
 	case *tg.MessageMediaPhoto:
-		messageType = types.MessageTypePhoto
+		result.Type = types.MessageTypePhoto
 		if config.C.Ocr.Enable && downloadMedia {
 			switch config.C.Ocr.Type {
 			case "paddle", "paddleocr":
 				ocrText, err := paddleOcr(ctx, client, media)
 				if ocrText != "" && err == nil {
-					messageSB.WriteString(ocrText + " ")
+					result.Ocred = ocrText
 					log.FromContext(ctx).Debug("Paddle OCR succeeded", "text", ocrText)
 				} else if err != nil {
 					log.FromContext(ctx).Warnf("Paddle OCR failed: %v", err)
@@ -117,17 +125,17 @@ func ExtractMessageMediaText(ctx context.Context, client *ext.Context, media tg.
 	case *tg.MessageMediaDocument:
 		doc, ok := m.Document.AsNotEmpty()
 		if !ok {
-			return "", messageType
+			return result
 		}
-		messageType = types.MessageTypeDocument
+		result.Type = types.MessageTypeDocument
 		for _, attr := range doc.GetAttributes() {
 			switch attr := attr.(type) {
 			case *tg.DocumentAttributeHasStickers:
-				return "", messageType
+				return result
 			case *tg.DocumentAttributeFilename:
 				filename := attr.GetFileName()
 				if slice.Contain(types.StickerFileNames, filename) {
-					return "", messageType
+					return result
 				}
 				messageSB.WriteString(filename + " ")
 			case *tg.DocumentAttributeAudio:
@@ -139,13 +147,13 @@ func ExtractMessageMediaText(ctx context.Context, client *ext.Context, media tg.
 				if ok {
 					messageSB.WriteString(performer + " ")
 				}
-				messageType = types.MessageTypeAudio
+				result.Type = types.MessageTypeAudio
 			case *tg.DocumentAttributeVideo:
-				messageType = types.MessageTypeVideo
+				result.Type = types.MessageTypeVideo
 			}
 		}
 	case *tg.MessageMediaPoll:
-		messageType = types.MessageTypePoll
+		result.Type = types.MessageTypePoll
 		poll := m.GetPoll()
 		messageSB.WriteString(poll.GetQuestion().Text)
 		for _, option := range poll.GetAnswers() {
@@ -154,22 +162,22 @@ func ExtractMessageMediaText(ctx context.Context, client *ext.Context, media tg.
 	case *tg.MessageMediaStory:
 		story, ok := m.GetStory()
 		if !ok {
-			return "", messageType
+			return result
 		}
 		switch story := story.(type) {
 		case *tg.StoryItem:
-			messageType = types.MessageTypeStory
+			result.Type = types.MessageTypeStory
 			caption, ok := story.GetCaption()
 			if ok {
 				messageSB.WriteString(caption + " ")
 			}
 		default:
-			return "", messageType
+			return result
 		}
 	case *tg.MessageMediaWebPage:
 		wp, ok := m.GetWebpage().AsModified()
 		if !ok {
-			return "", messageType
+			return result
 		}
 		switch page := wp.(type) {
 		case *tg.WebPage:
@@ -215,12 +223,13 @@ func ExtractMessageMediaText(ctx context.Context, client *ext.Context, media tg.
 			// }
 		}
 	}
-	return strings.TrimSpace(messageSB.String()), messageType
+	result.Text = strings.TrimSpace(messageSB.String())
+	return result
 }
 
 func BuildSearchReplyMarkup(ctx context.Context, currentPage int64, data types.SearchRequest) (*tg.ReplyInlineMarkup, error) {
 	cacheid := xid.New().String()
-	if err := cache.Set(cacheid, data); err != nil {
+	if err := cache.Set(cacheid, data, cache.DefaultTTL); err != nil {
 		return nil, err
 	}
 	mtbuttons := make([]tg.KeyboardButtonClass, 0)
@@ -266,7 +275,7 @@ func BuildSearchReplyMarkup(ctx context.Context, currentPage int64, data types.S
 	}, nil
 }
 
-func BuildResultStyling(ctx context.Context, resp *types.MessageSearchResponse, botUsername ...string) []styling.StyledTextOption {
+func BuildResultStyling(ctx context.Context, resp *types.SearchResponse, botUsername ...string) []styling.StyledTextOption {
 	var resultStyling []styling.StyledTextOption
 
 	resultStyling = append(resultStyling, styling.Plain(fmt.Sprintf("找到约 %d 条结果, 耗时 %dms\n", resp.EstimatedTotalHits, resp.ProcessingTimeMs)))
@@ -309,11 +318,11 @@ func BuildResultStyling(ctx context.Context, resp *types.MessageSearchResponse, 
 
 		msgLink := func() string {
 			if chat.Type == int(database.ChatTypeChannel) || botUsername == nil {
-				return fmt.Sprintf("https://t.me/c/%d/%d", hit.ChatID, hit.ID)
+				return hit.MessageLink()
 			}
 			return fmt.Sprintf("https://t.me/%s/?start=fav_%d_%d", botUsername[0], hit.ChatID, hit.ID)
 		}()
-		hitFormattedMsg := types.MessageTypeToEmoji[types.MessageType(hit.Type)] + " " + strings.ReplaceAll(hit.Formatted.Message, "\n", " ")
+		hitFormattedMsg := types.MessageTypeToEmoji[types.MessageType(hit.Type)] + " " + strings.ReplaceAll(hit.FullFormattedText(), "\n", " ")
 		resultStyling = append(resultStyling, styling.TextURL(hitFormattedMsg, msgLink))
 	}
 
@@ -358,6 +367,6 @@ func GetMessageByID(ctx *ext.Context, chatID int64, msgID int) (*tg.Message, err
 	if !ok {
 		return nil, fmt.Errorf("unexpected message type: %T", msg)
 	}
-	cache.Set(key, tgm)
+	cache.Set(key, tgm, cache.DefaultTTL)
 	return tgm, nil
 }

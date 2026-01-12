@@ -9,6 +9,7 @@ import (
 	"github.com/celestix/gotgproto/ext"
 	"github.com/charmbracelet/log"
 	"github.com/duke-git/lancet/v2/slice"
+	"github.com/duke-git/lancet/v2/strutil"
 	"github.com/gotd/td/telegram/message/entity"
 	"github.com/gotd/td/telegram/message/inline"
 	"github.com/gotd/td/telegram/message/styling"
@@ -182,14 +183,25 @@ func SearchCallbackHandler(ctx *ext.Context, update *ext.Update) error {
 		log.FromContext(ctx).Errorf("Failed to get sub bot: %v", err)
 		return dispatcher.EndGroups
 	}
-	if !slice.Equal(data.ChatIDs, sbModel.ChatIDs) {
-		ctx.AnswerCallback(&tg.MessagesSetBotCallbackAnswerRequest{
-			QueryID:   update.CallbackQuery.GetQueryID(),
-			Message:   "Permission Denied",
-			Alert:     true,
-			CacheTime: 60,
-		})
-		return dispatcher.EndGroups
+	// 重新计算当前用户可访问的聊天列表
+	userID := update.GetUserChat().GetID()
+	var allowedChats []int64
+	if CheckAdmin(ctx, update) {
+		allowedChats = sbModel.ChatIDs
+	} else {
+		allowedChats = sbModel.UserCanSearchChats(ctx, userID)
+	}
+	// 验证缓存的 chatIDs 是否都在允许的范围内
+	for _, chatID := range data.ChatIDs {
+		if !slice.Contain(allowedChats, chatID) {
+			ctx.AnswerCallback(&tg.MessagesSetBotCallbackAnswerRequest{
+				QueryID:   update.CallbackQuery.GetQueryID(),
+				Message:   "Permission Denied",
+				Alert:     true,
+				CacheTime: 60,
+			})
+			return dispatcher.EndGroups
+		}
 	}
 	page, err := strconv.ParseInt(args[1], 10, 64)
 	if err != nil {
@@ -209,7 +221,7 @@ func SearchCallbackHandler(ctx *ext.Context, update *ext.Update) error {
 		})
 		return dispatcher.EndGroups
 	}
-	offset := (page - 1) * types.PER_SEARCH_LIMIT
+	offset := (page - 1) * types.PerSearchLimit
 	data.Offset = offset
 	resp, err := engine.GetEngine().Search(ctx, data)
 	if err != nil {
@@ -284,14 +296,25 @@ func FilterCallbackHandler(ctx *ext.Context, update *ext.Update) error {
 		log.FromContext(ctx).Errorf("Failed to get sub bot: %v", err)
 		return dispatcher.EndGroups
 	}
-	if !slice.Equal(data.ChatIDs, sbModel.ChatIDs) {
-		ctx.AnswerCallback(&tg.MessagesSetBotCallbackAnswerRequest{
-			QueryID:   update.CallbackQuery.GetQueryID(),
-			Message:   "Permission Denied",
-			Alert:     true,
-			CacheTime: 60,
-		})
-		return dispatcher.EndGroups
+	// 重新计算当前用户可访问的聊天列表
+	userID := update.GetUserChat().GetID()
+	var allowedChats []int64
+	if CheckAdmin(ctx, update) {
+		allowedChats = sbModel.ChatIDs
+	} else {
+		allowedChats = sbModel.UserCanSearchChats(ctx, userID)
+	}
+	// 验证缓存的 chatIDs 是否都在允许的范围内
+	for _, chatID := range data.ChatIDs {
+		if !slice.Contain(allowedChats, chatID) {
+			ctx.AnswerCallback(&tg.MessagesSetBotCallbackAnswerRequest{
+				QueryID:   update.CallbackQuery.GetQueryID(),
+				Message:   "Permission Denied",
+				Alert:     true,
+				CacheTime: 60,
+			})
+			return dispatcher.EndGroups
+		}
 	}
 	toswitch, err := strconv.Atoi(args[1])
 	if err != nil {
@@ -378,7 +401,7 @@ func FilterCallbackHandler(ctx *ext.Context, update *ext.Update) error {
 	if _, err := ctx.EditMessage(update.EffectiveChat().GetID(), editReq); err != nil {
 		log.FromContext(ctx).Errorf("Failed to edit message: %v", err)
 	}
-	cache.Set(dataid, data)
+	cache.Set(dataid, data, cache.DefaultTTL)
 	return dispatcher.EndGroups
 }
 
@@ -418,17 +441,22 @@ func InlineQueryHandler(ctx *ext.Context, update *ext.Update) error {
 		userName := hit.Formatted.UserID
 		user, err := database.GetUserInfo(ctx, hit.UserID)
 		if err == nil {
-			userName = user.FullName()
+			userName = strutil.Ellipsis(user.FullName(), 16)
 		}
-		title := fmt.Sprintf("%s [%s]", userName, types.MessageTypeToDisplayString[types.MessageType(hit.Type)])
+		chatTitle := hit.Formatted.ChatID
+		chat, err := database.GetIndexChat(ctx, hit.ChatID)
+		if err == nil {
+			chatTitle = strutil.Ellipsis(chat.Title, 16)
+		}
+		title := fmt.Sprintf("%s [%s] | %s", userName, types.MessageTypeToDisplayString[types.MessageType(hit.Type)], chatTitle)
 		results = append(results, inline.Article(
-			title, inline.MessageText(hit.Message).Row(
+			title, inline.MessageText(hit.FullText()).Row(
 				&tg.KeyboardButtonURL{
 					Text: userName,
 					URL:  hit.MessageLink(),
 				},
 			),
-		).Description(hit.Formatted.Message))
+		).Description(hit.FullFormattedText()))
 	}
 	if len(results) == 0 {
 		results = append(results, inline.Article(

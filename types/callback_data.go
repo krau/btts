@@ -7,33 +7,56 @@ import (
 )
 
 type SearchRequest struct {
-	ChatID      int64         `json:"chat_id"`
-	Query       string        `json:"query"`
-	ChatIDs     []int64       `json:"chat_ids"`
-	TypeFilters []MessageType `json:"type_filters"`
-	UserFilters []int64       `json:"user_filters"`
-	Limit       int64         `json:"limit"`
-	Offset      int64         `json:"offset"`
+	ChatID            int64         `json:"chat_id"`
+	Query             string        `json:"query"`
+	ChatIDs           []int64       `json:"chat_ids"`
+	AllChats          bool          `json:"all_chats"`
+	TypeFilters       []MessageType `json:"type_filters"`
+	UserFilters       []int64       `json:"user_filters"`
+	DisableOcred      bool          `json:"disable_ocred"`      // 不搜索 OCR 文字
+	EnableAIGenerated bool          `json:"enable_aigenerated"` // [TODO] 搜索 AI 生成的内容(not implemented yet)
+	Limit             int64         `json:"limit"`
+	Offset            int64         `json:"offset"`
 }
 
-func (r SearchRequest) FilterExpression() string {
-	if len(r.UserFilters) == 0 && len(r.TypeFilters) == 0 {
-		return ""
-	}
+func (r SearchRequest) FilterExpression() (string, error) {
 	var filters []string
-	if len(r.UserFilters) > 0 {
-		userFilter := fmt.Sprintf("user_id IN [%s]", slice.Join(r.UserFilters, ","))
-		filters = append(filters, userFilter)
+
+	addInt64Filter := func(field string, ids []int64) {
+		if len(ids) == 0 {
+			return
+		}
+		if len(ids) == 1 {
+			filters = append(filters, fmt.Sprintf("%s = %d", field, ids[0]))
+			return
+		}
+		idStrs := slice.Map(ids, func(_ int, item int64) string { return fmt.Sprintf("%d", item) })
+		filters = append(filters, fmt.Sprintf("%s IN [%s]", field, slice.Join(idStrs, ",")))
 	}
+
+	if !r.AllChats {
+		if r.ChatID != 0 {
+			filters = append(filters, fmt.Sprintf("chat_id = %d", r.ChatID))
+		} else if len(r.ChatIDs) > 0 {
+			addInt64Filter("chat_id", r.ChatIDs)
+		} else {
+			return "", fmt.Errorf("either ChatID or ChatIDs must be set when AllChats is false")
+		}
+	}
+
+	addInt64Filter("user_id", r.UserFilters)
+
 	if len(r.TypeFilters) > 0 {
-		typeFilter := fmt.Sprintf("type IN [%s]", slice.Join(r.TypeFilters, ","))
-		filters = append(filters, typeFilter)
+		typeStrs := slice.Map(r.TypeFilters, func(_ int, item MessageType) string { return fmt.Sprintf("%d", item) })
+		filters = append(filters, fmt.Sprintf("type IN [%s]", slice.Join(typeStrs, ",")))
 	}
-	if len(filters) == 0 {
-		return ""
+
+	switch len(filters) {
+	case 0:
+		return "", nil
+	case 1:
+		return filters[0], nil
+	default:
+		return slice.Join(filters, " AND "), nil
 	}
-	if len(filters) == 1 {
-		return filters[0]
-	}
-	return slice.Join(filters, " AND ")
 }
