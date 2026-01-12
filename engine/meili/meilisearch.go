@@ -243,7 +243,9 @@ func (m *Meilisearch) Search(ctx context.Context, req types.SearchRequest) (*typ
 		AttributesToSearchOn: searchOnAttrs,
 		AttributesToCrop:     searchOnAttrs,
 	}
-	if expr := req.FilterExpression(); expr != "" {
+	if expr, err := req.FilterExpression(); err != nil {
+		return nil, err
+	} else {
 		request.Filter = expr
 	}
 	log.FromContext(ctx).Info("Searching", "query", req.Query, "offset", offset, "filter", request.Filter)

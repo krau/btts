@@ -19,7 +19,7 @@ type SearchRequest struct {
 	Offset            int64         `json:"offset"`
 }
 
-func (r SearchRequest) FilterExpression() string {
+func (r SearchRequest) FilterExpression() (string, error) {
 	var filters []string
 
 	addInt64Filter := func(field string, ids []int64) {
@@ -37,8 +37,10 @@ func (r SearchRequest) FilterExpression() string {
 	if !r.AllChats {
 		if r.ChatID != 0 {
 			filters = append(filters, fmt.Sprintf("chat_id = %d", r.ChatID))
-		} else {
+		} else if len(r.ChatIDs) > 0 {
 			addInt64Filter("chat_id", r.ChatIDs)
+		} else {
+			return "", fmt.Errorf("either ChatID or ChatIDs must be set when AllChats is false")
 		}
 	}
 
@@ -51,10 +53,10 @@ func (r SearchRequest) FilterExpression() string {
 
 	switch len(filters) {
 	case 0:
-		return ""
+		return "", nil
 	case 1:
-		return filters[0]
+		return filters[0], nil
 	default:
-		return slice.Join(filters, " AND ")
+		return slice.Join(filters, " AND "), nil
 	}
 }

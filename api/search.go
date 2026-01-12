@@ -41,12 +41,16 @@ func SearchOnChatByGet(c *fiber.Ctx) error {
 	query := c.Query("q")
 	offset := c.QueryInt("offset")
 	limit := c.QueryInt("limit", types.PerSearchLimit)
+	disableOcred := c.QueryBool("disable_ocred", false)
+	enableAIGenerated := c.QueryBool("enable_aigenerated", false)
 
 	req := types.SearchRequest{
-		ChatID: int64(chatID),
-		Query:  query,
-		Offset: int64(offset),
-		Limit:  int64(limit),
+		ChatID:            int64(chatID),
+		Query:             query,
+		Offset:            int64(offset),
+		Limit:             int64(limit),
+		DisableOcred:      disableOcred,
+		EnableAIGenerated: enableAIGenerated,
 	}
 	if users := c.Query("users"); users != "" {
 		userIDs := slice.Compact(slice.Map(strings.Split(users, ","), func(i int, userId string) int64 {
@@ -108,11 +112,13 @@ func SearchOnChatByPost(c *fiber.Ctx) error {
 	}
 
 	req := types.SearchRequest{
-		ChatID:      int64(chatID),
-		Query:       request.Query,
-		Offset:      request.Offset,
-		Limit:       request.Limit,
-		UserFilters: request.Users,
+		ChatID:            int64(chatID),
+		Query:             request.Query,
+		Offset:            request.Offset,
+		Limit:             request.Limit,
+		UserFilters:       request.Users,
+		DisableOcred:      request.DisableOcred,
+		EnableAIGenerated: request.EnableAIGenerated,
 	}
 	if len(request.Types) > 0 {
 		if msgTypes := slice.Map(request.Types, func(i int, msgType string) types.MessageType {
@@ -157,12 +163,16 @@ func SearchOnMultiChatByPost(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
+	searchAllChats := isMasterAPIKey(c) && request.AllChats
 	req := types.SearchRequest{
-		ChatIDs:     chatIDs,
-		Query:       request.Query,
-		Offset:      request.Offset,
-		Limit:       request.Limit,
-		UserFilters: request.Users,
+		ChatIDs:           chatIDs,
+		Query:             request.Query,
+		Offset:            request.Offset,
+		Limit:             request.Limit,
+		UserFilters:       request.Users,
+		AllChats:          searchAllChats,
+		DisableOcred:      request.DisableOcred,
+		EnableAIGenerated: request.EnableAIGenerated,
 	}
 	if len(request.Types) > 0 {
 		if msgTypes := slice.Map(request.Types, func(i int, msgType string) types.MessageType {
