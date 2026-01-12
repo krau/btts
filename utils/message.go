@@ -220,7 +220,7 @@ func ExtractMessageMediaText(ctx context.Context, client *ext.Context, media tg.
 
 func BuildSearchReplyMarkup(ctx context.Context, currentPage int64, data types.SearchRequest) (*tg.ReplyInlineMarkup, error) {
 	cacheid := xid.New().String()
-	if err := cache.Set(cacheid, data); err != nil {
+	if err := cache.Set(cacheid, data, cache.DefaultTTL); err != nil {
 		return nil, err
 	}
 	mtbuttons := make([]tg.KeyboardButtonClass, 0)
@@ -358,6 +358,6 @@ func GetMessageByID(ctx *ext.Context, chatID int64, msgID int) (*tg.Message, err
 	if !ok {
 		return nil, fmt.Errorf("unexpected message type: %T", msg)
 	}
-	cache.Set(key, tgm)
+	cache.Set(key, tgm, cache.DefaultTTL)
 	return tgm, nil
 }

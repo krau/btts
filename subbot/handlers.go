@@ -378,7 +378,7 @@ func FilterCallbackHandler(ctx *ext.Context, update *ext.Update) error {
 	if _, err := ctx.EditMessage(update.EffectiveChat().GetID(), editReq); err != nil {
 		log.FromContext(ctx).Errorf("Failed to edit message: %v", err)
 	}
-	cache.Set(dataid, data)
+	cache.Set(dataid, data, cache.DefaultTTL)
 	return dispatcher.EndGroups
 }
 
