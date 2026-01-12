@@ -137,8 +137,8 @@ func (m *Meilisearch) AddDocuments(ctx context.Context, chatID int64, docs []*ty
 	return err
 }
 
-// CreateIndex implements engine.Searcher.
-func (m *Meilisearch) CreateIndex(ctx context.Context, chatID int64) error {
+// CreateIndex implements engine.Searcher. 对于 Meilisearch 实现，这里创建/配置的是共享索引 m.Index，chatID 参数不会被使用。
+func (m *Meilisearch) CreateIndex(ctx context.Context, _ int64) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	// 如果已存在则跳过
