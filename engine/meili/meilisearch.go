@@ -13,6 +13,109 @@ import (
 	"github.com/meilisearch/meilisearch-go"
 )
 
+// meilisearch 内部使用 Cantor 作为主键 ID
+// 在接口中传递的 id 列表始终为 Telegram MessageID
+type MeilisearchMessageDocument struct {
+	// Cantor paired ID of (chat_id, message_id)
+	// [NOTE] Cantor 需要两个非负整数
+	ID   int64 `json:"id"`
+	Type int   `json:"type"`
+	// The original text of the message
+	Message string `json:"message"`
+	// The OCRed text of the message
+	Ocred string `json:"ocred"`
+	// The AI generated text of the message(summarization, caption, tagging, etc.)
+	AIGenerated string `json:"aigenerated"`
+	// The ID of the user who sent the message
+	UserID int64 `json:"user_id"`
+	ChatID int64 `json:"chat_id"`
+	// Telegram MessageID
+	MessageID int64 `json:"message_id"`
+	Timestamp int64 `json:"timestamp"`
+}
+
+type MeiliSearchHit struct {
+	MeilisearchMessageDocument
+	Formatted struct {
+		ID        string `json:"id"`
+		Type      string `json:"type"`
+		Message   string `json:"message"`
+		Ocred     string `json:"ocred"`
+		UserID    string `json:"user_id"`
+		MessageID string `json:"message_id"`
+		ChatID    string `json:"chat_id"`
+		Timestamp string `json:"timestamp"`
+	} `json:"_formatted"`
+}
+
+func (h *MeiliSearchHit) ToSearchHit() types.SearchHitV1 {
+	return types.SearchHitV1{
+		MessageDocumentV1: types.MessageDocumentV1{
+			ID:          h.MessageID,
+			Type:        h.Type,
+			Message:     h.Message,
+			Ocred:       h.Ocred,
+			AIGenerated: h.AIGenerated,
+			UserID:      h.UserID,
+			ChatID:      h.ChatID,
+			Timestamp:   h.Timestamp,
+		},
+		Formatted: types.SearchHitFormattedV1{
+			ID:        h.Formatted.MessageID,
+			Type:      h.Formatted.Type,
+			Message:   h.Formatted.Message,
+			Ocred:     h.Formatted.Ocred,
+			UserID:    h.Formatted.UserID,
+			ChatID:    h.Formatted.ChatID,
+			Timestamp: h.Formatted.Timestamp,
+		},
+	}
+}
+
+func docsFromMessages(docs []*types.MessageDocumentV1) []*MeilisearchMessageDocument {
+	meiliDocs := make([]*MeilisearchMessageDocument, len(docs))
+	for i, doc := range docs {
+		meiliDocs[i] = &MeilisearchMessageDocument{
+			ID:          int64(utils.CantorPair(uint64(doc.ChatID), uint64(doc.ID))),
+			Type:        doc.Type,
+			Message:     doc.Message,
+			Ocred:       doc.Ocred,
+			AIGenerated: doc.AIGenerated,
+			UserID:      doc.UserID,
+			ChatID:      doc.ChatID,
+			MessageID:   doc.ID,
+			Timestamp:   doc.Timestamp,
+		}
+	}
+	return meiliDocs
+}
+
+func docsToMessages(docs []*MeilisearchMessageDocument) []*types.MessageDocumentV1 {
+	messageDocs := make([]*types.MessageDocumentV1, len(docs))
+	for i, doc := range docs {
+		messageDocs[i] = &types.MessageDocumentV1{
+			ID:          doc.MessageID,
+			Type:        doc.Type,
+			Message:     doc.Message,
+			Ocred:       doc.Ocred,
+			AIGenerated: doc.AIGenerated,
+			UserID:      doc.UserID,
+			ChatID:      doc.ChatID,
+			Timestamp:   doc.Timestamp,
+		}
+	}
+	return messageDocs
+}
+
+func hitsToSearchHits(hits []*MeiliSearchHit) []types.SearchHitV1 {
+	searchHits := make([]types.SearchHitV1, len(hits))
+	for i, hit := range hits {
+		sh := hit.ToSearchHit()
+		searchHits[i] = sh
+	}
+	return searchHits
+}
+
 type Meilisearch struct {
 	Client meilisearch.ServiceManager
 	Index  string
@@ -25,12 +128,9 @@ func (m *Meilisearch) AddDocuments(ctx context.Context, chatID int64, docs []*ty
 	for i := range docs {
 		docs[i].ChatID = chatID
 	}
-	jsonData, err := sonic.Marshal(docs)
+	jsonData, err := sonic.Marshal(docsFromMessages(docs))
 	if err != nil {
 		return err
-	}
-	if len(docs) == 0 {
-		return nil
 	}
 	primaryKey := "id"
 	_, err = m.Client.Index(m.Index).UpdateDocumentsWithContext(ctx, jsonData, &primaryKey)
@@ -66,6 +166,7 @@ func (m *Meilisearch) CreateIndex(ctx context.Context, chatID int64) error {
 			"timestamp",
 			"id",
 			"chat_id",
+			"message_id",
 		},
 		SearchableAttributes: []string{
 			"message", "ocred", "aigenerated",
@@ -118,12 +219,12 @@ func (m *Meilisearch) GetDocuments(ctx context.Context, chatID int64, messageIds
 	if err != nil {
 		return nil, err
 	}
-	var hits []*types.MessageDocumentV1
+	var hits []*MeilisearchMessageDocument
 	err = sonic.Unmarshal(hitBytes, &hits)
 	if err != nil {
 		return nil, err
 	}
-	return hits, nil
+	return docsToMessages(hits), nil
 }
 
 // Search implements engine.Searcher.
@@ -166,14 +267,14 @@ func (m *Meilisearch) Search(ctx context.Context, req types.SearchRequest) (*typ
 	if err != nil {
 		return nil, err
 	}
-	var hits []types.SearchHitV1
+	var hits []*MeiliSearchHit
 	err = sonic.Unmarshal(hisBytes, &hits)
 	if err != nil {
 		return nil, err
 	}
 	return &types.MessageSearchResponseV1{
 		Raw:                resp,
-		Hits:               hits,
+		Hits:               hitsToSearchHits(hits),
 		EstimatedTotalHits: resp.EstimatedTotalHits,
 		ProcessingTimeMs:   resp.ProcessingTimeMs,
 		Offset:             resp.Offset,

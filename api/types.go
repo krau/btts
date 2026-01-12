@@ -41,26 +41,15 @@ type SearchResponse struct {
 }
 
 type SearchHitResponse struct {
-	ID           int64              `json:"id"` // Telegram MessageID, 注意索引中使用的是 Cantor paired ID of (chat_id, message_id), 下同
-	Type         string             `json:"type"`
-	Message      string             `json:"message"`                  // The original text of the message
-	UserID       int64              `json:"user_id"`                  // The ID of the user who sent the message
-	ChatID       int64              `json:"chat_id"`                  // The ID of the chat where the message was sent
-	UserFullName string             `json:"user_full_name,omitempty"` // The full name of the user who sent the message, if available
-	ChatTitle    string             `json:"chat_title,omitempty"`     // The title of the chat, if available
-	Timestamp    int64              `json:"timestamp"`
-	Formatted    SearchHitFormatted `json:"_formatted,omitempty"`
-}
-
-type SearchHitFormatted struct {
-	ID        string `json:"id"` // Telegram MessageID
-	Type      string `json:"type"`
-	Message   string `json:"message"`
-	Ocred     string `json:"ocred"`
-	UserID    string `json:"user_id"`
-	ChatID    string `json:"chat_id"`
-	MessageID string `json:"message_id"`
-	Timestamp string `json:"timestamp"`
+	ID           int64                      `json:"id"` // Telegram MessageID, 注意索引中使用的是 Cantor paired ID of (chat_id, message_id), 下同
+	Type         string                     `json:"type"`
+	Message      string                     `json:"message"`                  // The original text of the message
+	UserID       int64                      `json:"user_id"`                  // The ID of the user who sent the message
+	ChatID       int64                      `json:"chat_id"`                  // The ID of the chat where the message was sent
+	UserFullName string                     `json:"user_full_name,omitempty"` // The full name of the user who sent the message, if available
+	ChatTitle    string                     `json:"chat_title,omitempty"`     // The title of the chat, if available
+	Timestamp    int64                      `json:"timestamp"`
+	Formatted    types.SearchHitFormattedV1 `json:"_formatted,omitempty"`
 }
 
 func ResponseSearch(c *fiber.Ctx, rawResp *types.MessageSearchResponseV1) error {
@@ -96,7 +85,7 @@ func ResponseSearch(c *fiber.Ctx, rawResp *types.MessageSearchResponseV1) error 
 		}
 		ChatTitle = strings.TrimSpace(chat.Title)
 		resp.Hits[i] = SearchHitResponse{
-			ID:           hit.MessageID,
+			ID:           hit.ID,
 			Type:         types.MessageTypeToString[types.MessageType(hit.Type)],
 			Message:      hit.Message,
 			UserID:       hit.UserID,
@@ -104,16 +93,7 @@ func ResponseSearch(c *fiber.Ctx, rawResp *types.MessageSearchResponseV1) error 
 			ChatID:       hit.ChatID,
 			ChatTitle:    ChatTitle,
 			Timestamp:    hit.Timestamp,
-			Formatted: SearchHitFormatted{
-				ID:        hit.Formatted.MessageID,
-				Type:      hit.Formatted.Type,
-				Message:   hit.Formatted.Message,
-				Ocred:     hit.Formatted.Ocred,
-				UserID:    hit.Formatted.UserID,
-				ChatID:    hit.Formatted.ChatID,
-				MessageID: hit.Formatted.MessageID,
-				Timestamp: hit.Formatted.Timestamp,
-			},
+			Formatted:    hit.Formatted,
 		}
 	}
 	return c.JSON(fiber.Map{
@@ -147,7 +127,7 @@ func ResponseDocuments(c *fiber.Ctx, docs []*types.MessageDocumentV1) error {
 		}
 		chatTitle = strings.TrimSpace(chat.Title)
 		resp.Hits[i] = SearchHitResponse{
-			ID:           doc.MessageID,
+			ID:           doc.ID,
 			Type:         types.MessageTypeToString[types.MessageType(doc.Type)],
 			Message:      doc.Message,
 			UserID:       doc.UserID,

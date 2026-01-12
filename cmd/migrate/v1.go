@@ -8,7 +8,7 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/krau/btts/config"
 	"github.com/krau/btts/database"
-	"github.com/krau/btts/types"
+	"github.com/krau/btts/engine/meili"
 	"github.com/krau/btts/utils"
 	"github.com/meilisearch/meilisearch-go"
 	"github.com/spf13/cobra"
@@ -74,6 +74,7 @@ func migrateToV1(ctx context.Context, dropOld bool) error {
 			"timestamp",
 			"id",
 			"chat_id",
+			"message_id",
 		},
 		SearchableAttributes: []string{
 			"message", "ocred", "aigenerated",
@@ -139,7 +140,7 @@ func migrateChat(ctx context.Context, oldIndex, newIndex meilisearch.IndexManage
 		if err != nil {
 			return fmt.Errorf("failed to marshal documents: %w", err)
 		}
-		hits := make([]*types.MessageDocumentV1, 0, len(resp.Results))
+		hits := make([]*meili.MeilisearchMessageDocument, 0, len(resp.Results))
 		err = sonic.Unmarshal(hitBytes, &hits)
 		if err != nil {
 			return fmt.Errorf("failed to unmarshal documents: %w", err)

@@ -19,7 +19,7 @@ type Searcher interface {
 	CreateIndex(ctx context.Context, chatID int64) error
 	DeleteIndex(ctx context.Context, chatID int64) error
 	AddDocuments(ctx context.Context, chatID int64, docs []*types.MessageDocumentV1) error
-	DeleteDocuments(ctx context.Context, chatID int64, ids []int) error
+	DeleteDocuments(ctx context.Context, chatID int64, messageIds []int) error
 	Search(ctx context.Context, req types.SearchRequest) (*types.MessageSearchResponseV1, error)
 	GetDocuments(ctx context.Context, chatID int64, messageIds []int) ([]*types.MessageDocumentV1, error)
 }
