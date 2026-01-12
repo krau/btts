@@ -9,6 +9,7 @@ import (
 	"github.com/celestix/gotgproto/ext"
 	"github.com/charmbracelet/log"
 	"github.com/duke-git/lancet/v2/slice"
+	"github.com/duke-git/lancet/v2/strutil"
 	"github.com/gotd/td/telegram/message/entity"
 	"github.com/gotd/td/telegram/message/inline"
 	"github.com/gotd/td/telegram/message/styling"
@@ -418,9 +419,14 @@ func InlineQueryHandler(ctx *ext.Context, update *ext.Update) error {
 		userName := hit.Formatted.UserID
 		user, err := database.GetUserInfo(ctx, hit.UserID)
 		if err == nil {
-			userName = user.FullName()
+			userName = strutil.Ellipsis(user.FullName(), 16)
 		}
-		title := fmt.Sprintf("%s [%s]", userName, types.MessageTypeToDisplayString[types.MessageType(hit.Type)])
+		chatTitle := hit.Formatted.ChatID
+		chat, err := database.GetIndexChat(ctx, hit.ChatID)
+		if err == nil {
+			chatTitle = strutil.Ellipsis(chat.Title, 16)
+		}
+		title := fmt.Sprintf("%s [%s] | %s", userName, types.MessageTypeToDisplayString[types.MessageType(hit.Type)], chatTitle)
 		results = append(results, inline.Article(
 			title, inline.MessageText(hit.Message).Row(
 				&tg.KeyboardButtonURL{
