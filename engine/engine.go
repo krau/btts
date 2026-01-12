@@ -59,6 +59,7 @@ func NewEngine(ctx context.Context) (Searcher, error) {
 		}
 		instance = &meili.Meilisearch{
 			Client: sm,
+			Index:  config.C.Engine.Index,
 		}
 		log.FromContext(ctx).Info("Meilisearch engine initialized")
 

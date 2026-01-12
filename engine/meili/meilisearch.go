@@ -128,10 +128,7 @@ func (m *Meilisearch) GetDocuments(ctx context.Context, chatID int64, ids []int)
 
 // Search implements engine.Searcher.
 func (m *Meilisearch) Search(ctx context.Context, req types.SearchRequest) (*types.MessageSearchResponseV1, error) {
-	if len(req.ChatIDs) > 0 {
-		return m.multiSearch(ctx, req)
-	}
-	if req.ChatID == 0 {
+	if req.ChatID == 0 && len(req.ChatIDs) == 0 {
 		return nil, fmt.Errorf("ChatID is required")
 	}
 	limit := req.Limit
@@ -184,66 +181,66 @@ func (m *Meilisearch) Search(ctx context.Context, req types.SearchRequest) (*typ
 	}, nil
 }
 
-func (m *Meilisearch) multiSearch(ctx context.Context, req types.SearchRequest) (*types.MessageSearchResponseV1, error) {
-	limit := req.Limit
-	offset := req.Offset
-	if limit == 0 {
-		limit = types.PerSearchLimit
-	}
-	if offset == 0 {
-		offset = 0
-	}
-	searchOnAttrs := []string{
-		"message",
-	}
-	if req.Ocred {
-		searchOnAttrs = append(searchOnAttrs, "ocred")
-	}
-	if req.AIGenerated {
-		searchOnAttrs = append(searchOnAttrs, "aigenerated")
-	}
-	multiQueries := make([]*meilisearch.SearchRequest, len(req.ChatIDs))
-	for i := range req.ChatIDs {
-		queryRequest := &meilisearch.SearchRequest{
-			IndexUID:             m.Index,
-			Query:                req.Query,
-			AttributesToSearchOn: searchOnAttrs,
-			AttributesToCrop:     searchOnAttrs,
-		}
-		if expr := req.FilterExpression(); expr != "" {
-			queryRequest.Filter = expr
-		}
-		multiQueries[i] = queryRequest
-	}
-	log.FromContext(ctx).Debug("Searching", "query", req.Query, "offset", offset, "chats", req.ChatIDs)
-	resp, err := m.Client.MultiSearchWithContext(ctx, &meilisearch.MultiSearchRequest{
-		Federation: &meilisearch.MultiSearchFederation{
-			Offset: offset,
-			Limit:  limit,
-		},
-		Queries: multiQueries,
-	})
-	if err != nil {
-		return nil, err
-	}
-	hisBytes, err := sonic.Marshal(resp.Hits)
-	if err != nil {
-		return nil, err
-	}
-	var hits []types.SearchHitV1
-	err = sonic.Unmarshal(hisBytes, &hits)
-	if err != nil {
-		return nil, err
-	}
-	return &types.MessageSearchResponseV1{
-		Raw:                resp,
-		Hits:               hits,
-		EstimatedTotalHits: resp.EstimatedTotalHits,
-		ProcessingTimeMs:   resp.ProcessingTimeMs,
-		Offset:             resp.Offset,
-		Limit:              resp.Limit,
-	}, nil
-}
+// func (m *Meilisearch) multiSearch(ctx context.Context, req types.SearchRequest) (*types.MessageSearchResponseV1, error) {
+// 	limit := req.Limit
+// 	offset := req.Offset
+// 	if limit == 0 {
+// 		limit = types.PerSearchLimit
+// 	}
+// 	if offset == 0 {
+// 		offset = 0
+// 	}
+// 	searchOnAttrs := []string{
+// 		"message",
+// 	}
+// 	if req.Ocred {
+// 		searchOnAttrs = append(searchOnAttrs, "ocred")
+// 	}
+// 	if req.AIGenerated {
+// 		searchOnAttrs = append(searchOnAttrs, "aigenerated")
+// 	}
+// 	multiQueries := make([]*meilisearch.SearchRequest, len(req.ChatIDs))
+// 	for i := range req.ChatIDs {
+// 		queryRequest := &meilisearch.SearchRequest{
+// 			IndexUID:             m.Index,
+// 			Query:                req.Query,
+// 			AttributesToSearchOn: searchOnAttrs,
+// 			AttributesToCrop:     searchOnAttrs,
+// 		}
+// 		if expr := req.FilterExpression(); expr != "" {
+// 			queryRequest.Filter = expr
+// 		}
+// 		multiQueries[i] = queryRequest
+// 	}
+// 	log.FromContext(ctx).Debug("Searching", "query", req.Query, "offset", offset, "chats", req.ChatIDs)
+// 	resp, err := m.Client.MultiSearchWithContext(ctx, &meilisearch.MultiSearchRequest{
+// 		Federation: &meilisearch.MultiSearchFederation{
+// 			Offset: offset,
+// 			Limit:  limit,
+// 		},
+// 		Queries: multiQueries,
+// 	})
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	hisBytes, err := sonic.Marshal(resp.Hits)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	var hits []types.SearchHitV1
+// 	err = sonic.Unmarshal(hisBytes, &hits)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	return &types.MessageSearchResponseV1{
+// 		Raw:                resp,
+// 		Hits:               hits,
+// 		EstimatedTotalHits: resp.EstimatedTotalHits,
+// 		ProcessingTimeMs:   resp.ProcessingTimeMs,
+// 		Offset:             resp.Offset,
+// 		Limit:              resp.Limit,
+// 	}, nil
+// }
 
 // [TODO] Embedder support
 // if config.C.Engine.Embedder.Name != "" {

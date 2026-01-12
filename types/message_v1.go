@@ -36,7 +36,7 @@ type SearchHitV1 struct {
 }
 
 func (s SearchHitV1) MessageLink() string {
-	return fmt.Sprintf("https://t.me/c/%d/%d", s.ChatID, s.ID)
+	return fmt.Sprintf("https://t.me/c/%d/%d", s.ChatID, s.MessageID)
 }
 
 type MessageSearchResponseV1 struct {
