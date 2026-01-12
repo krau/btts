@@ -243,10 +243,10 @@ func (m *Meilisearch) Search(ctx context.Context, req types.SearchRequest) (*typ
 	searchOnAttrs := []string{
 		"message",
 	}
-	if req.Ocred {
+	if !req.DisableOcred {
 		searchOnAttrs = append(searchOnAttrs, "ocred")
 	}
-	if req.AIGenerated {
+	if req.EnableAIGenerated {
 		searchOnAttrs = append(searchOnAttrs, "aigenerated")
 	}
 	request := &meilisearch.SearchRequest{

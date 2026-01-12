@@ -43,10 +43,10 @@ func SearchOnChatByGet(c *fiber.Ctx) error {
 	limit := c.QueryInt("limit", types.PerSearchLimit)
 
 	req := types.SearchRequest{
-		ChatID: int64(chatID),
-		Query:  query,
-		Offset: int64(offset),
-		Limit:  int64(limit),
+		ChatID:      int64(chatID),
+		Query:       query,
+		Offset:      int64(offset),
+		Limit:       int64(limit),
 	}
 	if users := c.Query("users"); users != "" {
 		userIDs := slice.Compact(slice.Map(strings.Split(users, ","), func(i int, userId string) int64 {

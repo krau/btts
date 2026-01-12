@@ -7,15 +7,15 @@ import (
 )
 
 type SearchRequest struct {
-	ChatID      int64         `json:"chat_id"`
-	Query       string        `json:"query"`
-	ChatIDs     []int64       `json:"chat_ids"`
-	TypeFilters []MessageType `json:"type_filters"`
-	UserFilters []int64       `json:"user_filters"`
-	Ocred       bool          `json:"ocred"`
-	AIGenerated bool          `json:"ai_generated"`
-	Limit       int64         `json:"limit"`
-	Offset      int64         `json:"offset"`
+	ChatID            int64         `json:"chat_id"`
+	Query             string        `json:"query"`
+	ChatIDs           []int64       `json:"chat_ids"`
+	TypeFilters       []MessageType `json:"type_filters"`
+	UserFilters       []int64       `json:"user_filters"`
+	DisableOcred      bool          `json:"disable_ocred"` // 不搜索 OCR 文字
+	EnableAIGenerated bool          `json:"enable_aigenerated"` // [TODO] 搜索 AI 生成的内容(not implemented yet)
+	Limit             int64         `json:"limit"`
+	Offset            int64         `json:"offset"`
 }
 
 func (r *SearchRequest) FilterExpression() string {
