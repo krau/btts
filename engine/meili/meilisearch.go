@@ -177,8 +177,8 @@ func (m *Meilisearch) CreateIndex(ctx context.Context, _ int64) error {
 func (m *Meilisearch) DeleteDocuments(ctx context.Context, chatID int64, ids []int) error {
 	ids = slice.Compact(ids)
 	docIds := make([]string, 0, len(ids))
-	for i, id := range ids {
-		docIds[i] = fmt.Sprintf("%d_%d", chatID, id)
+	for _, id := range ids {
+		docIds = append(docIds, fmt.Sprintf("%d_%d", chatID, id))
 	}
 	_, err := m.Client.Index(m.Index).DeleteDocumentsWithContext(ctx, docIds)
 	return err
@@ -196,8 +196,8 @@ func (m *Meilisearch) DeleteIndex(ctx context.Context, chatID int64) error {
 // GetDocuments implements engine.Searcher.
 func (m *Meilisearch) GetDocuments(ctx context.Context, chatID int64, messageIds []int) ([]*types.MessageDocument, error) {
 	docIds := make([]string, 0, len(messageIds))
-	for i, id := range messageIds {
-		docIds[i] = fmt.Sprintf("%d_%d", chatID, id)
+	for _, id := range messageIds {
+		docIds = append(docIds, fmt.Sprintf("%d_%d", chatID, id))
 	}
 	var resp meilisearch.DocumentsResult
 	err := m.Client.Index(m.Index).GetDocumentsWithContext(ctx, &meilisearch.DocumentsQuery{
