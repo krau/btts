@@ -127,8 +127,8 @@ func DocumentsFromMessages(ctx context.Context, messages []*tg.Message, chatID, 
 			if result != nil {
 				messageSB.WriteString(result.Text)
 				ocred = result.Ocred
+				messageType = result.Type
 			}
-			messageType = result.Type
 		}
 		messageSB.WriteString(message.GetMessage())
 		messageText := messageSB.String()
