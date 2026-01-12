@@ -21,7 +21,7 @@ type Searcher interface {
 	AddDocuments(ctx context.Context, chatID int64, docs []*types.MessageDocumentV1) error
 	DeleteDocuments(ctx context.Context, chatID int64, ids []int) error
 	Search(ctx context.Context, req types.SearchRequest) (*types.MessageSearchResponseV1, error)
-	GetDocuments(ctx context.Context, chatID int64, ids []int) ([]*types.MessageDocumentV1, error)
+	GetDocuments(ctx context.Context, chatID int64, messageIds []int) ([]*types.MessageDocumentV1, error)
 }
 
 var _ Searcher = (*meili.Meilisearch)(nil)

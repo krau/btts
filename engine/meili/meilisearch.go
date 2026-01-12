@@ -99,9 +99,9 @@ func (m *Meilisearch) DeleteIndex(ctx context.Context, chatID int64) error {
 }
 
 // GetDocuments implements engine.Searcher.
-func (m *Meilisearch) GetDocuments(ctx context.Context, chatID int64, ids []int) ([]*types.MessageDocumentV1, error) {
-	cantorIds := make([]uint64, len(ids))
-	for i, id := range ids {
+func (m *Meilisearch) GetDocuments(ctx context.Context, chatID int64, messageIds []int) ([]*types.MessageDocumentV1, error) {
+	cantorIds := make([]uint64, len(messageIds))
+	for i, id := range messageIds {
 		cantorIds[i] = utils.CantorPair(uint64(chatID), uint64(id))
 	}
 	idsStr := slice.Map(cantorIds, func(i int, item uint64) string {

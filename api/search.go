@@ -40,7 +40,7 @@ func SearchOnChatByGet(c *fiber.Ctx) error {
 	}
 	query := c.Query("q")
 	offset := c.QueryInt("offset")
-	limit := c.QueryInt("limit", 10)
+	limit := c.QueryInt("limit", types.PerSearchLimit)
 
 	req := types.SearchRequest{
 		ChatID: int64(chatID),
