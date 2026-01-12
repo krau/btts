@@ -61,8 +61,8 @@ func migrateToV1(ctx context.Context, dropOld bool) error {
 	if err != nil {
 		return fmt.Errorf("failed to create new index: %w", err)
 	}
-	logger.Info("Created new index 'btts'")
-	newIndex := client.Index("btts")
+	logger.Info("Created new index", "index", cfg.Engine.Index)
+	newIndex := client.Index(cfg.Engine.Index)
 	_, err = newIndex.UpdateSettingsWithContext(ctx, &meilisearch.Settings{
 		FilterableAttributes: []string{
 			"user_id",
