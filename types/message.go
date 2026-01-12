@@ -1,6 +1,9 @@
 package types
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 type MessageType int
 
@@ -75,7 +78,7 @@ type MessageDocument struct {
 	Message string `json:"message"`
 	// The OCRed text of the message
 	Ocred string `json:"ocred"`
-	// The AI generated text of the message(summarization, caption, tagging, etc.)
+	// [TODO] The AI generated text of the message(summarization, caption, tagging, etc.)
 	AIGenerated string `json:"aigenerated"`
 	// The ID of the user who sent the message
 	UserID    int64 `json:"user_id"`
@@ -89,17 +92,26 @@ type SearchHit struct {
 }
 
 type SearchHitFormatted struct {
-	ID        string `json:"id"`
-	Type      string `json:"type"`
-	Message   string `json:"message"`
-	Ocred     string `json:"ocred"`
-	UserID    string `json:"user_id"`
-	ChatID    string `json:"chat_id"`
-	Timestamp string `json:"timestamp"`
+	ID          string `json:"id"`
+	Type        string `json:"type"`
+	Message     string `json:"message"`
+	Ocred       string `json:"ocred"`
+	AIGenerated string `json:"aigenerated"`
+	UserID      string `json:"user_id"`
+	ChatID      string `json:"chat_id"`
+	Timestamp   string `json:"timestamp"`
 }
 
 func (s SearchHit) MessageLink() string {
 	return fmt.Sprintf("https://t.me/c/%d/%d", s.ChatID, s.ID)
+}
+
+func (s SearchHit) FullFormattedText() string {
+	return strings.TrimSpace(s.Formatted.Message + " " + s.Formatted.Ocred + " " + s.Formatted.AIGenerated)
+}
+
+func (s SearchHit) FullText() string {
+	return strings.TrimSpace(s.Message + " " + s.Ocred + " " + s.AIGenerated)
 }
 
 type SearchResponse struct {

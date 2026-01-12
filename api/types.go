@@ -43,7 +43,10 @@ type SearchResponse struct {
 type SearchHitResponse struct {
 	ID           int64                    `json:"id"` // Telegram MessageID
 	Type         string                   `json:"type"`
+	FullText     string                   `json:"full_text"`
 	Message      string                   `json:"message"`                  // The original text of the message
+	Ocred        string                   `json:"ocred"`                    // The OCRed text of the message
+	AIGenerated  string                   `json:"aigenerated"`              // The AI generated text of the message
 	UserID       int64                    `json:"user_id"`                  // The ID of the user who sent the message
 	ChatID       int64                    `json:"chat_id"`                  // The ID of the chat where the message was sent
 	UserFullName string                   `json:"user_full_name,omitempty"` // The full name of the user who sent the message, if available
@@ -88,12 +91,15 @@ func ResponseSearch(c *fiber.Ctx, rawResp *types.SearchResponse) error {
 			ID:           hit.ID,
 			Type:         types.MessageTypeToString[types.MessageType(hit.Type)],
 			Message:      hit.Message,
+			Ocred:        hit.Ocred,
+			AIGenerated:  hit.AIGenerated,
 			UserID:       hit.UserID,
 			UserFullName: UserFullName,
 			ChatID:       hit.ChatID,
 			ChatTitle:    ChatTitle,
 			Timestamp:    hit.Timestamp,
 			Formatted:    hit.Formatted,
+			FullText:     strings.TrimSpace(hit.Message + " " + hit.Ocred + " " + hit.AIGenerated),
 		}
 	}
 	return c.JSON(fiber.Map{

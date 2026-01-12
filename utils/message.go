@@ -318,11 +318,11 @@ func BuildResultStyling(ctx context.Context, resp *types.SearchResponse, botUser
 
 		msgLink := func() string {
 			if chat.Type == int(database.ChatTypeChannel) || botUsername == nil {
-				return fmt.Sprintf("https://t.me/c/%d/%d", hit.ChatID, hit.ID)
+				return hit.MessageLink()
 			}
 			return fmt.Sprintf("https://t.me/%s/?start=fav_%d_%d", botUsername[0], hit.ChatID, hit.ID)
 		}()
-		hitFormattedMsg := types.MessageTypeToEmoji[types.MessageType(hit.Type)] + " " + strings.ReplaceAll(hit.Formatted.Message, "\n", " ")
+		hitFormattedMsg := types.MessageTypeToEmoji[types.MessageType(hit.Type)] + " " + strings.ReplaceAll(hit.FullFormattedText(), "\n", " ")
 		resultStyling = append(resultStyling, styling.TextURL(hitFormattedMsg, msgLink))
 	}
 

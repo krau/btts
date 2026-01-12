@@ -428,13 +428,13 @@ func InlineQueryHandler(ctx *ext.Context, update *ext.Update) error {
 		}
 		title := fmt.Sprintf("%s [%s] | %s", userName, types.MessageTypeToDisplayString[types.MessageType(hit.Type)], chatTitle)
 		results = append(results, inline.Article(
-			title, inline.MessageText(hit.Message).Row(
+			title, inline.MessageText(hit.FullText()).Row(
 				&tg.KeyboardButtonURL{
 					Text: userName,
 					URL:  hit.MessageLink(),
 				},
 			),
-		).Description(hit.Formatted.Message))
+		).Description(hit.FullFormattedText()))
 	}
 	if len(results) == 0 {
 		results = append(results, inline.Article(
