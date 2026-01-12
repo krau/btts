@@ -229,9 +229,6 @@ func (m *Meilisearch) GetDocuments(ctx context.Context, chatID int64, messageIds
 
 // Search implements engine.Searcher.
 func (m *Meilisearch) Search(ctx context.Context, req types.SearchRequest) (*types.SearchResponse, error) {
-	if req.ChatID == 0 && len(req.ChatIDs) == 0 {
-		return nil, fmt.Errorf("ChatID is required")
-	}
 	limit := req.Limit
 	offset := req.Offset
 	if limit == 0 {
@@ -258,7 +255,7 @@ func (m *Meilisearch) Search(ctx context.Context, req types.SearchRequest) (*typ
 	if expr := req.FilterExpression(); expr != "" {
 		request.Filter = expr
 	}
-	log.FromContext(ctx).Debug("Searching", "query", req.Query, "offset", offset, "filter", request.Filter)
+	log.FromContext(ctx).Info("Searching", "query", req.Query, "offset", offset, "filter", request.Filter)
 	resp, err := m.Client.Index(m.Index).SearchWithContext(ctx, req.Query, request)
 	if err != nil {
 		return nil, err

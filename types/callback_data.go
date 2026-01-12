@@ -10,9 +10,10 @@ type SearchRequest struct {
 	ChatID            int64         `json:"chat_id"`
 	Query             string        `json:"query"`
 	ChatIDs           []int64       `json:"chat_ids"`
+	AllChats          bool          `json:"all_chats"`
 	TypeFilters       []MessageType `json:"type_filters"`
 	UserFilters       []int64       `json:"user_filters"`
-	DisableOcred      bool          `json:"disable_ocred"` // 不搜索 OCR 文字
+	DisableOcred      bool          `json:"disable_ocred"`      // 不搜索 OCR 文字
 	EnableAIGenerated bool          `json:"enable_aigenerated"` // [TODO] 搜索 AI 生成的内容(not implemented yet)
 	Limit             int64         `json:"limit"`
 	Offset            int64         `json:"offset"`
@@ -33,10 +34,12 @@ func (r *SearchRequest) FilterExpression() string {
 		filters = append(filters, fmt.Sprintf("%s IN [%s]", field, slice.Join(idStrs, ",")))
 	}
 
-	if r.ChatID != 0 {
-		filters = append(filters, fmt.Sprintf("chat_id = %d", r.ChatID))
-	} else {
-		addInt64Filter("chat_id", r.ChatIDs)
+	if !r.AllChats {
+		if r.ChatID != 0 {
+			filters = append(filters, fmt.Sprintf("chat_id = %d", r.ChatID))
+		} else {
+			addInt64Filter("chat_id", r.ChatIDs)
+		}
 	}
 
 	addInt64Filter("user_id", r.UserFilters)

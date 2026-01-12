@@ -25,6 +25,7 @@ func SearchHandler(ctx *ext.Context, update *ext.Update) error {
 	isChannel := update.GetChannel() != nil
 
 	if isChannel {
+		// 在频道中时，只搜索当前频道
 		channelID := update.GetChannel().GetID()
 		if _, err := database.GetIndexChat(ctx, channelID); err != nil {
 			ctx.Reply(update, ext.ReplyTextString("This chat is not indexed"), nil)
@@ -55,11 +56,12 @@ func SearchHandler(ctx *ext.Context, update *ext.Update) error {
 			Markup: markup})
 		return dispatcher.EndGroups
 	}
+	req := &types.SearchRequest{Query: query}
+
 	var chats []*database.IndexChat
-	if update.EffectiveMessage.ReplyToMessage != nil {
-		selectChatId, ok := cache.Get[int64](strconv.Itoa(update.EffectiveMessage.ReplyToMessage.GetID()))
-		if ok {
-			selectChat, err := database.GetIndexChat(ctx, selectChatId)
+	if rm := update.EffectiveMessage.ReplyToMessage; rm != nil {
+		if selectChatID, ok := cache.Get[int64](strconv.Itoa(rm.GetID())); ok {
+			selectChat, err := database.GetIndexChat(ctx, selectChatID)
 			if err != nil {
 				ctx.Reply(update, ext.ReplyTextString("Failed to get chat"), nil)
 				return dispatcher.EndGroups
@@ -67,31 +69,36 @@ func SearchHandler(ctx *ext.Context, update *ext.Update) error {
 			chats = append(chats, selectChat)
 		}
 	}
+
 	if len(chats) == 0 {
-		var err error
 		if CheckPermission(ctx, update) {
-			chats, err = database.GetAllIndexChats(ctx)
+			req.AllChats = true
 		} else {
+			var err error
 			chats, err = database.GetAllPublicIndexChats(ctx)
-		}
-		if err != nil {
-			log.FromContext(ctx).Errorf("Failed to get index chats: %v", err)
-			ctx.Reply(update, ext.ReplyTextString("Error Happened"), nil)
-			return dispatcher.EndGroups
+			if err != nil {
+				log.FromContext(ctx).Errorf("Failed to get index chats: %v", err)
+				ctx.Reply(update, ext.ReplyTextString("Error Happened"), nil)
+				return dispatcher.EndGroups
+			}
 		}
 	}
-	if len(chats) == 0 {
+
+	if len(chats) == 0 && !req.AllChats {
 		ctx.Reply(update, ext.ReplyTextString("No index chats found"), nil)
 		return dispatcher.EndGroups
 	}
-	chatIDs := make([]int64, len(chats))
-	for i, chat := range chats {
-		chatIDs[i] = chat.ChatID
+
+	switch {
+	case !req.AllChats && len(chats) == 1:
+		req.ChatID = chats[0].ChatID
+	case !req.AllChats && len(chats) > 1:
+		req.ChatIDs = make([]int64, 0, len(chats))
+		for _, chat := range chats {
+			req.ChatIDs = append(req.ChatIDs, chat.ChatID)
+		}
 	}
-	resp, err := bi.Engine.Search(ctx, types.SearchRequest{
-		ChatIDs: chatIDs,
-		Query:   query,
-	})
+	resp, err := bi.Engine.Search(ctx, *req)
 	if err != nil {
 		log.FromContext(ctx).Errorf("Failed to search: %v", err)
 		ctx.Reply(update, ext.ReplyTextString("Error Happened"), nil)
@@ -101,10 +108,7 @@ func SearchHandler(ctx *ext.Context, update *ext.Update) error {
 		ctx.Reply(update, ext.ReplyTextString("No results found"), nil)
 		return dispatcher.EndGroups
 	}
-	markup, err := utils.BuildSearchReplyMarkup(ctx, 1, types.SearchRequest{
-		ChatIDs: chatIDs,
-		Query:   query,
-	})
+	markup, err := utils.BuildSearchReplyMarkup(ctx, 1, *req)
 	if err != nil {
 		log.FromContext(ctx).Errorf("Failed to build reply markup: %v", err)
 		return dispatcher.EndGroups

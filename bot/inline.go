@@ -18,9 +18,9 @@ func InlineQueryHandler(ctx *ext.Context, update *ext.Update) error {
 	query := update.InlineQuery.GetQuery()
 	resp, err := bi.Engine.Search(ctx,
 		types.SearchRequest{
-			Query:   query,
-			Limit:   48,
-			ChatIDs: database.AllChatIDs(),
+			Query:    query,
+			Limit:    48,
+			AllChats: true,
 		})
 	if err != nil {
 		return err
