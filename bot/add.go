@@ -112,7 +112,6 @@ func AddHandler(ctx *ext.Context, update *ext.Update) error {
 		switch msg := msg.(type) {
 		case *tg.Message:
 			messageBatch = append(messageBatch, msg)
-			processed++
 			if len(messageBatch) >= 100 {
 				log.Debugf("Adding batch of messages %d/%d", processed, total)
 				docs := engine.DocumentsFromMessages(ctx, messageBatch, utclient.Self.ID, bi.UserClient.GetContext(), false)
@@ -124,6 +123,7 @@ func AddHandler(ctx *ext.Context, update *ext.Update) error {
 		default:
 			log.Warnf("Unsupported message type: %T", msg)
 		}
+		processed++
 	}
 	if err := iter.Err(); err != nil {
 		gerr = err
