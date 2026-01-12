@@ -11,6 +11,7 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/krau/btts/api"
 	"github.com/krau/btts/bot"
+	"github.com/krau/btts/cmd/migrate"
 	"github.com/krau/btts/config"
 	"github.com/krau/btts/database"
 	"github.com/krau/btts/engine"
@@ -56,6 +57,17 @@ func run() {
 		log.Errorf("Failed to create bot: %v", err)
 		return
 	}
+	if backgroundMigrate || backgroundMigrateDropOld {
+		go func() {
+			logger.Info("Starting smooth migration in background")
+			if err := migrate.MigrateToV1(ctx, backgroundMigrateDropOld); err != nil {
+				logger.Error("Smooth migration failed", "error", err)
+			} else {
+				logger.Info("Smooth migration completed successfully")
+			}
+		}()
+	}
+
 	if config.C.Api.Enable {
 		api.Serve(config.C.Api.Addr)
 		log.Infof("API server started at %s", config.C.Api.Addr)

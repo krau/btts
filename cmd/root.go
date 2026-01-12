@@ -6,6 +6,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var (
+	backgroundMigrate        bool
+	backgroundMigrateDropOld bool
+)
+
 var rootCmd = &cobra.Command{
 	Use: "btts",
 	Run: func(cmd *cobra.Command, args []string) {
@@ -14,6 +19,8 @@ var rootCmd = &cobra.Command{
 }
 
 func init() {
+	rootCmd.Flags().BoolVar(&backgroundMigrate, "migrate", false, "Run migration in background during startup")
+	rootCmd.Flags().BoolVar(&backgroundMigrateDropOld, "migrate-drop-old", false, "Drop old indexes after background migration")
 	migrate.RegisterCmd(rootCmd)
 }
 

@@ -29,7 +29,7 @@ func RegisterCmd(root *cobra.Command) {
 			ctx := cmd.Context()
 			logger := log.FromContext(ctx)
 			logger.Info("Starting migration...")
-			if err := migrateToV1(ctx, dropOld); err != nil {
+			if err := MigrateToV1(ctx, dropOld); err != nil {
 				logger.Error("Migration failed", "error", err)
 				return
 			}
@@ -43,7 +43,7 @@ func indexKey(chatID int64) string {
 	return fmt.Sprintf("btts_%d", chatID)
 }
 
-func migrateToV1(ctx context.Context, dropOld bool) error {
+func MigrateToV1(ctx context.Context, dropOld bool) error {
 	logger := log.FromContext(ctx)
 	logger.Info("Starting migration to v1 format")
 	cfg := config.C
