@@ -41,18 +41,18 @@ type SearchResponse struct {
 }
 
 type SearchHitResponse struct {
-	ID           int64                      `json:"id"` // Telegram MessageID, 注意索引中使用的是 Cantor paired ID of (chat_id, message_id), 下同
-	Type         string                     `json:"type"`
-	Message      string                     `json:"message"`                  // The original text of the message
-	UserID       int64                      `json:"user_id"`                  // The ID of the user who sent the message
-	ChatID       int64                      `json:"chat_id"`                  // The ID of the chat where the message was sent
-	UserFullName string                     `json:"user_full_name,omitempty"` // The full name of the user who sent the message, if available
-	ChatTitle    string                     `json:"chat_title,omitempty"`     // The title of the chat, if available
-	Timestamp    int64                      `json:"timestamp"`
-	Formatted    types.SearchHitFormattedV1 `json:"_formatted,omitempty"`
+	ID           int64                    `json:"id"` // Telegram MessageID, 注意索引中使用的是 Cantor paired ID of (chat_id, message_id), 下同
+	Type         string                   `json:"type"`
+	Message      string                   `json:"message"`                  // The original text of the message
+	UserID       int64                    `json:"user_id"`                  // The ID of the user who sent the message
+	ChatID       int64                    `json:"chat_id"`                  // The ID of the chat where the message was sent
+	UserFullName string                   `json:"user_full_name,omitempty"` // The full name of the user who sent the message, if available
+	ChatTitle    string                   `json:"chat_title,omitempty"`     // The title of the chat, if available
+	Timestamp    int64                    `json:"timestamp"`
+	Formatted    types.SearchHitFormatted `json:"_formatted"`
 }
 
-func ResponseSearch(c *fiber.Ctx, rawResp *types.MessageSearchResponseV1) error {
+func ResponseSearch(c *fiber.Ctx, rawResp *types.SearchResponse) error {
 	if rawResp == nil {
 		return &fiber.Error{Code: fiber.StatusInternalServerError, Message: "Search response is nil"}
 	}
@@ -102,7 +102,7 @@ func ResponseSearch(c *fiber.Ctx, rawResp *types.MessageSearchResponseV1) error 
 	})
 }
 
-func ResponseDocuments(c *fiber.Ctx, docs []*types.MessageDocumentV1) error {
+func ResponseDocuments(c *fiber.Ctx, docs []*types.MessageDocument) error {
 	if len(docs) == 0 {
 		return &fiber.Error{Code: fiber.StatusNotFound, Message: "No documents found"}
 	}

@@ -68,11 +68,15 @@ const (
 )
 
 type MessageDocument struct {
-	// Telegram MessageID
+	// Telegram message ID
 	ID   int64 `json:"id"`
 	Type int   `json:"type"`
 	// The original text of the message
 	Message string `json:"message"`
+	// The OCRed text of the message
+	Ocred string `json:"ocred"`
+	// The AI generated text of the message(summarization, caption, tagging, etc.)
+	AIGenerated string `json:"aigenerated"`
 	// The ID of the user who sent the message
 	UserID    int64 `json:"user_id"`
 	ChatID    int64 `json:"chat_id"`
@@ -81,21 +85,24 @@ type MessageDocument struct {
 
 type SearchHit struct {
 	MessageDocument
-	Formatted struct {
-		ID        string `json:"id"`
-		Type      string `json:"type"`
-		Message   string `json:"message"`
-		UserID    string `json:"user_id"`
-		ChatID    string `json:"chat_id"`
-		Timestamp string `json:"timestamp"`
-	} `json:"_formatted"`
+	Formatted SearchHitFormatted `json:"_formatted"`
+}
+
+type SearchHitFormatted struct {
+	ID        string `json:"id"`
+	Type      string `json:"type"`
+	Message   string `json:"message"`
+	Ocred     string `json:"ocred"`
+	UserID    string `json:"user_id"`
+	ChatID    string `json:"chat_id"`
+	Timestamp string `json:"timestamp"`
 }
 
 func (s SearchHit) MessageLink() string {
 	return fmt.Sprintf("https://t.me/c/%d/%d", s.ChatID, s.ID)
 }
 
-type MessageSearchResponse struct {
+type SearchResponse struct {
 	Hits               []SearchHit `json:"hits,omitempty"`
 	ProcessingTimeMs   int64       `json:"processingTimeMs,omitempty"`
 	Offset             int64       `json:"offset,omitempty"`

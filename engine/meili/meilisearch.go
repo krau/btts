@@ -48,9 +48,9 @@ type MeiliSearchHit struct {
 	} `json:"_formatted"`
 }
 
-func (h *MeiliSearchHit) ToSearchHit() types.SearchHitV1 {
-	return types.SearchHitV1{
-		MessageDocumentV1: types.MessageDocumentV1{
+func (h *MeiliSearchHit) ToSearchHit() types.SearchHit {
+	return types.SearchHit{
+		MessageDocument: types.MessageDocument{
 			ID:          h.MessageID,
 			Type:        h.Type,
 			Message:     h.Message,
@@ -60,7 +60,7 @@ func (h *MeiliSearchHit) ToSearchHit() types.SearchHitV1 {
 			ChatID:      h.ChatID,
 			Timestamp:   h.Timestamp,
 		},
-		Formatted: types.SearchHitFormattedV1{
+		Formatted: types.SearchHitFormatted{
 			ID:        h.Formatted.MessageID,
 			Type:      h.Formatted.Type,
 			Message:   h.Formatted.Message,
@@ -72,7 +72,7 @@ func (h *MeiliSearchHit) ToSearchHit() types.SearchHitV1 {
 	}
 }
 
-func docsFromMessages(docs []*types.MessageDocumentV1) []*MeilisearchMessageDocument {
+func docsFromMessages(docs []*types.MessageDocument) []*MeilisearchMessageDocument {
 	meiliDocs := make([]*MeilisearchMessageDocument, len(docs))
 	for i, doc := range docs {
 		meiliDocs[i] = &MeilisearchMessageDocument{
@@ -90,10 +90,10 @@ func docsFromMessages(docs []*types.MessageDocumentV1) []*MeilisearchMessageDocu
 	return meiliDocs
 }
 
-func docsToMessages(docs []*MeilisearchMessageDocument) []*types.MessageDocumentV1 {
-	messageDocs := make([]*types.MessageDocumentV1, len(docs))
+func docsToMessages(docs []*MeilisearchMessageDocument) []*types.MessageDocument {
+	messageDocs := make([]*types.MessageDocument, len(docs))
 	for i, doc := range docs {
-		messageDocs[i] = &types.MessageDocumentV1{
+		messageDocs[i] = &types.MessageDocument{
 			ID:          doc.MessageID,
 			Type:        doc.Type,
 			Message:     doc.Message,
@@ -107,8 +107,8 @@ func docsToMessages(docs []*MeilisearchMessageDocument) []*types.MessageDocument
 	return messageDocs
 }
 
-func hitsToSearchHits(hits []*MeiliSearchHit) []types.SearchHitV1 {
-	searchHits := make([]types.SearchHitV1, len(hits))
+func hitsToSearchHits(hits []*MeiliSearchHit) []types.SearchHit {
+	searchHits := make([]types.SearchHit, len(hits))
 	for i, hit := range hits {
 		sh := hit.ToSearchHit()
 		searchHits[i] = sh
@@ -123,7 +123,7 @@ type Meilisearch struct {
 }
 
 // AddDocuments implements engine.Searcher.
-func (m *Meilisearch) AddDocuments(ctx context.Context, chatID int64, docs []*types.MessageDocumentV1) error {
+func (m *Meilisearch) AddDocuments(ctx context.Context, chatID int64, docs []*types.MessageDocument) error {
 	docs = slice.Compact(docs)
 	for i := range docs {
 		docs[i].ChatID = chatID
@@ -200,7 +200,7 @@ func (m *Meilisearch) DeleteIndex(ctx context.Context, chatID int64) error {
 }
 
 // GetDocuments implements engine.Searcher.
-func (m *Meilisearch) GetDocuments(ctx context.Context, chatID int64, messageIds []int) ([]*types.MessageDocumentV1, error) {
+func (m *Meilisearch) GetDocuments(ctx context.Context, chatID int64, messageIds []int) ([]*types.MessageDocument, error) {
 	cantorIds := make([]uint64, len(messageIds))
 	for i, id := range messageIds {
 		cantorIds[i] = utils.CantorPair(uint64(chatID), uint64(id))
@@ -228,7 +228,7 @@ func (m *Meilisearch) GetDocuments(ctx context.Context, chatID int64, messageIds
 }
 
 // Search implements engine.Searcher.
-func (m *Meilisearch) Search(ctx context.Context, req types.SearchRequest) (*types.MessageSearchResponseV1, error) {
+func (m *Meilisearch) Search(ctx context.Context, req types.SearchRequest) (*types.SearchResponse, error) {
 	if req.ChatID == 0 && len(req.ChatIDs) == 0 {
 		return nil, fmt.Errorf("ChatID is required")
 	}
@@ -272,7 +272,7 @@ func (m *Meilisearch) Search(ctx context.Context, req types.SearchRequest) (*typ
 	if err != nil {
 		return nil, err
 	}
-	return &types.MessageSearchResponseV1{
+	return &types.SearchResponse{
 		Raw:                resp,
 		Hits:               hitsToSearchHits(hits),
 		EstimatedTotalHits: resp.EstimatedTotalHits,

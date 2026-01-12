@@ -18,10 +18,10 @@ import (
 type Searcher interface {
 	CreateIndex(ctx context.Context, chatID int64) error
 	DeleteIndex(ctx context.Context, chatID int64) error
-	AddDocuments(ctx context.Context, chatID int64, docs []*types.MessageDocumentV1) error
+	AddDocuments(ctx context.Context, chatID int64, docs []*types.MessageDocument) error
 	DeleteDocuments(ctx context.Context, chatID int64, messageIds []int) error
-	Search(ctx context.Context, req types.SearchRequest) (*types.MessageSearchResponseV1, error)
-	GetDocuments(ctx context.Context, chatID int64, messageIds []int) ([]*types.MessageDocumentV1, error)
+	Search(ctx context.Context, req types.SearchRequest) (*types.SearchResponse, error)
+	GetDocuments(ctx context.Context, chatID int64, messageIds []int) ([]*types.MessageDocument, error)
 }
 
 var _ Searcher = (*meili.Meilisearch)(nil)
@@ -81,8 +81,8 @@ func NewEngine(ctx context.Context) (Searcher, error) {
 	return instance, nil
 }
 
-func DocumentsFromMessages(ctx context.Context, messages []*tg.Message, self int64, ectx *ext.Context, downloadMedia bool) []*types.MessageDocumentV1 {
-	docs := make([]*types.MessageDocumentV1, 0, len(messages))
+func DocumentsFromMessages(ctx context.Context, messages []*tg.Message, self int64, ectx *ext.Context, downloadMedia bool) []*types.MessageDocument {
+	docs := make([]*types.MessageDocument, 0, len(messages))
 	for _, message := range messages {
 		var userID int64
 
@@ -133,7 +133,7 @@ func DocumentsFromMessages(ctx context.Context, messages []*tg.Message, self int
 		if messageText == "" {
 			continue
 		}
-		docs = append(docs, &types.MessageDocumentV1{
+		docs = append(docs, &types.MessageDocument{
 			ID:        int64(message.GetID()),
 			Message:   messageText,
 			Type:      int(messageType),

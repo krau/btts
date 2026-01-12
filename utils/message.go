@@ -266,7 +266,7 @@ func BuildSearchReplyMarkup(ctx context.Context, currentPage int64, data types.S
 	}, nil
 }
 
-func BuildResultStyling(ctx context.Context, resp *types.MessageSearchResponseV1, botUsername ...string) []styling.StyledTextOption {
+func BuildResultStyling(ctx context.Context, resp *types.SearchResponse, botUsername ...string) []styling.StyledTextOption {
 	var resultStyling []styling.StyledTextOption
 
 	resultStyling = append(resultStyling, styling.Plain(fmt.Sprintf("找到约 %d 条结果, 耗时 %dms\n", resp.EstimatedTotalHits, resp.ProcessingTimeMs)))
