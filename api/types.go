@@ -41,7 +41,7 @@ type SearchResponse struct {
 }
 
 type SearchHitResponse struct {
-	ID           int64                    `json:"id"` // Telegram MessageID, 注意索引中使用的是 Cantor paired ID of (chat_id, message_id), 下同
+	ID           int64                    `json:"id"` // Telegram MessageID
 	Type         string                   `json:"type"`
 	Message      string                   `json:"message"`                  // The original text of the message
 	UserID       int64                    `json:"user_id"`                  // The ID of the user who sent the message
