@@ -45,7 +45,7 @@ type AppConfig struct {
 
 var C AppConfig
 
-func init() {
+func Init() {
 	viper.SetConfigName("config")
 	viper.SetConfigType("toml")
 	viper.AddConfigPath(".")

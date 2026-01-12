@@ -9,17 +9,15 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/duke-git/lancet/v2/slice"
 	"github.com/krau/btts/types"
-	"github.com/krau/btts/utils"
 	"github.com/meilisearch/meilisearch-go"
 )
 
-// meilisearch 内部使用 Cantor 作为主键 ID
+// meilisearch 内部使用 chat_id_message_id 作为文档 ID
 // 在接口中传递的 id 列表始终为 Telegram MessageID
 type MeilisearchMessageDocument struct {
-	// Cantor paired ID of (chat_id, message_id)
-	// [NOTE] Cantor 需要两个非负整数
-	ID   int64 `json:"id"`
-	Type int   `json:"type"`
+	// "chatid_messageid"
+	ID   string `json:"id"`
+	Type int    `json:"type"`
 	// The original text of the message
 	Message string `json:"message"`
 	// The OCRed text of the message
@@ -76,7 +74,7 @@ func docsFromMessages(docs []*types.MessageDocument) []*MeilisearchMessageDocume
 	meiliDocs := make([]*MeilisearchMessageDocument, len(docs))
 	for i, doc := range docs {
 		meiliDocs[i] = &MeilisearchMessageDocument{
-			ID:          int64(utils.CantorPair(uint64(doc.ChatID), uint64(doc.ID))),
+			ID:          fmt.Sprintf("%d_%d", doc.ChatID, doc.ID),
 			Type:        doc.Type,
 			Message:     doc.Message,
 			Ocred:       doc.Ocred,
@@ -178,15 +176,11 @@ func (m *Meilisearch) CreateIndex(ctx context.Context, _ int64) error {
 // DeleteDocuments implements engine.Searcher.
 func (m *Meilisearch) DeleteDocuments(ctx context.Context, chatID int64, ids []int) error {
 	ids = slice.Compact(ids)
-	cantorIds := make([]uint64, len(ids))
+	docIds := make([]string, 0, len(ids))
 	for i, id := range ids {
-		cantorIds[i] = utils.CantorPair(uint64(chatID), uint64(id))
+		docIds[i] = fmt.Sprintf("%d_%d", chatID, id)
 	}
-	idsStr := make([]string, len(cantorIds))
-	for i, id := range cantorIds {
-		idsStr[i] = fmt.Sprintf("%d", id)
-	}
-	_, err := m.Client.Index(m.Index).DeleteDocumentsWithContext(ctx, idsStr)
+	_, err := m.Client.Index(m.Index).DeleteDocumentsWithContext(ctx, docIds)
 	return err
 }
 
@@ -201,16 +195,13 @@ func (m *Meilisearch) DeleteIndex(ctx context.Context, chatID int64) error {
 
 // GetDocuments implements engine.Searcher.
 func (m *Meilisearch) GetDocuments(ctx context.Context, chatID int64, messageIds []int) ([]*types.MessageDocument, error) {
-	cantorIds := make([]uint64, len(messageIds))
+	docIds := make([]string, 0, len(messageIds))
 	for i, id := range messageIds {
-		cantorIds[i] = utils.CantorPair(uint64(chatID), uint64(id))
+		docIds[i] = fmt.Sprintf("%d_%d", chatID, id)
 	}
-	idsStr := slice.Map(cantorIds, func(i int, item uint64) string {
-		return fmt.Sprintf("%d", item)
-	})
 	var resp meilisearch.DocumentsResult
 	err := m.Client.Index(m.Index).GetDocumentsWithContext(ctx, &meilisearch.DocumentsQuery{
-		Ids: idsStr,
+		Ids: docIds,
 	}, &resp)
 	if err != nil {
 		return nil, err

@@ -9,7 +9,7 @@ import (
 	"github.com/krau/btts/config"
 	"github.com/krau/btts/database"
 	"github.com/krau/btts/engine/meili"
-	"github.com/krau/btts/utils"
+	"github.com/krau/btts/types"
 	"github.com/meilisearch/meilisearch-go"
 	"github.com/spf13/cobra"
 )
@@ -25,6 +25,7 @@ func RegisterCmd(root *cobra.Command) {
 		Use:   "migrate",
 		Short: "Migrate database to v1 format",
 		Run: func(cmd *cobra.Command, args []string) {
+			config.Init()
 			ctx := cmd.Context()
 			logger := log.FromContext(ctx)
 			logger.Info("Starting migration...")
@@ -140,20 +141,28 @@ func migrateChat(ctx context.Context, oldIndex, newIndex meilisearch.IndexManage
 		if err != nil {
 			return fmt.Errorf("failed to marshal documents: %w", err)
 		}
-		hits := make([]*meili.MeilisearchMessageDocument, 0, len(resp.Results))
+		hits := make([]*types.MessageDocument, 0, len(resp.Results))
 		err = sonic.Unmarshal(hitBytes, &hits)
 		if err != nil {
 			return fmt.Errorf("failed to unmarshal documents: %w", err)
 		}
-		// 新的 ID: chat_id 和 message_id 进行 Cantor 配对
-		// 把原先的ID设到 message_id 字段
+		newDocs := make([]*meili.MeilisearchMessageDocument, 0, len(hits))
 		for _, hit := range hits {
-			newID := utils.CantorPair(uint64(hit.ChatID), uint64(hit.ID))
-			hit.MessageID = hit.ID
-			hit.ID = int64(newID)
+			newID := fmt.Sprintf("%d_%d", hit.ChatID, hit.ID)
+			newDocs = append(newDocs, &meili.MeilisearchMessageDocument{
+				ID:          newID,
+				Type:        hit.Type,
+				Message:     hit.Message,
+				Ocred:       hit.Ocred,
+				AIGenerated: hit.AIGenerated,
+				UserID:      hit.UserID,
+				ChatID:      hit.ChatID,
+				Timestamp:   hit.Timestamp,
+				MessageID:   hit.ID,
+			})
 		}
 		priKey := "id"
-		_, err = newIndex.UpdateDocumentsWithContext(ctx, hits, &priKey)
+		_, err = newIndex.UpdateDocumentsWithContext(ctx, newDocs, &priKey)
 		if err != nil {
 			return fmt.Errorf("failed to update documents: %w", err)
 		}

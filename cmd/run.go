@@ -18,6 +18,7 @@ import (
 )
 
 func run() {
+	config.Init()
 	logger := log.NewWithOptions(os.Stdout, log.Options{
 		Level:           log.DebugLevel,
 		ReportTimestamp: true,
