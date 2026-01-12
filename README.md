@@ -94,3 +94,23 @@ key = "qwqowo" # api 密钥, 访问时需要提供
 
 /lsapikey - 列出所有子 api key
 
+
+---
+
+## 从 V0 迁移到 V1
+
+> V1 没有支持 Bleve 引擎, 如有需要请勿升级.
+
+在 Release 页面下载 V1 版本的二进制文件, 解压后替换掉旧版本的二进制文件, 同时配置好 `config.toml` 文件.
+
+使用以下命令启动迁移:
+
+```bash
+./btts migrate
+```
+
+或者, 可以在运行期间在后台迁移:
+
+```bash
+./btts --migrate
+```
