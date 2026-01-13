@@ -130,7 +130,7 @@ func ExtractMessageMediaText(ctx context.Context, client *ext.Context, media tg.
 		result.Type = types.MessageTypeDocument
 		for _, attr := range doc.GetAttributes() {
 			switch attr := attr.(type) {
-			case *tg.DocumentAttributeHasStickers:
+			case *tg.DocumentAttributeAnimated, *tg.DocumentAttributeSticker:
 				return result
 			case *tg.DocumentAttributeFilename:
 				filename := attr.GetFileName()
@@ -152,6 +152,7 @@ func ExtractMessageMediaText(ctx context.Context, client *ext.Context, media tg.
 				result.Type = types.MessageTypeVideo
 			}
 		}
+
 	case *tg.MessageMediaPoll:
 		result.Type = types.MessageTypePoll
 		poll := m.GetPoll()

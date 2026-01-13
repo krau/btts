@@ -63,7 +63,7 @@ var MessageTypeFromString = map[string]MessageType{
 }
 
 var (
-	StickerFileNames = []string{"sticker.webp", "sticker.webm"}
+	StickerFileNames = []string{"sticker.webp", "sticker.webm", "AnimatedSticker.tgs", "video.mp4", "animation.gif.mp4"}
 )
 
 const (
