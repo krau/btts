@@ -178,31 +178,32 @@ func SearchCallbackHandler(ctx *ext.Context, update *ext.Update) error {
 		})
 		return dispatcher.EndGroups
 	}
-	sbModel, err := database.GetSubBot(ctx, ctx.Self.ID)
-	if err != nil {
-		log.FromContext(ctx).Errorf("Failed to get sub bot: %v", err)
-		return dispatcher.EndGroups
-	}
-	// 重新计算当前用户可访问的聊天列表
-	userID := update.GetUserChat().GetID()
-	var allowedChats []int64
-	if CheckAdmin(ctx, update) {
-		allowedChats = sbModel.ChatIDs
-	} else {
-		allowedChats = sbModel.UserCanSearchChats(ctx, userID)
-	}
-	// 验证缓存的 chatIDs 是否都在允许的范围内
-	for _, chatID := range data.ChatIDs {
-		if !slice.Contain(allowedChats, chatID) {
-			ctx.AnswerCallback(&tg.MessagesSetBotCallbackAnswerRequest{
-				QueryID:   update.CallbackQuery.GetQueryID(),
-				Message:   "Permission Denied",
-				Alert:     true,
-				CacheTime: 60,
-			})
-			return dispatcher.EndGroups
-		}
-	}
+	// 这个检查似乎是不必要的, 因为 telegram 没有允许用户自己构造回调数据的方法
+	// sbModel, err := database.GetSubBot(ctx, ctx.Self.ID)
+	// if err != nil {
+	// 	log.FromContext(ctx).Errorf("Failed to get sub bot: %v", err)
+	// 	return dispatcher.EndGroups
+	// }
+	// // 重新计算当前用户可访问的聊天列表
+	// userID := update.GetUserChat().GetID()
+	// var allowedChats []int64
+	// if CheckAdmin(ctx, update) {
+	// 	allowedChats = sbModel.ChatIDs
+	// } else {
+	// 	allowedChats = sbModel.UserCanSearchChats(ctx, userID)
+	// }
+	// // 验证缓存的 chatIDs 是否都在允许的范围内
+	// for _, chatID := range data.ChatIDs {
+	// 	if !slice.Contain(allowedChats, chatID) {
+	// 		ctx.AnswerCallback(&tg.MessagesSetBotCallbackAnswerRequest{
+	// 			QueryID:   update.CallbackQuery.GetQueryID(),
+	// 			Message:   "Permission Denied",
+	// 			Alert:     true,
+	// 			CacheTime: 60,
+	// 		})
+	// 		return dispatcher.EndGroups
+	// 	}
+	// }
 	page, err := strconv.ParseInt(args[1], 10, 64)
 	if err != nil {
 		ctx.AnswerCallback(&tg.MessagesSetBotCallbackAnswerRequest{
@@ -291,31 +292,31 @@ func FilterCallbackHandler(ctx *ext.Context, update *ext.Update) error {
 		})
 		return dispatcher.EndGroups
 	}
-	sbModel, err := database.GetSubBot(ctx, ctx.Self.ID)
-	if err != nil {
-		log.FromContext(ctx).Errorf("Failed to get sub bot: %v", err)
-		return dispatcher.EndGroups
-	}
-	// 重新计算当前用户可访问的聊天列表
-	userID := update.GetUserChat().GetID()
-	var allowedChats []int64
-	if CheckAdmin(ctx, update) {
-		allowedChats = sbModel.ChatIDs
-	} else {
-		allowedChats = sbModel.UserCanSearchChats(ctx, userID)
-	}
-	// 验证缓存的 chatIDs 是否都在允许的范围内
-	for _, chatID := range data.ChatIDs {
-		if !slice.Contain(allowedChats, chatID) {
-			ctx.AnswerCallback(&tg.MessagesSetBotCallbackAnswerRequest{
-				QueryID:   update.CallbackQuery.GetQueryID(),
-				Message:   "Permission Denied",
-				Alert:     true,
-				CacheTime: 60,
-			})
-			return dispatcher.EndGroups
-		}
-	}
+	// sbModel, err := database.GetSubBot(ctx, ctx.Self.ID)
+	// if err != nil {
+	// 	log.FromContext(ctx).Errorf("Failed to get sub bot: %v", err)
+	// 	return dispatcher.EndGroups
+	// }
+	// // 重新计算当前用户可访问的聊天列表
+	// userID := update.GetUserChat().GetID()
+	// var allowedChats []int64
+	// if CheckAdmin(ctx, update) {
+	// 	allowedChats = sbModel.ChatIDs
+	// } else {
+	// 	allowedChats = sbModel.UserCanSearchChats(ctx, userID)
+	// }
+	// // 验证缓存的 chatIDs 是否都在允许的范围内
+	// for _, chatID := range data.ChatIDs {
+	// 	if !slice.Contain(allowedChats, chatID) {
+	// 		ctx.AnswerCallback(&tg.MessagesSetBotCallbackAnswerRequest{
+	// 			QueryID:   update.CallbackQuery.GetQueryID(),
+	// 			Message:   "Permission Denied",
+	// 			Alert:     true,
+	// 			CacheTime: 60,
+	// 		})
+	// 		return dispatcher.EndGroups
+	// 	}
+	// }
 	toswitch, err := strconv.Atoi(args[1])
 	if err != nil {
 		ctx.AnswerCallback(&tg.MessagesSetBotCallbackAnswerRequest{
