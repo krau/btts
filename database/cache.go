@@ -1,6 +1,9 @@
 package database
 
-import "sync"
+import (
+	"slices"
+	"sync"
+)
 
 var (
 	watchedChatsID   = make(map[int64]struct{})
@@ -22,4 +25,10 @@ func AllChatIDs() []int64 {
 	copied := make([]int64, len(allChatIDs))
 	copy(copied, allChatIDs)
 	return copied
+}
+
+func Indexed(chatID int64) bool {
+	allChatIDsMu.RLock()
+	defer allChatIDsMu.RUnlock()
+	return slices.Contains(allChatIDs, chatID)
 }

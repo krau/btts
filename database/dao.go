@@ -204,9 +204,13 @@ func UpdateUpdatesState(ctx context.Context, state *UpdatesState) error {
 	return nil
 }
 
-// UpdateChannelPts 更新某个 channel 的 pts
 func UpdateChannelPts(ctx context.Context, chatID int64, pts int) error {
-	if err := db.WithContext(ctx).Model(&IndexChat{}).Where("chat_id = ?", chatID).Update("pts", pts).Error; err != nil {
+	chat, err := GetIndexChat(ctx, chatID)
+	if err != nil {
+		return err
+	}
+	chat.Pts = pts
+	if err := UpsertIndexChat(ctx, chat); err != nil {
 		return err
 	}
 	return nil

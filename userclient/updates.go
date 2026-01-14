@@ -302,6 +302,10 @@ func (u *UserClient) getChatIDFromMessage(msg *tg.Message) int64 {
 	}
 }
 
+type PtsUpdate interface {
+	GetPts() int
+}
+
 // updateStateFromUpdates 从实时更新中更新状态
 func (u *UserClient) updateStateFromUpdates(ctx context.Context, update tg.UpdateClass) {
 	logger := log.FromContext(ctx)
@@ -318,16 +322,18 @@ func (u *UserClient) updateStateFromUpdates(ctx context.Context, update tg.Updat
 	switch update.(type) {
 	case *tg.UpdateNewMessage, *tg.UpdateEditMessage, *tg.UpdateDeleteMessages:
 		// 这些更新会影响 pts
-		if ptsUpdate, ok := update.(interface{ GetPts() int }); ok {
+		if ptsUpdate, ok := update.(PtsUpdate); ok {
 			pts := ptsUpdate.GetPts()
 			if pts > state.Pts {
 				state.Pts = pts
 				updated = true
 			}
+		} else {
+			logger.Warn("Update does not have pts", "update", update)
 		}
 	case *tg.UpdateNewChannelMessage, *tg.UpdateEditChannelMessage:
 		// Channel 消息有自己的 pts
-		if ptsUpdate, ok := update.(interface{ GetPts() int }); ok {
+		if ptsUpdate, ok := update.(PtsUpdate); ok {
 			pts := ptsUpdate.GetPts()
 			var channelID int64
 			switch u := update.(type) {
@@ -344,11 +350,13 @@ func (u *UserClient) updateStateFromUpdates(ctx context.Context, update tg.Updat
 					}
 				}
 			}
-			if channelID != 0 {
+			if channelID != 0 && database.Indexed(channelID) {
 				if err := database.UpdateChannelPts(ctx, channelID, pts); err != nil {
 					logger.Error("Failed to update channel pts", "error", err, "channel_id", channelID)
 				}
 			}
+		} else {
+			logger.Warn("Update does not have pts", "update", update)
 		}
 	}
 
