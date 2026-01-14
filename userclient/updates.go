@@ -14,7 +14,7 @@ import (
 // SyncMissedUpdates 在客户端启动时同步错过的消息
 func (u *UserClient) SyncMissedUpdates(ctx context.Context) error {
 	logger := log.FromContext(ctx)
-	logger.Info("Starting to sync missed updates...")
+	logger.Info("Syncing missed updates...")
 
 	// 获取当前保存的状态
 	state, err := database.GetUpdatesState(ctx)
@@ -22,23 +22,21 @@ func (u *UserClient) SyncMissedUpdates(ctx context.Context) error {
 		return fmt.Errorf("failed to get updates state: %w", err)
 	}
 
-	logger.Debug("Current updates state", "pts", state.Pts, "qts", state.Qts, "date", state.Date, "seq", state.Seq)
-
 	// 如果状态为空（首次启动），则只获取当前状态
 	if state.Pts == 0 && state.Qts == 0 && state.Date == 0 {
-		logger.Info("No previous state found, fetching current state...")
 		if err := u.fetchCurrentState(ctx); err != nil {
 			return fmt.Errorf("failed to fetch current state: %w", err)
 		}
-		logger.Info("Current state fetched successfully")
+		logger.Info("Initial state saved")
 		return nil
 	}
 
 	// 调用 updates.getDifference 获取错过的消息
 	api := u.TClient.API()
-	for {
-		logger.Debug("Calling getDifference", "pts", state.Pts, "date", state.Date, "qts", state.Qts)
+	totalMessages := 0
+	totalUpdates := 0
 
+	for {
 		req := &tg.UpdatesGetDifferenceRequest{
 			Pts:  state.Pts,
 			Date: state.Date,
@@ -54,7 +52,11 @@ func (u *UserClient) SyncMissedUpdates(ctx context.Context) error {
 		switch d := diff.(type) {
 		case *tg.UpdatesDifferenceEmpty:
 			// 没有新的更新
-			logger.Info("No missed updates")
+			if totalMessages > 0 || totalUpdates > 0 {
+				logger.Info("Sync completed", "messages", totalMessages, "updates", totalUpdates)
+			} else {
+				logger.Info("No missed updates")
+			}
 			state.Date = d.Date
 			state.Seq = d.Seq
 			if err := database.UpdateUpdatesState(ctx, state); err != nil {
@@ -64,7 +66,8 @@ func (u *UserClient) SyncMissedUpdates(ctx context.Context) error {
 
 		case *tg.UpdatesDifference:
 			// 完整的差异，处理并返回
-			logger.Info("Processing missed updates", "new_messages", len(d.NewMessages), "other_updates", len(d.OtherUpdates))
+			totalMessages += len(d.NewMessages)
+			totalUpdates += len(d.OtherUpdates)
 			if err := u.processDifference(ctx, d.NewMessages, d.OtherUpdates); err != nil {
 				logger.Error("Failed to process difference", "error", err)
 			}
@@ -76,12 +79,13 @@ func (u *UserClient) SyncMissedUpdates(ctx context.Context) error {
 			if err := database.UpdateUpdatesState(ctx, state); err != nil {
 				logger.Error("Failed to update state", "error", err)
 			}
-			logger.Info("Finished syncing missed updates")
+			logger.Info("Sync completed", "messages", totalMessages, "updates", totalUpdates)
 			return nil
 
 		case *tg.UpdatesDifferenceSlice:
 			// 差异太大，分片返回
-			logger.Info("Processing partial updates", "new_messages", len(d.NewMessages), "other_updates", len(d.OtherUpdates))
+			totalMessages += len(d.NewMessages)
+			totalUpdates += len(d.OtherUpdates)
 			if err := u.processDifference(ctx, d.NewMessages, d.OtherUpdates); err != nil {
 				logger.Error("Failed to process difference slice", "error", err)
 			}
@@ -93,19 +97,18 @@ func (u *UserClient) SyncMissedUpdates(ctx context.Context) error {
 			if err := database.UpdateUpdatesState(ctx, state); err != nil {
 				logger.Error("Failed to update intermediate state", "error", err)
 			}
-			// 继续循环获取剩余更新
-			logger.Debug("Continuing to fetch remaining updates...")
-			time.Sleep(100 * time.Millisecond) // 避免请求过快
-
 		case *tg.UpdatesDifferenceTooLong:
 			// 差异太大，需要重新获取状态
-			logger.Warn("Difference too long, fetching current state...")
+			logger.Warn("Difference too long, resetting state")
 			state.Pts = d.Pts
 			if err := database.UpdateUpdatesState(ctx, state); err != nil {
 				logger.Error("Failed to update state", "error", err)
 			}
 			return nil
 		}
+		// https://core.telegram.org/api/updates#recovering-gaps
+		// sleep 0.5s to wait the new updates to be ready
+		time.Sleep(500 * time.Millisecond)
 	}
 }
 
@@ -134,7 +137,9 @@ func (u *UserClient) processDifference(ctx context.Context, newMessages []tg.Mes
 	logger := log.FromContext(ctx)
 	ectx := u.GetContext()
 
-	// 处理新消息
+	// 按 chatID 分组消息
+	messagesByChat := make(map[int64][]*tg.Message)
+
 	for _, msgClass := range newMessages {
 		msg, ok := msgClass.(*tg.Message)
 		if !ok {
@@ -147,13 +152,17 @@ func (u *UserClient) processDifference(ctx context.Context, newMessages []tg.Mes
 			continue
 		}
 
-		// 转换为文档并添加到索引
-		docs := engine.DocumentsFromMessages(ctx, []*tg.Message{msg}, chatID, ectx.Self.ID, ectx, false)
+		messagesByChat[chatID] = append(messagesByChat[chatID], msg)
+	}
+
+	// 批量添加每个聊天的消息到索引
+	for chatID, messages := range messagesByChat {
+		docs := engine.DocumentsFromMessages(ctx, messages, chatID, ectx.Self.ID, ectx, false)
 		if len(docs) > 0 {
 			if err := engine.GetEngine().AddDocuments(ctx, chatID, docs); err != nil {
-				logger.Error("Failed to add documents", "error", err, "chat_id", chatID, "msg_id", msg.ID)
+				logger.Error("Failed to add documents", "error", err, "chat_id", chatID, "count", len(docs))
 			} else {
-				logger.Debug("Indexed missed message", "chat_id", chatID, "msg_id", msg.ID)
+				logger.Info("Indexed missed messages", "chat_id", chatID, "count", len(docs))
 			}
 		}
 	}
@@ -179,8 +188,8 @@ func (u *UserClient) processDifference(ctx context.Context, newMessages []tg.Mes
 			// 某个 channel 的更新太多，需要单独处理
 			chatID := update.GetChannelID()
 			if database.Watching(chatID) {
-				logger.Info("Channel updates too long, will sync separately", "chat_id", chatID)
-				// 这里可以在后台异步处理
+				logger.Info("Channel has too many updates, syncing separately", "chat_id", chatID)
+				// 在后台异步处理
 				go func() {
 					if err := u.syncChannelDifference(context.Background(), chatID); err != nil {
 						logger.Error("Failed to sync channel difference", "error", err, "chat_id", chatID)
@@ -196,7 +205,7 @@ func (u *UserClient) processDifference(ctx context.Context, newMessages []tg.Mes
 // syncChannelDifference 同步某个 channel 的错过消息
 func (u *UserClient) syncChannelDifference(ctx context.Context, channelID int64) error {
 	logger := log.FromContext(ctx).With("channel_id", channelID)
-	logger.Info("Starting to sync channel difference...")
+	logger.Info("Syncing channel difference")
 
 	chatDB, err := database.GetIndexChat(ctx, channelID)
 	if err != nil {
@@ -225,14 +234,13 @@ func (u *UserClient) syncChannelDifference(ctx context.Context, channelID int64)
 
 	pts := chatDB.Pts
 	if pts == 0 {
-		// 如果没有 pts，则尝试获取当前状态
-		logger.Warn("No pts found for channel, skipping sync")
+		logger.Warn("No pts found, skipping sync")
 		return nil
 	}
 
-	for {
-		logger.Debug("Calling getChannelDifference", "pts", pts)
+	totalMessages := 0
 
+	for {
 		diff, err := api.UpdatesGetChannelDifference(ctx, &tg.UpdatesGetChannelDifferenceRequest{
 			Channel: channelInput,
 			Filter:  &tg.ChannelMessagesFilterEmpty{},
@@ -245,7 +253,11 @@ func (u *UserClient) syncChannelDifference(ctx context.Context, channelID int64)
 
 		switch d := diff.(type) {
 		case *tg.UpdatesChannelDifferenceEmpty:
-			logger.Info("No missed channel updates")
+			if totalMessages > 0 {
+				logger.Info("Channel sync completed", "messages", totalMessages)
+			} else {
+				logger.Info("No missed channel updates")
+			}
 			pts = d.Pts
 			if err := database.UpdateChannelPts(ctx, channelID, pts); err != nil {
 				logger.Error("Failed to update channel pts", "error", err)
@@ -253,7 +265,7 @@ func (u *UserClient) syncChannelDifference(ctx context.Context, channelID int64)
 			return nil
 
 		case *tg.UpdatesChannelDifference:
-			logger.Info("Processing channel updates", "new_messages", len(d.NewMessages), "other_updates", len(d.OtherUpdates))
+			totalMessages += len(d.NewMessages)
 			if err := u.processDifference(ctx, d.NewMessages, d.OtherUpdates); err != nil {
 				logger.Error("Failed to process channel difference", "error", err)
 			}
@@ -262,19 +274,14 @@ func (u *UserClient) syncChannelDifference(ctx context.Context, channelID int64)
 				logger.Error("Failed to update channel pts", "error", err)
 			}
 			if d.Final {
-				logger.Info("Finished syncing channel updates")
+				logger.Info("Channel sync completed", "messages", totalMessages)
 				return nil
 			}
 			// 继续获取
-			logger.Debug("Continuing to fetch remaining channel updates...")
 			time.Sleep(100 * time.Millisecond)
 
 		case *tg.UpdatesChannelDifferenceTooLong:
-			logger.Warn("Channel difference too long")
-			// UpdatesChannelDifferenceTooLong 包含一个 dialog，从中可以获取 pts
-			// 但通常我们需要重新获取 channel 的完整状态
-			// 这里简单地记录警告并返回
-			logger.Debug("Channel difference too long, may need manual intervention", "channel_id", channelID)
+			logger.Warn("Channel difference too long, may need manual intervention")
 			return nil
 		}
 	}
