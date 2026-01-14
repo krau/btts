@@ -834,11 +834,11 @@ const docTemplate = `{
                     "description": "消息ID列表",
                     "type": "array",
                     "items": {
-                        "type": "string"
+                        "type": "integer"
                     },
                     "example": [
-                        "123456789",
-                        "987654321"
+                        123456789,
+                        987654321
                     ]
                 }
             }
@@ -900,31 +900,15 @@ const docTemplate = `{
                 }
             }
         },
-        "api.SearchHit": {
+        "api.SearchHitResponse": {
             "type": "object",
             "properties": {
                 "_formatted": {
-                    "type": "object",
-                    "properties": {
-                        "chat_id": {
-                            "type": "string"
-                        },
-                        "id": {
-                            "type": "string"
-                        },
-                        "message": {
-                            "type": "string"
-                        },
-                        "timestamp": {
-                            "type": "string"
-                        },
-                        "type": {
-                            "type": "string"
-                        },
-                        "user_id": {
-                            "type": "string"
-                        }
-                    }
+                    "$ref": "#/definitions/types.SearchHitFormatted"
+                },
+                "aigenerated": {
+                    "description": "The AI generated text of the message",
+                    "type": "string"
                 },
                 "chat_id": {
                     "description": "The ID of the chat where the message was sent",
@@ -934,12 +918,19 @@ const docTemplate = `{
                     "description": "The title of the chat, if available",
                     "type": "string"
                 },
+                "full_text": {
+                    "type": "string"
+                },
                 "id": {
                     "description": "Telegram MessageID",
                     "type": "integer"
                 },
                 "message": {
                     "description": "The original text of the message",
+                    "type": "string"
+                },
+                "ocred": {
+                    "description": "The OCRed text of the message",
                     "type": "string"
                 },
                 "timestamp": {
@@ -961,6 +952,16 @@ const docTemplate = `{
         "api.SearchOnChatByPostRequest": {
             "type": "object",
             "properties": {
+                "disable_ocred": {
+                    "description": "是否禁用OCR文本",
+                    "type": "boolean",
+                    "example": false
+                },
+                "enable_aigenerated": {
+                    "description": "是否启用AI生成的文本",
+                    "type": "boolean",
+                    "example": false
+                },
                 "limit": {
                     "description": "限制数量，用于分页",
                     "type": "integer",
@@ -1005,8 +1006,13 @@ const docTemplate = `{
         "api.SearchOnMultiChatByPostRequest": {
             "type": "object",
             "properties": {
+                "all_chats": {
+                    "description": "是否搜索所有聊天",
+                    "type": "boolean",
+                    "example": false
+                },
                 "chat_ids": {
-                    "description": "聊天ID列表，如果为空则搜索所有聊天",
+                    "description": "聊天ID列表",
                     "type": "array",
                     "items": {
                         "type": "integer"
@@ -1015,6 +1021,16 @@ const docTemplate = `{
                         777000,
                         114514
                     ]
+                },
+                "disable_ocred": {
+                    "description": "是否禁用OCR文本",
+                    "type": "boolean",
+                    "example": false
+                },
+                "enable_aigenerated": {
+                    "description": "是否启用AI生成的文本",
+                    "type": "boolean",
+                    "example": false
                 },
                 "limit": {
                     "description": "限制数量，用于分页",
@@ -1066,7 +1082,7 @@ const docTemplate = `{
                 "hits": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/api.SearchHit"
+                        "$ref": "#/definitions/api.SearchHitResponse"
                     }
                 },
                 "limit": {
@@ -1097,6 +1113,10 @@ const docTemplate = `{
                 },
                 "no_delete": {
                     "type": "boolean"
+                },
+                "pts": {
+                    "description": "Channel message box sequence for updates",
+                    "type": "integer"
                 },
                 "public": {
                     "type": "boolean"
@@ -1142,37 +1162,25 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "_formatted": {
-                    "type": "object",
-                    "properties": {
-                        "chat_id": {
-                            "type": "string"
-                        },
-                        "id": {
-                            "type": "string"
-                        },
-                        "message": {
-                            "type": "string"
-                        },
-                        "timestamp": {
-                            "type": "string"
-                        },
-                        "type": {
-                            "type": "string"
-                        },
-                        "user_id": {
-                            "type": "string"
-                        }
-                    }
+                    "$ref": "#/definitions/types.SearchHitFormatted"
+                },
+                "aigenerated": {
+                    "description": "[TODO] The AI generated text of the message(summarization, caption, tagging, etc.)",
+                    "type": "string"
                 },
                 "chat_id": {
                     "type": "integer"
                 },
                 "id": {
-                    "description": "Telegram MessageID",
+                    "description": "Telegram message ID",
                     "type": "integer"
                 },
                 "message": {
                     "description": "The original text of the message",
+                    "type": "string"
+                },
+                "ocred": {
+                    "description": "The OCRed text of the message",
                     "type": "string"
                 },
                 "timestamp": {
@@ -1184,6 +1192,35 @@ const docTemplate = `{
                 "user_id": {
                     "description": "The ID of the user who sent the message",
                     "type": "integer"
+                }
+            }
+        },
+        "types.SearchHitFormatted": {
+            "type": "object",
+            "properties": {
+                "aigenerated": {
+                    "type": "string"
+                },
+                "chat_id": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "ocred": {
+                    "type": "string"
+                },
+                "timestamp": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "string"
                 }
             }
         }

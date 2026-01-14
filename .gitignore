@@ -3,6 +3,7 @@ config.toml
 data/
 .vscode/
 .claude/
+CLAUDE.md
 tmp/
 .meilisearch/
 go.work
