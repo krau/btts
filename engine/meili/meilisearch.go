@@ -248,6 +248,10 @@ func (m *Meilisearch) Search(ctx context.Context, req types.SearchRequest) (*typ
 	} else {
 		request.Filter = expr
 	}
+	if req.Query == "" {
+		// 按时间排序
+		request.Sort = []string{"timestamp:desc"}
+	}
 	log.FromContext(ctx).Info("Searching", "query", req.Query, "offset", offset, "filter", request.Filter)
 	resp, err := m.Client.Index(m.Index).SearchWithContext(ctx, req.Query, request)
 	if err != nil {
