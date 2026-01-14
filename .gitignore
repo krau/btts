@@ -2,6 +2,7 @@ session/
 config.toml
 data/
 .vscode/
+.claude/
 tmp/
 .meilisearch/
 go.work
