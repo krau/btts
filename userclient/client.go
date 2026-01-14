@@ -174,7 +174,8 @@ func NewUserClient(ctx context.Context) (*UserClient, error) {
 			zapcore.NewJSONEncoder(zap.NewProductionEncoderConfig()),
 			zapcore.AddSync(&lumberjack.Logger{
 				Filename:   filepath.Join("data", "logs", "client.jsonl"),
-				MaxBackups: 3,
+				MaxBackups: 7,
+				MaxSize:    10,
 				MaxAge:     7,
 			}),
 			zap.DebugLevel,
