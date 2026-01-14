@@ -51,8 +51,11 @@ func (u *UserClient) GetContext() *ext.Context {
 
 func (u *UserClient) StartWatch(ctx context.Context) {
 	// 启动时同步错过的消息
-	if err := u.SyncMissedUpdates(ctx); err != nil {
-		log.FromContext(ctx).Error("Failed to sync missed updates", "error", err)
+	if !config.C.SkipCatchup {
+		log.FromContext(ctx).Info("Syncing missed updates...")
+		if err := u.SyncMissedUpdates(ctx); err != nil {
+			log.FromContext(ctx).Error("Failed to sync missed updates", "error", err)
+		}
 	}
 	disp := u.TClient.Dispatcher
 	disp.AddHandlerToGroup(handlers.NewAnyUpdate(func(ctx *ext.Context, u *ext.Update) error {

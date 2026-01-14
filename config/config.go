@@ -9,11 +9,12 @@ import (
 )
 
 type AppConfig struct {
-	AppID    int     `toml:"app_id" mapstructure:"app_id"`
-	AppHash  string  `toml:"app_hash" mapstructure:"app_hash"`
-	BotToken string  `toml:"bot_token" mapstructure:"bot_token"`
-	Admins   []int64 `toml:"admins" mapstructure:"admins"`
-	Engine   struct {
+	AppID       int     `toml:"app_id" mapstructure:"app_id"`
+	AppHash     string  `toml:"app_hash" mapstructure:"app_hash"`
+	BotToken    string  `toml:"bot_token" mapstructure:"bot_token"`
+	Admins      []int64 `toml:"admins" mapstructure:"admins"`
+	SkipCatchup bool    `toml:"skip_catchup" mapstructure:"skip_catchup"`
+	Engine      struct {
 		Type     string `toml:"type" mapstructure:"type"` // "meilisearch" or "bleve"
 		Url      string `toml:"url" mapstructure:"url"`
 		Index    string `toml:"index" mapstructure:"index"` // For meilisearch: index uid
