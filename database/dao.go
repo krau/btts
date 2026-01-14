@@ -1,6 +1,10 @@
 package database
 
-import "context"
+import (
+	"context"
+
+	"gorm.io/gorm"
+)
 
 func UpsertUserInfo(ctx context.Context, userInfo *UserInfo) error {
 	if err := db.WithContext(ctx).Save(userInfo).Error; err != nil {
@@ -167,6 +171,42 @@ func GetAllApiKeys(ctx context.Context) ([]*ApiKey, error) {
 
 func DeleteApiKey(ctx context.Context, id uint) error {
 	if err := db.WithContext(ctx).Where("id = ?", id).Delete(&ApiKey{}).Error; err != nil {
+		return err
+	}
+	return nil
+}
+
+// GetUpdatesState 获取 updates state，如果不存在则创建一个默认的
+func GetUpdatesState(ctx context.Context) (*UpdatesState, error) {
+	var state UpdatesState
+	if err := db.WithContext(ctx).First(&state).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			// 创建默认状态
+			state = UpdatesState{ID: 1, Pts: 0, Qts: 0, Date: 0, Seq: 0}
+			if err := db.WithContext(ctx).Create(&state).Error; err != nil {
+				return nil, err
+			}
+			return &state, nil
+		}
+		return nil, err
+	}
+	return &state, nil
+}
+
+// UpdateUpdatesState 更新 updates state
+func UpdateUpdatesState(ctx context.Context, state *UpdatesState) error {
+	if state.ID == 0 {
+		state.ID = 1
+	}
+	if err := db.WithContext(ctx).Save(state).Error; err != nil {
+		return err
+	}
+	return nil
+}
+
+// UpdateChannelPts 更新某个 channel 的 pts
+func UpdateChannelPts(ctx context.Context, chatID int64, pts int) error {
+	if err := db.WithContext(ctx).Model(&IndexChat{}).Where("chat_id = ?", chatID).Update("pts", pts).Error; err != nil {
 		return err
 	}
 	return nil

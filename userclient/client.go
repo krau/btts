@@ -50,6 +50,13 @@ func (u *UserClient) GetContext() *ext.Context {
 }
 
 func (u *UserClient) StartWatch(ctx context.Context) {
+	// 启动时同步错过的消息
+	log.FromContext(ctx).Info("Syncing missed updates before starting watch...")
+	go func() {
+		if err := u.SyncMissedUpdates(ctx); err != nil {
+			log.FromContext(ctx).Error("Failed to sync missed updates", "error", err)
+		}
+	}()
 	disp := u.TClient.Dispatcher
 	disp.AddHandlerToGroup(handlers.NewAnyUpdate(func(ctx *ext.Context, u *ext.Update) error {
 		switch update := u.UpdateClass.(type) {
@@ -93,6 +100,11 @@ func (u *UserClient) StartWatch(ctx context.Context) {
 		default:
 			return dispatcher.SkipCurrentGroup
 		}
+	}), 1)
+	// 添加状态更新 handler
+	disp.AddHandlerToGroup(handlers.NewAnyUpdate(func(ctx *ext.Context, u *ext.Update) error {
+		uc.updateStateFromUpdates(ctx, u.UpdateClass)
+		return dispatcher.ContinueGroups
 	}), 1)
 	disp.AddHandlerToGroup(handlers.NewAnyUpdate(DeleteHandler), 1)
 	disp.AddHandlerToGroup(handlers.NewMessage(filters.Message.All, func(ctx *ext.Context, u *ext.Update) error {
