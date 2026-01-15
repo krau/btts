@@ -27,9 +27,6 @@ type TakeoutConfig struct {
 // TakeoutExport 使用 Takeout API 导出所有聊天的消息到索引
 func (u *UserClient) TakeoutExport(ctx context.Context, enableWatching bool, cfg TakeoutConfig, progressCallback TakeoutProgressCallback) error {
 	logger := log.FromContext(ctx)
-
-	logger.Info("Starting Takeout export for all chats", "enable_watching", enableWatching)
-
 	// 1. 初始化 Takeout session
 	if progressCallback != nil {
 		progressCallback("init", 0, 1, "Initializing Takeout session...")
@@ -58,14 +55,26 @@ func (u *UserClient) TakeoutExport(ctx context.Context, enableWatching bool, cfg
 			return fmt.Errorf("failed to get dialogs: %w", err)
 		}
 
-		logger.Info("Found dialogs to export", "count", len(dialogs))
+		exportDialogs, err := u.filterDialogsByTakeoutConfig(ctx, client, dialogs, cfg)
+		if err != nil {
+			return fmt.Errorf("failed to filter dialogs: %w", err)
+		}
+
+		logger.Info("Dialogs ready to export", "all", len(dialogs), "export", len(exportDialogs))
+		if progressCallback != nil {
+			// 解决 dialogs 阶段 total 恒为 1：split ranges 常常只有 1 个，改为在 dialogs 完成后用实际对话数刷新。
+			progressCallback("dialogs", len(exportDialogs), len(exportDialogs),
+				fmt.Sprintf("Dialogs ready: %d (filtered from %d)", len(exportDialogs), len(dialogs)))
+			// 提前设置导出阶段 total，避免 UI 长时间停留在 1。
+			progressCallback("export", 0, len(exportDialogs), "Starting export...")
+		}
 
 		// 3. 导出每个对话的消息
 		totalMessages := 0
 		successChats := 0
 		failedChats := 0
 
-		for i, dialog := range dialogs {
+		for i, dialog := range exportDialogs {
 			chatID := u.getPeerID(dialog.Peer)
 			if chatID == 0 {
 				continue
@@ -73,11 +82,11 @@ func (u *UserClient) TakeoutExport(ctx context.Context, enableWatching bool, cfg
 
 			chatTitle := u.getChatTitle(ctx, dialog)
 			if progressCallback != nil {
-				progressCallback("export", i+1, len(dialogs), fmt.Sprintf("Exporting: %s", chatTitle))
+				progressCallback("export", i+1, len(exportDialogs), fmt.Sprintf("Exporting: %s", chatTitle))
 			}
 
 			logger.Info("Exporting chat",
-				"progress", fmt.Sprintf("%d/%d", i+1, len(dialogs)),
+				"progress", fmt.Sprintf("%d/%d", i+1, len(exportDialogs)),
 				"chat_id", chatID,
 				"title", chatTitle,
 			)
@@ -97,7 +106,7 @@ func (u *UserClient) TakeoutExport(ctx context.Context, enableWatching bool, cfg
 		}
 
 		if progressCallback != nil {
-			progressCallback("complete", len(dialogs), len(dialogs),
+			progressCallback("complete", len(exportDialogs), len(exportDialogs),
 				fmt.Sprintf("Completed: %d messages from %d chats", totalMessages, successChats))
 		}
 
@@ -115,6 +124,108 @@ func (u *UserClient) TakeoutExport(ctx context.Context, enableWatching bool, cfg
 	}
 
 	return nil
+}
+
+func (u *UserClient) filterDialogsByTakeoutConfig(
+	ctx context.Context,
+	client *takeout.Client,
+	dialogs []*tg.Dialog,
+	cfg TakeoutConfig,
+) ([]*tg.Dialog, error) {
+	logger := log.FromContext(ctx)
+	if len(dialogs) == 0 {
+		return dialogs, nil
+	}
+
+	// 缓存 channelID -> isMegagroup
+	channelKindCache := make(map[int64]bool)
+
+	filtered := make([]*tg.Dialog, 0, len(dialogs))
+	api := tg.NewClient(client)
+	for _, d := range dialogs {
+		if d == nil || d.Peer == nil {
+			continue
+		}
+
+		switch p := d.Peer.(type) {
+		case *tg.PeerUser:
+			if cfg.MessageUsers {
+				filtered = append(filtered, d)
+			}
+		case *tg.PeerChat:
+			if cfg.MessageChats {
+				filtered = append(filtered, d)
+			}
+		case *tg.PeerChannel:
+			// 同时禁用频道与超级群：直接跳过，无需额外请求。
+			if !cfg.MessageChannels && !cfg.MessageMegagroups {
+				continue
+			}
+			// 同时启用：直接允许，无需区分。
+			if cfg.MessageChannels && cfg.MessageMegagroups {
+				filtered = append(filtered, d)
+				continue
+			}
+
+			isMega, ok := channelKindCache[p.ChannelID]
+			if !ok {
+				var err error
+				isMega, err = u.isMegagroup(ctx, api, p.ChannelID)
+				if err != nil {
+					// 分类失败时，保守处理：只要用户禁用了其中任一类，就不导出 PeerChannel。
+					logger.Warn("Failed to classify peer channel, skipping due to scope", "channel_id", p.ChannelID, "error", err)
+					continue
+				}
+				channelKindCache[p.ChannelID] = isMega
+			}
+
+			if isMega {
+				if cfg.MessageMegagroups {
+					filtered = append(filtered, d)
+				}
+				continue
+			}
+			if cfg.MessageChannels {
+				filtered = append(filtered, d)
+			}
+		default:
+			// 未知 peer 类型，跳过
+		}
+	}
+
+	return filtered, nil
+}
+
+func (u *UserClient) isMegagroup(ctx context.Context, client *tg.Client, channelID int64) (bool, error) {
+	peer := u.TClient.PeerStorage.GetInputPeerById(channelID)
+	ipc, ok := peer.(*tg.InputPeerChannel)
+	if !ok || ipc.AccessHash == 0 {
+		return false, fmt.Errorf("missing access hash for channel %d", channelID)
+	}
+	chatsClass, err := client.ChannelsGetChannels(ctx, []tg.InputChannelClass{
+		&tg.InputChannel{ChannelID: channelID, AccessHash: ipc.AccessHash},
+	})
+	if err != nil {
+		return false, err
+	}
+
+	var chats []tg.ChatClass
+	switch c := chatsClass.(type) {
+	case *tg.MessagesChats:
+		chats = c.Chats
+	case *tg.MessagesChatsSlice:
+		chats = c.Chats
+	default:
+		return false, fmt.Errorf("unexpected chats type %T", chatsClass)
+	}
+
+	for _, chatClass := range chats {
+		if ch, ok := chatClass.(*tg.Channel); ok && ch.ID == channelID {
+			return ch.Megagroup, nil
+		}
+	}
+
+	return false, fmt.Errorf("channel %d not found in response", channelID)
 }
 
 // getSplitRanges 获取消息范围分片

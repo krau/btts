@@ -194,7 +194,7 @@ func (m takeoutProgressModel) View() string {
 	if m.total > 0 {
 		percent := float64(m.current) / float64(m.total)
 		s.WriteString(m.progress.ViewAs(percent))
-		s.WriteString(fmt.Sprintf(" %d/%d\n\n", m.current, m.total))
+		fmt.Fprintf(&s, " %d/%d\n\n", m.current, m.total)
 	}
 
 	// 当前消息
