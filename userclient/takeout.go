@@ -17,8 +17,15 @@ import (
 // TakeoutProgressCallback 进度回调接口
 type TakeoutProgressCallback func(stage string, current, total int, message string)
 
+type TakeoutConfig struct {
+	MessageUsers      bool
+	MessageChats      bool
+	MessageMegagroups bool
+	MessageChannels   bool
+}
+
 // TakeoutExport 使用 Takeout API 导出所有聊天的消息到索引
-func (u *UserClient) TakeoutExport(ctx context.Context, enableWatching bool, progressCallback TakeoutProgressCallback) error {
+func (u *UserClient) TakeoutExport(ctx context.Context, enableWatching bool, cfg TakeoutConfig, progressCallback TakeoutProgressCallback) error {
 	logger := log.FromContext(ctx)
 
 	logger.Info("Starting Takeout export for all chats", "enable_watching", enableWatching)
@@ -29,16 +36,16 @@ func (u *UserClient) TakeoutExport(ctx context.Context, enableWatching bool, pro
 	}
 
 	// 使用 takeout.Run 自动管理 takeout session 生命周期
-	cfg := takeout.Config{
-		Contacts:          false, // 不导出联系人
-		MessageUsers:      true,  // 导出私聊消息
-		MessageChats:      true,  // 导出群组消息
-		MessageMegagroups: true,  // 导出超级群消息
-		MessageChannels:   true,  // 导出频道消息
-		Files:             false, // 不下载文件（可选）
+	tcfg := takeout.Config{
+		Contacts:          false,                 // 不导出联系人
+		MessageUsers:      cfg.MessageUsers,      // 导出私聊消息
+		MessageChats:      cfg.MessageChats,      // 导出群组消息
+		MessageMegagroups: cfg.MessageMegagroups, // 导出超级群消息
+		MessageChannels:   cfg.MessageChannels,   // 导出频道消息
+		Files:             false,                 // 不下载文件（可选）
 	}
 
-	err := takeout.Run(ctx, u.TClient.API().Invoker(), cfg, func(ctx context.Context, client *takeout.Client) error {
+	err := takeout.Run(ctx, u.TClient.API().Invoker(), tcfg, func(ctx context.Context, client *takeout.Client) error {
 		logger.Info("Takeout session initialized", "takeout_id", client.ID())
 
 		// 2. 获取所有对话
@@ -64,7 +71,7 @@ func (u *UserClient) TakeoutExport(ctx context.Context, enableWatching bool, pro
 				continue
 			}
 
-			chatTitle := u.getChatTitle(dialog)
+			chatTitle := u.getChatTitle(ctx, dialog)
 			if progressCallback != nil {
 				progressCallback("export", i+1, len(dialogs), fmt.Sprintf("Exporting: %s", chatTitle))
 			}
@@ -122,10 +129,10 @@ func (u *UserClient) getSplitRanges(ctx context.Context, client *takeout.Client)
 }
 
 // getChatTitle 从 Dialog 获取聊天标题（用于日志显示）
-func (u *UserClient) getChatTitle(dialog *tg.Dialog) string {
+func (u *UserClient) getChatTitle(ctx context.Context, dialog *tg.Dialog) string {
 	// 这里只是临时获取标题用于显示，实际元数据从消息响应中获取
 	chatID := u.getPeerID(dialog.Peer)
-	chat, err := database.GetIndexChat(context.Background(), chatID)
+	chat, err := database.GetIndexChat(ctx, chatID)
 	if err == nil && chat.Title != "" {
 		return chat.Title
 	}
@@ -428,7 +435,7 @@ func (u *UserClient) exportChatHistory(ctx context.Context, client *takeout.Clie
 			}
 
 			// 更新用户信息
-			if err := u.updateUsersInfo(ctx, users, chatID); err != nil {
+			if err := u.updateUsersInfo(ctx, users); err != nil {
 				logger.Warn("Failed to update users info", "error", err)
 			}
 
@@ -524,7 +531,7 @@ func (u *UserClient) exportChatHistoryWithoutRanges(ctx context.Context, client 
 			metadataUpdated = true
 		}
 
-		if err := u.updateUsersInfo(ctx, users, chatID); err != nil {
+		if err := u.updateUsersInfo(ctx, users); err != nil {
 			logger.Warn("Failed to update users info", "error", err)
 		}
 
@@ -630,7 +637,7 @@ func (u *UserClient) updateChatMetadataFromEntities(ctx context.Context, dialog 
 		for _, chatClass := range chats {
 			if c, ok := chatClass.(*tg.Chat); ok && c.ID == peer.ChatID {
 				chat.Title = c.Title
-				chat.Type = int(database.ChatTypeChannel)
+				chat.Type = int(database.ChatTypeGroup)
 				break
 			}
 		}
@@ -650,10 +657,10 @@ func (u *UserClient) updateChatMetadataFromEntities(ctx context.Context, dialog 
 }
 
 // updateUsersInfo 更新用户信息
-func (u *UserClient) updateUsersInfo(ctx context.Context, users []tg.UserClass, chatID int64) error {
+func (u *UserClient) updateUsersInfo(ctx context.Context, users []tg.UserClass) error {
 	for _, userClass := range users {
 		if user, ok := userClass.(*tg.User); ok {
-			userDB, err := database.GetUserInfo(ctx, chatID)
+			userDB, err := database.GetUserInfo(ctx, user.ID)
 			if err == nil {
 				// 已存在，更新信息
 				userDB.FirstName = user.FirstName
@@ -678,3 +685,67 @@ func (u *UserClient) updateUsersInfo(ctx context.Context, users []tg.UserClass, 
 	}
 	return nil
 }
+
+// [TODO] TakeoutInitDelay 一般是需要在新设备在线超过 24 小时后才允许使用 Takeout
+// 暂不实现
+// func (u *UserClient) takeoutRunWithRetry(
+// 	ctx context.Context,
+// 	cfg takeout.Config,
+// 	progressCallback TakeoutProgressCallback,
+// 	f func(ctx context.Context, client *takeout.Client) error,
+// ) error {
+// 	// 官方文档：initTakeoutSession 可能返回 TAKEOUT_INIT_DELAY_%d。
+// 	// gotd/td 的 takeout.Run 不做等待重试，这里补齐。
+// 	const maxAttempts = 10
+// 	invoker := u.TClient.API().Invoker()
+
+// 	var lastErr error
+// 	for attempt := 1; attempt <= maxAttempts; attempt++ {
+// 		lastErr = takeout.Run(ctx, invoker, cfg, f)
+// 		if lastErr == nil {
+// 			return nil
+// 		}
+
+// 		// 等待 takeout 安全确认窗口。
+// 		if tg.IsTakeoutInitDelay(lastErr) {
+// 			wait := 60 * time.Second
+// 			var rpcErr *tgerr.Error
+// 			if errors.As(lastErr, &rpcErr) && rpcErr.Argument > 0 {
+// 				wait = time.Duration(rpcErr.Argument) * time.Second
+// 			}
+
+// 			if progressCallback != nil {
+// 				progressCallback("init", 0, 1, fmt.Sprintf("Takeout init delayed, waiting %s...", wait.Round(time.Second)))
+// 			}
+
+// 			t := time.NewTimer(wait)
+// 			select {
+// 			case <-ctx.Done():
+// 				t.Stop()
+// 				return ctx.Err()
+// 			case <-t.C:
+// 				continue
+// 			}
+// 		}
+
+// 		// 某些情况下会话/任务冲突，简单退避重试。
+// 		if tg.IsTaskAlreadyExists(lastErr) {
+// 			wait := time.Duration(attempt*5) * time.Second
+// 			if progressCallback != nil {
+// 				progressCallback("init", 0, 1, fmt.Sprintf("Takeout task already exists, retrying in %s...", wait))
+// 			}
+// 			t := time.NewTimer(wait)
+// 			select {
+// 			case <-ctx.Done():
+// 				t.Stop()
+// 				return ctx.Err()
+// 			case <-t.C:
+// 				continue
+// 			}
+// 		}
+
+// 		return lastErr
+// 	}
+
+// 	return lastErr
+// }

@@ -11,6 +11,7 @@ import (
 
 func RegisterTakeoutCmd(root *cobra.Command) {
 	var enableWatching bool
+	var noUsers, noChats, noMegagroups, noChannels bool
 	takeoutCmd := &cobra.Command{
 		Use:   "takeout",
 		Short: "Export all chat messages to index using Telegram Takeout API",
@@ -50,7 +51,12 @@ Note: This is a one-time export operation and may take a long time depending on 
 
 			// 使用 bubbletea 进度条运行 takeout 导出
 			if err := runTakeoutWithProgress(func(progressCallback func(stage string, current, total int, message string)) error {
-				return uc.TakeoutExport(ctx, enableWatching, progressCallback)
+				return uc.TakeoutExport(ctx, enableWatching, userclient.TakeoutConfig{
+					MessageUsers:      !noUsers,
+					MessageChats:      !noChats,
+					MessageMegagroups: !noMegagroups,
+					MessageChannels:   !noChannels,
+				}, progressCallback)
 			}); err != nil {
 				logger.Fatal("Takeout export failed", "error", err)
 			}
@@ -59,6 +65,10 @@ Note: This is a one-time export operation and may take a long time depending on 
 
 	// 是否将导出的聊天设置为默认监听
 	takeoutCmd.Flags().BoolVar(&enableWatching, "watch", false, "Mark exported chats as watching (default: false)")
+	takeoutCmd.Flags().BoolVar(&noUsers, "no-users", false, "Do not export messages from private chats with users")
+	takeoutCmd.Flags().BoolVar(&noChats, "no-chats", false, "Do not export messages from group chats")
+	takeoutCmd.Flags().BoolVar(&noMegagroups, "no-megagroups", false, "Do not export messages from megagroups")
+	takeoutCmd.Flags().BoolVar(&noChannels, "no-channels", false, "Do not export messages from channels")
 
 	root.AddCommand(takeoutCmd)
 }
