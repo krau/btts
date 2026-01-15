@@ -281,7 +281,31 @@ func (u *UserClient) syncChannelDifference(ctx context.Context, channelID int64)
 			time.Sleep(100 * time.Millisecond)
 
 		case *tg.UpdatesChannelDifferenceTooLong:
-			logger.Warn("Channel difference too long, may need manual intervention")
+			// 差异太大，服务器返回当前状态和最新消息
+			logger.Warn("Channel difference too long, resetting to current state")
+
+			// 处理返回的新消息
+			if len(d.Messages) > 0 {
+				totalMessages += len(d.Messages)
+				if err := u.processDifference(ctx, d.Messages, nil); err != nil {
+					logger.Error("Failed to process messages from too long difference", "error", err)
+				}
+			}
+
+			// 从 Dialog 中提取最新的 PTS
+			if dialog, ok := d.Dialog.(*tg.Dialog); ok {
+				if dialogPts, hasPts := dialog.GetPts(); hasPts {
+					pts = dialogPts
+					if err := database.UpdateChannelPts(ctx, channelID, pts); err != nil {
+						logger.Error("Failed to update channel pts", "error", err)
+					}
+					logger.Info("Updated channel pts from dialog", "pts", pts)
+				}
+			}
+
+			if totalMessages > 0 {
+				logger.Info("Channel sync completed (too long)", "messages", totalMessages)
+			}
 			return nil
 		}
 	}

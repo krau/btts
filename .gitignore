@@ -8,3 +8,6 @@ tmp/
 .meilisearch/
 go.work
 go.work.sum
+.exe
+tmp-*
+*-tmp
