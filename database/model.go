@@ -31,7 +31,8 @@ type ChatType int
 
 const (
 	ChatTypePrivate ChatType = iota
-	ChatTypeChannel
+	ChatTypeChannel          // 频道和超级群
+	ChatTypeGroup            // 普通群组
 )
 
 type IndexChat struct {
