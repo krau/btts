@@ -4,10 +4,10 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/celestix/gotgproto/functions"
 	"github.com/gabriel-vasile/mimetype"
 	"github.com/gotd/td/telegram/downloader"
 	"github.com/gotd/td/tg"
+	"github.com/krau/mygotg/functions"
 )
 
 type TGFile interface {

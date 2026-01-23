@@ -5,8 +5,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/celestix/gotgproto/dispatcher"
-	"github.com/celestix/gotgproto/ext"
 	"github.com/charmbracelet/log"
 	"github.com/duke-git/lancet/v2/slice"
 	"github.com/duke-git/lancet/v2/strutil"
@@ -21,6 +19,8 @@ import (
 	"github.com/krau/btts/userclient"
 	"github.com/krau/btts/utils"
 	"github.com/krau/btts/utils/cache"
+	"github.com/krau/mygotg/dispatcher"
+	"github.com/krau/mygotg/ext"
 )
 
 func CheckAdmin(ctx *ext.Context, update *ext.Update) bool {

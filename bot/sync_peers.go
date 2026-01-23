@@ -1,8 +1,8 @@
 package bot
 
 import (
-	"github.com/celestix/gotgproto/dispatcher"
-	"github.com/celestix/gotgproto/ext"
+	"github.com/krau/mygotg/dispatcher"
+	"github.com/krau/mygotg/ext"
 )
 
 func SyncPeersHandler(ctx *ext.Context, update *ext.Update) error {

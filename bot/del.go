@@ -3,10 +3,10 @@ package bot
 import (
 	"strconv"
 
-	"github.com/celestix/gotgproto/dispatcher"
-	"github.com/celestix/gotgproto/ext"
 	"github.com/charmbracelet/log"
 	"github.com/krau/btts/database"
+	"github.com/krau/mygotg/dispatcher"
+	"github.com/krau/mygotg/ext"
 )
 
 func DelHandler(ctx *ext.Context, update *ext.Update) error {

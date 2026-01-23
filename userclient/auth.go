@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/celestix/gotgproto"
+	"github.com/krau/mygotg"
 	"golang.org/x/term"
 )
 
@@ -44,13 +44,13 @@ func (t *terminalAuthConversator) AskPassword() (string, error) {
 	return strings.TrimSpace(string(bytePwd)), nil
 }
 
-func (t *terminalAuthConversator) AuthStatus(authStatus gotgproto.AuthStatus) {
+func (t *terminalAuthConversator) AuthStatus(authStatus mygotg.AuthStatus) {
 	switch authStatus.Event {
-	case gotgproto.AuthStatusPhoneRetrial:
+	case mygotg.AuthStatusPhoneRetrial:
 		fmt.Printf("The phone number is incorrect. Attempts left: %d\n", authStatus.AttemptsLeft)
-	case gotgproto.AuthStatusPasswordRetrial:
+	case mygotg.AuthStatusPasswordRetrial:
 		fmt.Printf("The 2FA password is incorrect. Attempts left: %d\n", authStatus.AttemptsLeft)
-	case gotgproto.AuthStatusPhoneCodeRetrial:
+	case mygotg.AuthStatusPhoneCodeRetrial:
 		fmt.Printf("The OTP code is incorrect. Attempts left: %d\n", authStatus.AttemptsLeft)
 	default:
 	}

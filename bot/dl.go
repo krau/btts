@@ -5,12 +5,12 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/celestix/gotgproto/dispatcher"
-	"github.com/celestix/gotgproto/ext"
 	"github.com/charmbracelet/log"
 	"github.com/gotd/td/tg"
 	"github.com/krau/btts/engine"
 	"github.com/krau/btts/utils"
+	"github.com/krau/mygotg/dispatcher"
+	"github.com/krau/mygotg/ext"
 )
 
 func DownloadHandler(ctx *ext.Context, update *ext.Update) error {

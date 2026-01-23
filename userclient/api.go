@@ -3,12 +3,12 @@ package userclient
 import (
 	"context"
 
-	"github.com/celestix/gotgproto/storage"
-	"github.com/celestix/gotgproto/types"
 	"github.com/charmbracelet/log"
 	"github.com/gotd/td/telegram/query/dialogs"
 	"github.com/gotd/td/tg"
 	"github.com/krau/btts/database"
+	"github.com/krau/mygotg/storage"
+	"github.com/krau/mygotg/types"
 )
 
 func (u *UserClient) ForwardMessagesToFav(ctx context.Context, fromID int64, messageIDs []int) error {

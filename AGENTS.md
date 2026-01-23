@@ -6,7 +6,7 @@
 
 核心组件与职责边界：
 
-- `bot/`：Bot 客户端（基于 `gotgproto`），处理管理员命令（`/add`、`/del`、`/watch`）和用户搜索交互
+- `bot/`：Bot 客户端（基于 `mygotg`），处理管理员命令（`/add`、`/del`、`/watch`）和用户搜索交互
 - `userclient/`：User 客户端，监听群组消息更新并驱动实时索引，session 存储在 `data/session_user.db`
 - `engine/`：搜索引擎抽象层（当前为 Meilisearch），每个聊天对应独立索引 `btts_<chatID>`
 - `database/`：SQLite + gorm 持久层，存储 `IndexChat`、`UserInfo`、`SubBot`、`ApiKey` 模型
@@ -97,7 +97,7 @@ JSON 响应（sonic 编码）
 
 **文件流代理**：`/api/client/filestream` 使用自定义 `reqtoken` 查询参数（基于 `chat_id` + `message_id` + `config.C.Api.Key` 计算 SHA-256），避免 Bearer token 泄露。
 
-## gotgproto Dispatcher 模式（Bot Handler 开发）
+## mygotg Dispatcher 模式（Bot Handler 开发）
 
 使用 `dispatcher.HandlerFunc` 返回值控制 handler 链流转：
 

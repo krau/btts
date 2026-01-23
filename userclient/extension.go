@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/celestix/gotgproto/ext"
 	"github.com/charmbracelet/log"
 	"github.com/gotd/td/telegram/uploader"
 	"github.com/gotd/td/tg"
+	"github.com/krau/mygotg/ext"
 	"github.com/rs/xid"
 	"go.uber.org/multierr"
 )

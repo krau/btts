@@ -4,8 +4,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/celestix/gotgproto/dispatcher"
-	"github.com/celestix/gotgproto/ext"
 	"github.com/charmbracelet/log"
 	"github.com/gotd/td/telegram/message/entity"
 	"github.com/gotd/td/telegram/message/styling"
@@ -14,6 +12,8 @@ import (
 	"github.com/krau/btts/types"
 	"github.com/krau/btts/utils"
 	"github.com/krau/btts/utils/cache"
+	"github.com/krau/mygotg/dispatcher"
+	"github.com/krau/mygotg/ext"
 )
 
 func SearchHandler(ctx *ext.Context, update *ext.Update) error {

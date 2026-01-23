@@ -5,11 +5,11 @@ import (
 	"encoding/hex"
 	"strconv"
 
-	"github.com/celestix/gotgproto/dispatcher"
-	"github.com/celestix/gotgproto/ext"
 	"github.com/google/uuid"
 	"github.com/gotd/td/telegram/message/styling"
 	"github.com/krau/btts/database"
+	"github.com/krau/mygotg/dispatcher"
+	"github.com/krau/mygotg/ext"
 )
 
 // /addapikey <name> <key> <chat_ids...>

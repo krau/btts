@@ -5,9 +5,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/celestix/gotgproto/dispatcher"
-	"github.com/celestix/gotgproto/ext"
 	"github.com/charmbracelet/log"
+	"github.com/krau/mygotg/dispatcher"
+	"github.com/krau/mygotg/ext"
 )
 
 func StartHandler(ctx *ext.Context, update *ext.Update) error {

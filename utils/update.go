@@ -1,8 +1,8 @@
 package utils
 
 import (
-	"github.com/celestix/gotgproto/ext"
 	"github.com/gotd/td/tg"
+	"github.com/krau/mygotg/ext"
 )
 
 func GetUpdatePeerUser(u *ext.Update) *tg.PeerUser {

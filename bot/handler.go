@@ -8,10 +8,10 @@ import (
 	"github.com/gotd/td/tg"
 	"github.com/krau/btts/config"
 
-	"github.com/celestix/gotgproto/dispatcher/handlers"
-	"github.com/celestix/gotgproto/dispatcher/handlers/filters"
-	"github.com/celestix/gotgproto/ext"
-	"github.com/celestix/gotgproto/types"
+	"github.com/krau/mygotg/dispatcher/handlers"
+	"github.com/krau/mygotg/dispatcher/handlers/filters"
+	"github.com/krau/mygotg/ext"
+	"github.com/krau/mygotg/types"
 )
 
 func CheckPermission(ctx *ext.Context, update *ext.Update) bool {

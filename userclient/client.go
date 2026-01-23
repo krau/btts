@@ -10,18 +10,18 @@ import (
 	"go.uber.org/zap/zapcore"
 	lumberjack "gopkg.in/natefinch/lumberjack.v2"
 
-	"github.com/celestix/gotgproto"
-	"github.com/celestix/gotgproto/dispatcher"
-	"github.com/celestix/gotgproto/dispatcher/handlers"
-	"github.com/celestix/gotgproto/dispatcher/handlers/filters"
-	"github.com/celestix/gotgproto/ext"
-	"github.com/celestix/gotgproto/sessionMaker"
 	"github.com/charmbracelet/log"
 	"github.com/gotd/td/tg"
 	"github.com/krau/btts/config"
 	"github.com/krau/btts/database"
 	"github.com/krau/btts/middlewares"
 	"github.com/krau/btts/utils"
+	"github.com/krau/mygotg"
+	"github.com/krau/mygotg/dispatcher"
+	"github.com/krau/mygotg/dispatcher/handlers"
+	"github.com/krau/mygotg/dispatcher/handlers/filters"
+	"github.com/krau/mygotg/ext"
+	"github.com/krau/mygotg/session"
 	"github.com/ncruces/go-sqlite3/gormlite"
 )
 
@@ -35,7 +35,7 @@ func GetUserClient() *UserClient {
 }
 
 type UserClient struct {
-	TClient           *gotgproto.Client
+	TClient           *mygotg.Client
 	logger            *zap.Logger
 	GlobalIgnoreUsers []int64
 	ectx              *ext.Context // created by TClient.CreateContext()
@@ -180,12 +180,12 @@ func NewUserClient(ctx context.Context) (*UserClient, error) {
 			}),
 			zap.DebugLevel,
 		))
-		tclient, err := gotgproto.NewClient(
+		tclient, err := mygotg.NewClient(
 			config.C.AppID,
 			config.C.AppHash,
-			gotgproto.ClientTypePhone(""),
-			&gotgproto.ClientOpts{
-				Session:          sessionMaker.SqlSession(gormlite.Open("data/session_user.db")),
+			mygotg.ClientTypePhone(""),
+			&mygotg.ClientOpts{
+				Session:          session.SqlSession(gormlite.Open("data/session_user.db")),
 				AuthConversator:  &terminalAuthConversator{},
 				Logger:           tclientLog,
 				Context:          ctx,
