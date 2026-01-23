@@ -118,21 +118,21 @@ func DocumentsFromMessages(ctx context.Context, messages []*tg.Message, chatID, 
 			continue
 		}
 
-		var messageSB strings.Builder
+		var msb strings.Builder
 		var messageType types.MessageType
 		var ocred string
 		media, ok := message.GetMedia()
 		if ok {
 			result := utils.ExtractMessageMediaText(ctx, ectx, media, downloadMedia)
 			if result != nil {
-				messageSB.WriteString(result.Text)
+				msb.WriteString(result.Text)
 				ocred = result.Ocred
 				messageType = result.Type
 			}
 		}
-		messageSB.WriteString(message.GetMessage())
-		messageText := messageSB.String()
-		if messageText == "" {
+		msb.WriteString(message.GetMessage())
+		messageText := msb.String()
+		if messageText == "" && ocred == "" {
 			continue
 		}
 		docs = append(docs, &types.MessageDocument{
