@@ -162,7 +162,7 @@ func migrateChat(ctx context.Context, oldIndex, newIndex meilisearch.IndexManage
 			})
 		}
 		priKey := "id"
-		_, err = newIndex.UpdateDocumentsWithContext(ctx, newDocs, &priKey)
+		_, err = newIndex.AddDocumentsWithContext(ctx, newDocs, &priKey)
 		if err != nil {
 			return fmt.Errorf("failed to update documents: %w", err)
 		}

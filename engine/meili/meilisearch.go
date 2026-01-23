@@ -131,7 +131,7 @@ func (m *Meilisearch) AddDocuments(ctx context.Context, chatID int64, docs []*ty
 		return err
 	}
 	primaryKey := "id"
-	_, err = m.Client.Index(m.Index).UpdateDocumentsWithContext(ctx, jsonData, &primaryKey)
+	_, err = m.Client.Index(m.Index).AddDocumentsWithContext(ctx, jsonData, &primaryKey)
 	return err
 }
 
