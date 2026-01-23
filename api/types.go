@@ -46,18 +46,19 @@ type SearchResponse struct {
 }
 
 type SearchHitResponse struct {
-	ID           int64                    `json:"id"` // Telegram MessageID
-	Type         string                   `json:"type"`
-	FullText     string                   `json:"full_text"`
-	Message      string                   `json:"message"`                  // The original text of the message
-	Ocred        string                   `json:"ocred"`                    // The OCRed text of the message
-	AIGenerated  string                   `json:"aigenerated"`              // The AI generated text of the message
-	UserID       int64                    `json:"user_id"`                  // The ID of the user who sent the message
-	ChatID       int64                    `json:"chat_id"`                  // The ID of the chat where the message was sent
-	UserFullName string                   `json:"user_full_name,omitempty"` // The full name of the user who sent the message, if available
-	ChatTitle    string                   `json:"chat_title,omitempty"`     // The title of the chat, if available
-	Timestamp    int64                    `json:"timestamp"`
-	Formatted    types.SearchHitFormatted `json:"_formatted"`
+	ID                int64                    `json:"id"` // Telegram MessageID
+	Type              string                   `json:"type"`
+	FullText          string                   `json:"full_text"`
+	FullFormattedText string                   `json:"full_formatted_text,omitempty"`
+	Message           string                   `json:"message"`                  // The original text of the message
+	Ocred             string                   `json:"ocred"`                    // The OCRed text of the message
+	AIGenerated       string                   `json:"aigenerated"`              // The AI generated text of the message
+	UserID            int64                    `json:"user_id"`                  // The ID of the user who sent the message
+	ChatID            int64                    `json:"chat_id"`                  // The ID of the chat where the message was sent
+	UserFullName      string                   `json:"user_full_name,omitempty"` // The full name of the user who sent the message, if available
+	ChatTitle         string                   `json:"chat_title,omitempty"`     // The title of the chat, if available
+	Timestamp         int64                    `json:"timestamp"`
+	Formatted         types.SearchHitFormatted `json:"_formatted"`
 }
 
 func ResponseSearch(c *fiber.Ctx, rawResp *types.SearchResponse) error {
@@ -93,18 +94,19 @@ func ResponseSearch(c *fiber.Ctx, rawResp *types.SearchResponse) error {
 		}
 		ChatTitle = strings.TrimSpace(chat.Title)
 		resp.Hits[i] = SearchHitResponse{
-			ID:           hit.ID,
-			Type:         types.MessageTypeToString[types.MessageType(hit.Type)],
-			Message:      hit.Message,
-			Ocred:        hit.Ocred,
-			AIGenerated:  hit.AIGenerated,
-			UserID:       hit.UserID,
-			UserFullName: UserFullName,
-			ChatID:       hit.ChatID,
-			ChatTitle:    ChatTitle,
-			Timestamp:    hit.Timestamp,
-			Formatted:    hit.Formatted,
-			FullText:     strings.TrimSpace(hit.Message + " " + hit.Ocred + " " + hit.AIGenerated),
+			ID:                hit.ID,
+			Type:              types.MessageTypeToString[types.MessageType(hit.Type)],
+			Message:           hit.Message,
+			Ocred:             hit.Ocred,
+			AIGenerated:       hit.AIGenerated,
+			UserID:            hit.UserID,
+			UserFullName:      UserFullName,
+			ChatID:            hit.ChatID,
+			ChatTitle:         ChatTitle,
+			Timestamp:         hit.Timestamp,
+			Formatted:         hit.Formatted,
+			FullText:          strings.TrimSpace(hit.Message + " " + hit.Ocred + " " + hit.AIGenerated),
+			FullFormattedText: hit.FullFormattedText(),
 		}
 	}
 	return c.JSON(fiber.Map{
@@ -141,6 +143,9 @@ func ResponseDocuments(c *fiber.Ctx, docs []*types.MessageDocument) error {
 			ID:           doc.ID,
 			Type:         types.MessageTypeToString[types.MessageType(doc.Type)],
 			Message:      doc.Message,
+			Ocred:        doc.Ocred,
+			AIGenerated:  doc.AIGenerated,
+			FullText:     strings.TrimSpace(doc.Message + " " + doc.Ocred + " " + doc.AIGenerated),
 			UserID:       doc.UserID,
 			UserFullName: userFullName,
 			ChatID:       doc.ChatID,
