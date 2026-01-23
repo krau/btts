@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/celestix/gotgproto/ext"
 	"github.com/charmbracelet/log"
 	"github.com/gotd/td/tg"
 	"github.com/krau/btts/config"
 	"github.com/krau/btts/engine/meili"
 	"github.com/krau/btts/types"
 	"github.com/krau/btts/utils"
+	"github.com/krau/mygotg/ext"
 	"github.com/meilisearch/meilisearch-go"
 )
 

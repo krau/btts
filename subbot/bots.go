@@ -6,23 +6,23 @@ import (
 	"sync"
 	"time"
 
-	"github.com/celestix/gotgproto"
-	"github.com/celestix/gotgproto/dispatcher/handlers"
-	"github.com/celestix/gotgproto/dispatcher/handlers/filters"
-	"github.com/celestix/gotgproto/sessionMaker"
-	"github.com/celestix/gotgproto/types"
 	"github.com/charmbracelet/log"
 	"github.com/gotd/td/tg"
 	"github.com/krau/btts/config"
 	"github.com/krau/btts/database"
 	"github.com/krau/btts/middlewares"
 	"github.com/krau/btts/utils"
+	"github.com/krau/mygotg"
+	"github.com/krau/mygotg/dispatcher/handlers"
+	"github.com/krau/mygotg/dispatcher/handlers/filters"
+	"github.com/krau/mygotg/session"
+	"github.com/krau/mygotg/types"
 	"github.com/ncruces/go-sqlite3/gormlite"
 	"golang.org/x/sync/errgroup"
 )
 
 type SubBot struct {
-	Client *gotgproto.Client
+	Client *mygotg.Client
 	ID     int64
 	Name   string
 }
@@ -64,21 +64,21 @@ var subBotMu = sync.RWMutex{}
 type SubBotKey struct{}
 
 func NewSubBot(ctx context.Context, token string, chats []int64) (*SubBot, error) {
-	session := utils.MD5Hash(token)
-	ctx = context.WithValue(ctx, SubBotKey{}, session)
+	sessionName := utils.MD5Hash(token)
+	ctx = context.WithValue(ctx, SubBotKey{}, sessionName)
 	log := log.FromContext(ctx)
-	log.Debugf("Initializing sub bot %s", session)
+	log.Debugf("Initializing sub bot %s", sessionName)
 	res := make(chan struct {
-		client *gotgproto.Client
+		client *mygotg.Client
 		err    error
 	})
 	go func() {
-		tclient, err := gotgproto.NewClient(
+		tclient, err := mygotg.NewClient(
 			config.C.AppID,
 			config.C.AppHash,
-			gotgproto.ClientTypeBot(token),
-			&gotgproto.ClientOpts{
-				Session:          sessionMaker.SqlSession(gormlite.Open(fmt.Sprintf("data/session_%s.db", session))),
+			mygotg.ClientTypeBot(token),
+			&mygotg.ClientOpts{
+				Session:          session.SqlSession(gormlite.Open(fmt.Sprintf("data/session_%s.db", sessionName))),
 				DisableCopyright: true,
 				Context:          ctx,
 				Middlewares:      middlewares.NewDefaultMiddlewares(ctx, 5*time.Minute),
@@ -88,7 +88,7 @@ func NewSubBot(ctx context.Context, token string, chats []int64) (*SubBot, error
 		if err != nil {
 			log.Errorf("Failed to create sub bot: %v", err)
 			res <- struct {
-				client *gotgproto.Client
+				client *mygotg.Client
 				err    error
 			}{nil, err}
 			return
@@ -96,7 +96,7 @@ func NewSubBot(ctx context.Context, token string, chats []int64) (*SubBot, error
 		if tclient.Self.ID == 0 {
 			log.Errorf("Failed to get sub bot ID")
 			res <- struct {
-				client *gotgproto.Client
+				client *mygotg.Client
 				err    error
 			}{nil, fmt.Errorf("failed to get sub bot ID")}
 			return
@@ -109,7 +109,7 @@ func NewSubBot(ctx context.Context, token string, chats []int64) (*SubBot, error
 		if err != nil {
 			log.Errorf("Failed to upsert sub bot: %v", err)
 			res <- struct {
-				client *gotgproto.Client
+				client *mygotg.Client
 				err    error
 			}{nil, err}
 			return
@@ -123,7 +123,7 @@ func NewSubBot(ctx context.Context, token string, chats []int64) (*SubBot, error
 			},
 		})
 		res <- struct {
-			client *gotgproto.Client
+			client *mygotg.Client
 			err    error
 		}{client: tclient, err: nil}
 	}()
