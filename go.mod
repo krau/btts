@@ -4,7 +4,6 @@ go 1.24.2
 
 require (
 	github.com/blang/semver v3.5.1+incompatible
-	github.com/celestix/gotgproto v1.0.0-beta22
 	github.com/charmbracelet/bubbles v0.21.0
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/lipgloss v1.1.0
@@ -16,6 +15,7 @@ require (
 	github.com/gofiber/swagger v1.1.1
 	github.com/gotd/contrib v0.21.1
 	github.com/gotd/td v0.137.0
+	github.com/krau/mygotg v0.1.0
 	github.com/meilisearch/meilisearch-go v0.34.2
 	github.com/ncruces/go-sqlite3 v0.30.4
 	github.com/rs/xid v1.6.0
@@ -96,10 +96,10 @@ require (
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/arch v0.23.0 // indirect
-	modernc.org/libc v1.67.1 // indirect
+	modernc.org/libc v1.67.6 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
-	modernc.org/sqlite v1.40.1 // indirect
+	modernc.org/sqlite v1.44.3 // indirect
 )
 
 require (
@@ -117,7 +117,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gotd/ige v0.2.2 // indirect
 	github.com/gotd/neo v0.1.5 // indirect
-	github.com/klauspost/compress v1.18.2 // indirect
+	github.com/klauspost/compress v1.18.3 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/ncruces/go-sqlite3/gormlite v0.30.2
@@ -144,6 +144,3 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	rsc.io/qr v0.2.0 // indirect
 )
-
-// go mod edit -replace=github.com/celestix/gotgproto=github.com/krau/gotgproto@$(git ls-remote https://github.com/krau/gotgproto.git | grep refs/heads/dev | cut -f1) && go mod tidy
-replace github.com/celestix/gotgproto => github.com/krau/gotgproto v0.0.0-20250816001449-27be9698c71d

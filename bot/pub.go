@@ -3,10 +3,10 @@ package bot
 import (
 	"fmt"
 
-	"github.com/celestix/gotgproto/dispatcher"
-	"github.com/celestix/gotgproto/ext"
 	"github.com/krau/btts/database"
 	"github.com/krau/btts/utils"
+	"github.com/krau/mygotg/dispatcher"
+	"github.com/krau/mygotg/ext"
 )
 
 func PubHandler(ctx *ext.Context, update *ext.Update) error {

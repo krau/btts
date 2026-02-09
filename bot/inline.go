@@ -3,13 +3,13 @@ package bot
 import (
 	"fmt"
 
-	"github.com/celestix/gotgproto/dispatcher"
-	"github.com/celestix/gotgproto/ext"
 	"github.com/duke-git/lancet/v2/strutil"
 	"github.com/gotd/td/telegram/message/inline"
 	"github.com/gotd/td/tg"
 	"github.com/krau/btts/database"
 	"github.com/krau/btts/types"
+	"github.com/krau/mygotg/dispatcher"
+	"github.com/krau/mygotg/ext"
 )
 
 func InlineQueryHandler(ctx *ext.Context, update *ext.Update) error {

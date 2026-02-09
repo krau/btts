@@ -4,15 +4,15 @@ import (
 	"context"
 	"time"
 
-	"github.com/celestix/gotgproto"
-	"github.com/celestix/gotgproto/ext"
-	"github.com/celestix/gotgproto/sessionMaker"
 	"github.com/charmbracelet/log"
 	"github.com/krau/btts/config"
 	"github.com/krau/btts/engine"
 	"github.com/krau/btts/middlewares"
 	"github.com/krau/btts/subbot"
 	"github.com/krau/btts/userclient"
+	"github.com/krau/mygotg"
+	"github.com/krau/mygotg/ext"
+	"github.com/krau/mygotg/session"
 	"github.com/ncruces/go-sqlite3/gormlite"
 )
 
@@ -26,7 +26,7 @@ func GetBot() *Bot {
 }
 
 type Bot struct {
-	Client     *gotgproto.Client
+	Client     *mygotg.Client
 	UserClient *userclient.UserClient
 	Engine     engine.Searcher
 	ectx       *ext.Context // created by Client.CreateContext()
@@ -79,24 +79,24 @@ func NewBot(ctx context.Context, userClient *userclient.UserClient, engine engin
 		return bi, nil
 	}
 	res := make(chan struct {
-		client *gotgproto.Client
+		client *mygotg.Client
 		err    error
 	})
 	go func() {
-		tclient, err := gotgproto.NewClient(
+		tclient, err := mygotg.NewClient(
 			config.C.AppID,
 			config.C.AppHash,
-			gotgproto.ClientTypeBot(config.C.BotToken),
-			&gotgproto.ClientOpts{
+			mygotg.ClientTypeBot(config.C.BotToken),
+			&mygotg.ClientOpts{
 				AutoFetchReply:   true,
-				Session:          sessionMaker.SqlSession(gormlite.Open("data/session_bot.db")),
+				Session:          session.SqlSession(gormlite.Open("data/session_bot.db")),
 				DisableCopyright: true,
 				Middlewares:      middlewares.NewDefaultMiddlewares(ctx, 5*time.Minute),
 				Context:          ctx,
 			},
 		)
 		res <- struct {
-			client *gotgproto.Client
+			client *mygotg.Client
 			err    error
 		}{client: tclient, err: err}
 	}()

@@ -6,12 +6,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/celestix/gotgproto/storage"
 	"github.com/charmbracelet/log"
 	"github.com/gotd/td/telegram/takeout"
 	"github.com/gotd/td/tg"
 	"github.com/krau/btts/database"
 	"github.com/krau/btts/engine"
+	"github.com/krau/mygotg/storage"
 )
 
 // TakeoutProgressCallback 进度回调接口
