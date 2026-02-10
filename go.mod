@@ -11,7 +11,7 @@ require (
 	github.com/dgraph-io/ristretto/v2 v2.3.0
 	github.com/gabriel-vasile/mimetype v1.4.12
 	github.com/go-faster/errors v0.7.1
-	github.com/gofiber/fiber/v2 v2.52.10
+	github.com/gofiber/fiber/v2 v2.52.11
 	github.com/gofiber/swagger v1.1.1
 	github.com/gotd/contrib v0.21.1
 	github.com/gotd/td v0.137.0
