@@ -15,6 +15,7 @@ import (
 	"github.com/krau/btts/config"
 	"github.com/krau/btts/database"
 	"github.com/krau/btts/middlewares"
+	"github.com/krau/btts/userclient/plugin"
 	"github.com/krau/btts/utils"
 	"github.com/krau/mygotg"
 	"github.com/krau/mygotg/dispatcher"
@@ -22,6 +23,7 @@ import (
 	"github.com/krau/mygotg/dispatcher/handlers/filters"
 	"github.com/krau/mygotg/ext"
 	"github.com/krau/mygotg/session"
+	"github.com/krau/mygotg/types"
 	"github.com/ncruces/go-sqlite3/gormlite"
 )
 
@@ -112,6 +114,7 @@ func (u *UserClient) StartWatch(ctx context.Context) {
 		if u.EffectiveMessage.IsService {
 			return dispatcher.SkipCurrentGroup
 		}
+		// 对于实体较短的更新，重新获取完整更新以确保包含必要的实体信息
 		if u.Entities == nil || u.Entities.Short {
 			u = ext.GetNewUpdate(ctx, ctx.Raw, ctx.Self.ID, ctx.PeerStorage, u.Entities, u.UpdateClass)
 		}
@@ -134,6 +137,22 @@ func (u *UserClient) StartWatch(ctx context.Context) {
 		return dispatcher.ContinueGroups
 	}), 2)
 	disp.AddHandlerToGroup(handlers.NewMessage(filters.Message.All, WatchHandler), 2)
+
+	// plugins
+	disp.AddHandlerToGroup(handlers.NewMessage(func(m *types.Message) bool {
+		if m == nil {
+			return false
+		}
+		if !config.C.Plugin.Enable {
+			return false
+		}
+		return true
+	}, func(ctx *ext.Context, u *ext.Update) error {
+		if err := plugin.Dispatcher(ctx, u); err != nil {
+			log.FromContext(ctx).Error("Plugin dispatcher error", "error", err)
+		}
+		return dispatcher.SkipCurrentGroup
+	}), 3)
 }
 
 func (u *UserClient) Close() error {
@@ -191,6 +210,7 @@ func NewUserClient(ctx context.Context) (*UserClient, error) {
 				Context:          ctx,
 				DisableCopyright: true,
 				Middlewares:      middlewares.NewDefaultMiddlewares(ctx, 5*time.Minute),
+				AutoFetchReply:   true,
 			},
 		)
 		if err != nil {

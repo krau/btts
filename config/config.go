@@ -14,7 +14,11 @@ type AppConfig struct {
 	BotToken    string  `toml:"bot_token" mapstructure:"bot_token"`
 	Admins      []int64 `toml:"admins" mapstructure:"admins"`
 	SkipCatchup bool    `toml:"skip_catchup" mapstructure:"skip_catchup"`
-	Engine      struct {
+	Plugin      struct {
+		Enable   bool     `toml:"enable" mapstructure:"enable"`
+		Prefixes []string `toml:"prefixes" mapstructure:"prefixes"`
+	} `toml:"plugin" mapstructure:"plugin"`
+	Engine struct {
 		Type     string `toml:"type" mapstructure:"type"` // "meilisearch" or "bleve"
 		Url      string `toml:"url" mapstructure:"url"`
 		Index    string `toml:"index" mapstructure:"index"` // For meilisearch: index uid
@@ -64,6 +68,8 @@ func Init() {
 	viper.SetDefault("file_cache.disable", false)
 	viper.SetDefault("file_cache.dir", "data/file_cache")
 	viper.SetDefault("file_cache.ttl", "24h")
+
+	viper.SetDefault("plugin.prefixes", []string{","})
 
 	if err := viper.ReadInConfig(); err != nil {
 		log.Fatalf("Error reading config file, %s", err)
