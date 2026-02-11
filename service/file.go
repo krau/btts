@@ -9,14 +9,16 @@ import (
 
 	"github.com/charmbracelet/log"
 	"github.com/krau/btts/bot"
+	"github.com/krau/btts/config"
 	"github.com/krau/btts/userclient"
 	"github.com/krau/btts/utils"
 )
 
 type TGFileFileReader struct {
-	RC   io.ReadCloser
-	Size int64
-	Name string
+	RC       io.ReadCloser
+	Size     int64
+	Name     string
+	FilePath string // set when backed by a disk cache file
 }
 
 func (r *TGFileFileReader) Read(p []byte) (n int, err error) {
@@ -29,6 +31,17 @@ func (r *TGFileFileReader) Close() error {
 
 func GetTGFileReader(ctx context.Context, chatID int64, messageId int) (*TGFileFileReader, error) {
 	logger := log.FromContext(ctx)
+
+	// Try disk cache first
+	if config.C.FileCache.Disable {
+		initFileCache()
+		cached, err := getCachedFileReader(chatID, messageId)
+		if err == nil && cached != nil {
+			logger.Info("File cache hit", "chat_id", chatID, "message_id", messageId)
+			return cached, nil
+		}
+	}
+
 	ectx := bot.GetBot().GetContext()
 	msg, err := utils.GetMessageByID(ectx, chatID, messageId)
 	if err != nil || msg == nil {
@@ -61,9 +74,17 @@ func GetTGFileReader(ctx context.Context, chatID int64, messageId int) (*TGFileF
 			return
 		}
 	}()
-	return &TGFileFileReader{
+	result := &TGFileFileReader{
 		RC:   pr,
 		Size: tf.Size(),
 		Name: tf.Name(),
-	}, nil
+	}
+
+	// Wrap with disk cache if enabled
+	if config.C.FileCache.Disable {
+		initFileCache()
+		result = wrapWithCache(ctx, result, chatID, messageId)
+	}
+
+	return result, nil
 }

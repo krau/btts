@@ -97,8 +97,8 @@ func ForwardMessages(c fiber.Ctx) error {
 //	@Failure		500			{object}	map[string]string	"服务器内部错误"
 //	@Router			/client/filestream [get]
 func StreamFile(c fiber.Ctx) error {
-	chatID := fiber.Query[int](c, "chat_id", 0)
-	messageID := fiber.Query[int](c, "message_id", 0)
+	chatID := fiber.Query(c, "chat_id", 0)
+	messageID := fiber.Query(c, "message_id", 0)
 	if chatID <= 0 || messageID <= 0 {
 		return &fiber.Error{Code: fiber.StatusBadRequest, Message: "Invalid chat_id or message_id"}
 	}
@@ -113,6 +113,20 @@ func StreamFile(c fiber.Ctx) error {
 	if mt == "" {
 		mt = "application/octet-stream"
 	}
+
+	// If backed by a disk cache file, use SendFile which supports Range requests
+	// (required for browser video/audio playback with seeking).
+	if file.FilePath != "" {
+		file.Close()
+		c.Set("Content-Type", mt)
+		c.Set("Content-Disposition", fmt.Sprintf("inline; filename=%q", file.Name))
+		return c.SendFile(file.FilePath, fiber.SendFile{
+			ByteRange:     true,
+			CacheDuration: -1,
+		})
+	}
+
+	// Non-seekable stream (live download from Telegram): send as simple stream.
 	c.Set("Content-Type", mt)
 	c.Set("Content-Disposition", fmt.Sprintf("inline; filename=%q", file.Name))
 	if file.Size > 0 {

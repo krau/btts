@@ -42,6 +42,11 @@ type AppConfig struct {
 		Addr   string `toml:"addr" mapstructure:"addr"`
 		Key    string `toml:"key" mapstructure:"key"`
 	}
+	FileCache struct {
+		Disable bool   `toml:"disable" mapstructure:"disable"`
+		Dir     string `toml:"dir" mapstructure:"dir"`
+		TTL     string `toml:"ttl" mapstructure:"ttl"`
+	} `toml:"file_cache" mapstructure:"file_cache"`
 }
 
 var C AppConfig
@@ -56,6 +61,9 @@ func Init() {
 
 	viper.SetDefault("engine.index", "btts")
 	viper.SetDefault("engine.type", "meilisearch")
+	viper.SetDefault("file_cache.disable", false)
+	viper.SetDefault("file_cache.dir", "data/file_cache")
+	viper.SetDefault("file_cache.ttl", "24h")
 
 	if err := viper.ReadInConfig(); err != nil {
 		log.Fatalf("Error reading config file, %s", err)
