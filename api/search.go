@@ -31,7 +31,7 @@ import (
 //	@Failure		500		{object}	map[string]string								"服务器内部错误"
 //	@Router			/index/{chat_id}/search [get]
 func SearchOnChatByGet(c fiber.Ctx) error {
-	chatID := fiber.Params[int](c, "chat_id")
+	chatID := fiber.Params(c, "chat_id", 0)
 	if chatID == 0 {
 		return &fiber.Error{Code: fiber.StatusBadRequest, Message: "Chat ID is required"}
 	}
@@ -96,7 +96,7 @@ func SearchOnChatByGet(c fiber.Ctx) error {
 //	@Failure		500		{object}	map[string]string								"服务器内部错误"
 //	@Router			/index/{chat_id}/search [post]
 func SearchOnChatByPost(c fiber.Ctx) error {
-	chatID := fiber.Params[int](c, "chat_id")
+	chatID := fiber.Params(c, "chat_id", 0)
 	if chatID == 0 {
 		return &fiber.Error{Code: fiber.StatusBadRequest, Message: "Chat ID is required"}
 	}
