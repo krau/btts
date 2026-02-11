@@ -67,6 +67,7 @@ func (b *Bot) RegisterHandlers(ctx context.Context) {
 	disp.AddHandler(handlers.NewCommand("syncpeers", SyncPeersHandler))
 	disp.AddHandler(handlers.NewCallbackQuery(filters.CallbackQuery.Prefix("search"), SearchCallbackHandler))
 	disp.AddHandler(handlers.NewCallbackQuery(filters.CallbackQuery.Prefix("filter"), FilterCallbackHandler))
+	disp.AddHandler(handlers.NewCallbackQuery(filters.CallbackQuery.Prefix("list"), ListCallbackHandler))
 	disp.AddHandler(handlers.NewCallbackQuery(filters.CallbackQuery.Prefix("select"), SelectCallbackHandler))
 	disp.AddHandler(handlers.NewMessage(filters.Message.ChatType(filters.ChatTypeUser), SearchHandler))
 	disp.AddHandler(handlers.NewMessage(func(m *types.Message) bool {

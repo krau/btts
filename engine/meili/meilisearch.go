@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 
@@ -147,6 +148,16 @@ func (m *Meilisearch) CreateIndex(ctx context.Context, _ int64) error {
 	index := m.Client.Index(m.Index)
 	_, err := index.FetchInfoWithContext(ctx)
 	if err == nil {
+		currentSettings, err := index.GetSettingsWithContext(ctx)
+		if err != nil {
+			return err
+		}
+		expectedSettings := meiliExpectedSettings()
+		if !meiliSettingsEqual(currentSettings, expectedSettings) {
+			log.FromContext(ctx).Info("Updating index settings to match expected configuration")
+			_, err = index.UpdateSettingsWithContext(ctx, expectedSettings)
+			return err
+		}
 		return nil
 	}
 	// 否则创建索引, 并更新配置
@@ -157,7 +168,12 @@ func (m *Meilisearch) CreateIndex(ctx context.Context, _ int64) error {
 	if err != nil {
 		return err
 	}
-	_, err = index.UpdateSettingsWithContext(ctx, &meilisearch.Settings{
+	_, err = index.UpdateSettingsWithContext(ctx, meiliExpectedSettings())
+	return err
+}
+
+func meiliExpectedSettings() *meilisearch.Settings {
+	return &meilisearch.Settings{
 		FilterableAttributes: []string{
 			"user_id",
 			"chat_id",
@@ -173,8 +189,32 @@ func (m *Meilisearch) CreateIndex(ctx context.Context, _ int64) error {
 		SearchableAttributes: []string{
 			"message", "ocred", "aigenerated",
 		},
-	})
-	return err
+	}
+}
+
+func meiliSettingsEqual(current *meilisearch.Settings, expected *meilisearch.Settings) bool {
+	if current == nil || expected == nil {
+		return false
+	}
+	return sameStringSet(current.FilterableAttributes, expected.FilterableAttributes) &&
+		sameStringSet(current.SortableAttributes, expected.SortableAttributes) &&
+		sameStringSet(current.SearchableAttributes, expected.SearchableAttributes)
+}
+
+func sameStringSet(a []string, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	ac := append([]string(nil), a...)
+	bc := append([]string(nil), b...)
+	sort.Strings(ac)
+	sort.Strings(bc)
+	for i := range ac {
+		if ac[i] != bc[i] {
+			return false
+		}
+	}
+	return true
 }
 
 // DeleteDocuments implements engine.Searcher.
