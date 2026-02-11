@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/charmbracelet/log"
+	"github.com/duke-git/lancet/v2/retry"
 	"github.com/duke-git/lancet/v2/slice"
 	"github.com/krau/btts/types"
 	"github.com/meilisearch/meilisearch-go"
@@ -130,7 +132,10 @@ func (m *Meilisearch) AddDocuments(ctx context.Context, chatID int64, docs []*ty
 	if err != nil {
 		return err
 	}
-	_, err = m.Client.Index(m.Index).AddDocumentsWithContext(ctx, jsonData, new("id"))
+	retry.Retry(func() error {
+		_, err = m.Client.Index(m.Index).AddDocumentsWithContext(ctx, jsonData, new("id"))
+		return err
+	}, retry.Context(ctx), retry.RetryTimes(10), retry.RetryWithExponentialWithJitterBackoff(time.Second*3, 2, time.Second*2))
 	return err
 }
 
