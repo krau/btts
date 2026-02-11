@@ -123,7 +123,11 @@ func ExtractMessageMediaText(ctx context.Context, client *ext.Context, media tg.
 
 		}
 	case *tg.MessageMediaDocument:
-		doc, ok := m.Document.AsNotEmpty()
+		docClass, ok := m.GetDocument()
+		if !ok {
+			return result
+		}
+		doc, ok := docClass.AsNotEmpty()
 		if !ok {
 			return result
 		}
