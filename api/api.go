@@ -67,9 +67,14 @@ func validateApiKey(ctx fiber.Ctx, key string) (bool, error) {
 func Serve(addr string) {
 	app := fiber.New(
 		fiber.Config{
-			TrustProxy:         true,
-			EnableIPValidation: true,
+			TrustProxy: true,
+			TrustProxyConfig: fiber.TrustProxyConfig{
+				LinkLocal: true,
+				Private:   true,
+				Loopback:  true,
+			},
 			ProxyHeader:        fiber.HeaderXForwardedFor,
+			EnableIPValidation: true,
 		},
 	)
 	loggerCfg := logger.ConfigDefault
