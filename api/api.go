@@ -6,19 +6,18 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"net/http"
 
 	"github.com/go-playground/validator/v10"
-	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/swagger"
+	swagger "github.com/gofiber/contrib/v3/swaggo"
+	"github.com/gofiber/fiber/v3"
 	_ "github.com/krau/btts/api/docs"
 	"github.com/krau/btts/webembed"
 
-	"github.com/bytedance/sonic"
-	"github.com/gofiber/fiber/v2/middleware/cors"
-	"github.com/gofiber/fiber/v2/middleware/filesystem"
-	"github.com/gofiber/fiber/v2/middleware/keyauth"
-	"github.com/gofiber/fiber/v2/middleware/logger"
+	"github.com/gofiber/fiber/v3/extractors"
+	"github.com/gofiber/fiber/v3/middleware/cors"
+	"github.com/gofiber/fiber/v3/middleware/keyauth"
+	"github.com/gofiber/fiber/v3/middleware/logger"
+	"github.com/gofiber/fiber/v3/middleware/static"
 	"github.com/krau/btts/config"
 	"github.com/krau/btts/database"
 	"gorm.io/gorm"
@@ -27,7 +26,7 @@ import (
 var storedKeyHash []byte
 var validate = validator.New()
 
-func validateApiKey(ctx *fiber.Ctx, key string) (bool, error) {
+func validateApiKey(ctx fiber.Ctx, key string) (bool, error) {
 	// 未配置主 API key 时，保持原有行为：不要求鉴权
 	if config.C.Api.Key == "" {
 		return true, nil
@@ -44,7 +43,7 @@ func validateApiKey(ctx *fiber.Ctx, key string) (bool, error) {
 	}
 	// 再尝试匹配子 API key（按哈希查询）
 	hexHash := hex.EncodeToString(inputHash)
-	apiKey, err := database.GetApiKeyByHash(ctx.Context(), hexHash)
+	apiKey, err := database.GetApiKeyByHash(ctx.RequestCtx(), hexHash)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return false, keyauth.ErrMissingOrMalformedAPIKey
@@ -68,21 +67,9 @@ func validateApiKey(ctx *fiber.Ctx, key string) (bool, error) {
 func Serve(addr string) {
 	app := fiber.New(
 		fiber.Config{
-			JSONEncoder: sonic.Marshal,
-			JSONDecoder: sonic.Unmarshal,
-			TrustedProxies: []string{
-				"127.0.0.1/8",
-				"::1/128",
-				"fe80::/10",
-				"169.254.0.0/16",
-				"10.0.0.0/8",
-				"172.16.0.0/12",
-				"192.168.0.0/16",
-				"fc00::/7",
-			},
-			EnableTrustedProxyCheck: true,
-			EnableIPValidation:      true,
-			ProxyHeader:             fiber.HeaderXForwardedFor,
+			TrustProxy:         true,
+			EnableIPValidation: true,
+			ProxyHeader:        fiber.HeaderXForwardedFor,
 		},
 	)
 	loggerCfg := logger.ConfigDefault
@@ -95,7 +82,7 @@ func Serve(addr string) {
 	if config.C.Api.Key != "" {
 		rg.Use(keyauth.New(keyauth.Config{
 			Validator: validateApiKey,
-			Next: func(c *fiber.Ctx) bool {
+			Next: func(c fiber.Ctx) bool {
 				return c.Path() == "/api/client/filestream"
 			},
 		}))
@@ -111,7 +98,7 @@ func Serve(addr string) {
 	rg.Post("/client/reply", ReplyMessage)
 	rg.Post("/client/forward", ForwardMessages)
 	rg.Use("/client/filestream", keyauth.New(keyauth.Config{
-		Validator: func(c *fiber.Ctx, s string) (bool, error) {
+		Validator: func(c fiber.Ctx, s string) (bool, error) {
 			if config.C.Api.Key == "" {
 				return true, nil
 			}
@@ -132,14 +119,15 @@ func Serve(addr string) {
 			}
 			return true, nil
 		},
-		KeyLookup: "query:reqtoken",
+		Extractor: extractors.FromQuery("reqtoken"),
 	}))
 	rg.Get("/client/filestream", StreamFile)
 	rg.Post("/client/callexten/:exten<string>", CallClientExtension)
 
-	app.Use("/", filesystem.New(filesystem.Config{
-		Root:         http.FS(webembed.Static),
-		NotFoundFile: "404.html",
+	app.Use("/", static.New("", static.Config{
+		FS: webembed.Static,
+		// TODO: Migrate to NotFoundHandler (fiber.Handler) - NotFoundFile is deprecated
+		// NotFoundFile: "404.html",
 	}))
 
 	go func() {

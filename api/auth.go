@@ -3,7 +3,7 @@ package api
 import (
 	"slices"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 )
 
 const (
@@ -11,7 +11,7 @@ const (
 	ctxKeyAPIChats  = "api_key_chats"
 )
 
-func isMasterAPIKey(c *fiber.Ctx) bool {
+func isMasterAPIKey(c fiber.Ctx) bool {
 	if v := c.Locals(ctxKeyAPIMaster); v != nil {
 		if b, ok := v.(bool); ok {
 			return b
@@ -20,7 +20,7 @@ func isMasterAPIKey(c *fiber.Ctx) bool {
 	return false
 }
 
-func getScopedChats(c *fiber.Ctx) []int64 {
+func getScopedChats(c fiber.Ctx) []int64 {
 	if v := c.Locals(ctxKeyAPIChats); v != nil {
 		if chats, ok := v.([]int64); ok {
 			return chats
@@ -30,7 +30,7 @@ func getScopedChats(c *fiber.Ctx) []int64 {
 }
 
 // ensureChatAllowed 确保当前 API key 允许访问指定 chat
-func ensureChatAllowed(c *fiber.Ctx, chatID int64) error {
+func ensureChatAllowed(c fiber.Ctx, chatID int64) error {
 	if chatID == 0 || isMasterAPIKey(c) {
 		return nil
 	}
@@ -45,7 +45,7 @@ func ensureChatAllowed(c *fiber.Ctx, chatID int64) error {
 }
 
 // filterAllowedChats 过滤出当前 API key 允许访问的聊天列表
-func filterAllowedChats(c *fiber.Ctx, chatIDs []int64) ([]int64, error) {
+func filterAllowedChats(c fiber.Ctx, chatIDs []int64) ([]int64, error) {
 	if isMasterAPIKey(c) {
 		return chatIDs, nil
 	}

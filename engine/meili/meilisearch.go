@@ -2,10 +2,10 @@ package meili
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sync"
 
-	"github.com/bytedance/sonic"
 	"github.com/charmbracelet/log"
 	"github.com/duke-git/lancet/v2/slice"
 	"github.com/krau/btts/types"
@@ -126,7 +126,7 @@ func (m *Meilisearch) AddDocuments(ctx context.Context, chatID int64, docs []*ty
 	for i := range docs {
 		docs[i].ChatID = chatID
 	}
-	jsonData, err := sonic.Marshal(docsFromMessages(docs))
+	jsonData, err := json.Marshal(docsFromMessages(docs))
 	if err != nil {
 		return err
 	}
@@ -206,12 +206,12 @@ func (m *Meilisearch) GetDocuments(ctx context.Context, chatID int64, messageIds
 	if err != nil {
 		return nil, err
 	}
-	hitBytes, err := sonic.Marshal(resp.Results)
+	hitBytes, err := json.Marshal(resp.Results)
 	if err != nil {
 		return nil, err
 	}
 	var hits []*MeilisearchMessageDocument
-	err = sonic.Unmarshal(hitBytes, &hits)
+	err = json.Unmarshal(hitBytes, &hits)
 	if err != nil {
 		return nil, err
 	}
@@ -257,12 +257,12 @@ func (m *Meilisearch) Search(ctx context.Context, req types.SearchRequest) (*typ
 	if err != nil {
 		return nil, err
 	}
-	hisBytes, err := sonic.Marshal(resp.Hits)
+	hisBytes, err := json.Marshal(resp.Hits)
 	if err != nil {
 		return nil, err
 	}
 	var hits []*MeiliSearchHit
-	err = sonic.Unmarshal(hisBytes, &hits)
+	err = json.Unmarshal(hisBytes, &hits)
 	if err != nil {
 		return nil, err
 	}

@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/duke-git/lancet/v2/slice"
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/krau/btts/engine"
 	"github.com/krau/btts/types"
 )
@@ -30,19 +30,19 @@ import (
 //	@Failure		401		{object}	map[string]string								"未授权"
 //	@Failure		500		{object}	map[string]string								"服务器内部错误"
 //	@Router			/index/{chat_id}/search [get]
-func SearchOnChatByGet(c *fiber.Ctx) error {
-	chatID, err := c.ParamsInt("chat_id")
-	if err != nil {
+func SearchOnChatByGet(c fiber.Ctx) error {
+	chatID := fiber.Params[int](c, "chat_id")
+	if chatID == 0 {
 		return &fiber.Error{Code: fiber.StatusBadRequest, Message: "Chat ID is required"}
 	}
 	if err := ensureChatAllowed(c, int64(chatID)); err != nil {
 		return err
 	}
 	query := c.Query("q")
-	offset := c.QueryInt("offset")
-	limit := c.QueryInt("limit", types.PerSearchLimit)
-	disableOcred := c.QueryBool("disable_ocred", false)
-	enableAIGenerated := c.QueryBool("enable_aigenerated", false)
+	offset := fiber.Query[int](c, "offset")
+	limit := fiber.Query[int](c, "limit", types.PerSearchLimit)
+	disableOcred := fiber.Query[bool](c, "disable_ocred", false)
+	enableAIGenerated := fiber.Query[bool](c, "enable_aigenerated", false)
 
 	req := types.SearchRequest{
 		ChatID:            int64(chatID),
@@ -72,7 +72,7 @@ func SearchOnChatByGet(c *fiber.Ctx) error {
 			req.TypeFilters = msgTypes
 		}
 	}
-	results, err := engine.GetEngine().Search(c.Context(), req)
+	results, err := engine.GetEngine().Search(c.RequestCtx(), req)
 	if err != nil {
 		return &fiber.Error{Code: fiber.StatusInternalServerError, Message: err.Error()}
 	}
@@ -95,19 +95,19 @@ func SearchOnChatByGet(c *fiber.Ctx) error {
 //	@Failure		401		{object}	map[string]string								"未授权"
 //	@Failure		500		{object}	map[string]string								"服务器内部错误"
 //	@Router			/index/{chat_id}/search [post]
-func SearchOnChatByPost(c *fiber.Ctx) error {
-	chatID, err := c.ParamsInt("chat_id")
-	if err != nil {
+func SearchOnChatByPost(c fiber.Ctx) error {
+	chatID := fiber.Params[int](c, "chat_id")
+	if chatID == 0 {
 		return &fiber.Error{Code: fiber.StatusBadRequest, Message: "Chat ID is required"}
 	}
 	if err := ensureChatAllowed(c, int64(chatID)); err != nil {
 		return err
 	}
 	request := new(SearchOnChatByPostRequest)
-	if err := c.BodyParser(request); err != nil {
+	if err := c.Bind().Body(request); err != nil {
 		return &fiber.Error{Code: fiber.StatusBadRequest, Message: "Invalid request body"}
 	}
-	if err := validate.StructCtx(c.Context(), request); err != nil {
+	if err := validate.StructCtx(c.RequestCtx(), request); err != nil {
 		return &fiber.Error{Code: fiber.StatusBadRequest, Message: "Validation failed: " + err.Error()}
 	}
 
@@ -127,7 +127,7 @@ func SearchOnChatByPost(c *fiber.Ctx) error {
 			req.TypeFilters = msgTypes
 		}
 	}
-	results, err := engine.GetEngine().Search(c.Context(), req)
+	results, err := engine.GetEngine().Search(c.RequestCtx(), req)
 	if err != nil {
 		return &fiber.Error{Code: fiber.StatusInternalServerError, Message: err.Error()}
 	}
@@ -150,12 +150,12 @@ func SearchOnChatByPost(c *fiber.Ctx) error {
 //	@Failure		401		{object}	map[string]string								"未授权"
 //	@Failure		500		{object}	map[string]string								"服务器内部错误"
 //	@Router			/index/multi-search [post]
-func SearchOnMultiChatByPost(c *fiber.Ctx) error {
+func SearchOnMultiChatByPost(c fiber.Ctx) error {
 	request := new(SearchOnMultiChatByPostRequest)
-	if err := c.BodyParser(request); err != nil {
+	if err := c.Bind().Body(request); err != nil {
 		return &fiber.Error{Code: fiber.StatusBadRequest, Message: "Invalid request body"}
 	}
-	if err := validate.StructCtx(c.Context(), request); err != nil {
+	if err := validate.StructCtx(c.RequestCtx(), request); err != nil {
 		return &fiber.Error{Code: fiber.StatusBadRequest, Message: "Validation failed: " + err.Error()}
 	}
 
@@ -181,7 +181,7 @@ func SearchOnMultiChatByPost(c *fiber.Ctx) error {
 			req.TypeFilters = msgTypes
 		}
 	}
-	results, err := engine.GetEngine().Search(c.Context(), req)
+	results, err := engine.GetEngine().Search(c.RequestCtx(), req)
 	if err != nil {
 		return &fiber.Error{Code: fiber.StatusInternalServerError, Message: err.Error()}
 	}

@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/krau/btts/database"
 	"github.com/krau/btts/types"
 	"gorm.io/gorm"
@@ -61,7 +61,7 @@ type SearchHitResponse struct {
 	Formatted         types.SearchHitFormatted `json:"_formatted"`
 }
 
-func ResponseSearch(c *fiber.Ctx, rawResp *types.SearchResponse) error {
+func ResponseSearch(c fiber.Ctx, rawResp *types.SearchResponse) error {
 	if rawResp == nil {
 		return &fiber.Error{Code: fiber.StatusInternalServerError, Message: "Search response is nil"}
 	}
@@ -79,7 +79,7 @@ func ResponseSearch(c *fiber.Ctx, rawResp *types.SearchResponse) error {
 	for i, hit := range rawResp.Hits {
 		UserFullName := ""
 		ChatTitle := ""
-		user, err := database.GetUserInfo(c.Context(), hit.UserID)
+		user, err := database.GetUserInfo(c.RequestCtx(), hit.UserID)
 		if err != nil {
 			if !errors.Is(err, gorm.ErrRecordNotFound) {
 				return &fiber.Error{Code: fiber.StatusInternalServerError, Message: "Failed to retrieve user info"}
@@ -88,7 +88,7 @@ func ResponseSearch(c *fiber.Ctx, rawResp *types.SearchResponse) error {
 		} else {
 			UserFullName = strings.TrimSpace(fmt.Sprintf("%s %s", user.FirstName, user.LastName))
 		}
-		chat, err := database.GetIndexChat(c.Context(), hit.ChatID)
+		chat, err := database.GetIndexChat(c.RequestCtx(), hit.ChatID)
 		if err != nil {
 			return &fiber.Error{Code: fiber.StatusInternalServerError, Message: "Failed to retrieve chat info"}
 		}
@@ -115,7 +115,7 @@ func ResponseSearch(c *fiber.Ctx, rawResp *types.SearchResponse) error {
 	})
 }
 
-func ResponseDocuments(c *fiber.Ctx, docs []*types.MessageDocument) error {
+func ResponseDocuments(c fiber.Ctx, docs []*types.MessageDocument) error {
 	if len(docs) == 0 {
 		return &fiber.Error{Code: fiber.StatusNotFound, Message: "No documents found"}
 	}
@@ -125,7 +125,7 @@ func ResponseDocuments(c *fiber.Ctx, docs []*types.MessageDocument) error {
 	for i, doc := range docs {
 		userFullName := ""
 		chatTitle := ""
-		user, err := database.GetUserInfo(c.Context(), doc.UserID)
+		user, err := database.GetUserInfo(c.RequestCtx(), doc.UserID)
 		if err != nil {
 			if !errors.Is(err, gorm.ErrRecordNotFound) {
 				return &fiber.Error{Code: fiber.StatusInternalServerError, Message: "Failed to retrieve user info"}
@@ -134,7 +134,7 @@ func ResponseDocuments(c *fiber.Ctx, docs []*types.MessageDocument) error {
 		} else {
 			userFullName = strings.TrimSpace(fmt.Sprintf("%s %s", user.FirstName, user.LastName))
 		}
-		chat, err := database.GetIndexChat(c.Context(), doc.ChatID)
+		chat, err := database.GetIndexChat(c.RequestCtx(), doc.ChatID)
 		if err != nil {
 			return &fiber.Error{Code: fiber.StatusInternalServerError, Message: "Failed to retrieve chat info"}
 		}

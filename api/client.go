@@ -5,7 +5,7 @@ import (
 	"mime"
 	"path"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/krau/btts/service"
 	"github.com/krau/btts/userclient"
 )
@@ -25,18 +25,18 @@ import (
 //	@Failure		401		{object}	map[string]string									"未授权"
 //	@Failure		500		{object}	map[string]string									"服务器内部错误"
 //	@Router			/client/reply [post]
-func ReplyMessage(c *fiber.Ctx) error {
+func ReplyMessage(c fiber.Ctx) error {
 	if !isMasterAPIKey(c) {
 		return &fiber.Error{Code: fiber.StatusForbidden, Message: "This operation requires master API key"}
 	}
 	var req ReplyMessageRequest
-	if err := c.BodyParser(&req); err != nil {
+	if err := c.Bind().Body(&req); err != nil {
 		return &fiber.Error{Code: fiber.StatusBadRequest, Message: "Invalid request body"}
 	}
-	if err := validate.StructCtx(c.Context(), &req); err != nil {
+	if err := validate.StructCtx(c.RequestCtx(), &req); err != nil {
 		return &fiber.Error{Code: fiber.StatusBadRequest, Message: "Validation failed: " + err.Error()}
 	}
-	msg, err := userclient.GetUserClient().ReplyMessage(c.Context(), req.ChatID, req.MessageID, req.Text)
+	msg, err := userclient.GetUserClient().ReplyMessage(c.RequestCtx(), req.ChatID, req.MessageID, req.Text)
 	if err != nil {
 		return &fiber.Error{Code: fiber.StatusInternalServerError, Message: err.Error()}
 	}
@@ -62,18 +62,18 @@ func ReplyMessage(c *fiber.Ctx) error {
 //	@Failure		401		{object}	map[string]string								"未授权"
 //	@Failure		500		{object}	map[string]string								"服务器内部错误"
 //	@Router			/client/forward [post]
-func ForwardMessages(c *fiber.Ctx) error {
+func ForwardMessages(c fiber.Ctx) error {
 	if !isMasterAPIKey(c) {
 		return &fiber.Error{Code: fiber.StatusForbidden, Message: "This operation requires master API key"}
 	}
 	var req ForwardMessagesRequest
-	if err := c.BodyParser(&req); err != nil {
+	if err := c.Bind().Body(&req); err != nil {
 		return &fiber.Error{Code: fiber.StatusBadRequest, Message: "Invalid request body"}
 	}
-	if err := validate.StructCtx(c.Context(), &req); err != nil {
+	if err := validate.StructCtx(c.RequestCtx(), &req); err != nil {
 		return &fiber.Error{Code: fiber.StatusBadRequest, Message: "Validation failed: " + err.Error()}
 	}
-	if err := userclient.GetUserClient().ForwardMessages(c.Context(), req.FromChatID, req.ToChatID, req.MessageIDs); err != nil {
+	if err := userclient.GetUserClient().ForwardMessages(c.RequestCtx(), req.FromChatID, req.ToChatID, req.MessageIDs); err != nil {
 		return &fiber.Error{Code: fiber.StatusInternalServerError, Message: err.Error()}
 	}
 	return c.JSON(fiber.Map{
@@ -96,13 +96,13 @@ func ForwardMessages(c *fiber.Ctx) error {
 //	@Failure		401			{object}	map[string]string	"未授权"
 //	@Failure		500			{object}	map[string]string	"服务器内部错误"
 //	@Router			/client/filestream [get]
-func StreamFile(c *fiber.Ctx) error {
-	chatID := c.QueryInt("chat_id", 0)
-	messageID := c.QueryInt("message_id", 0)
+func StreamFile(c fiber.Ctx) error {
+	chatID := fiber.Query[int](c, "chat_id", 0)
+	messageID := fiber.Query[int](c, "message_id", 0)
 	if chatID <= 0 || messageID <= 0 {
 		return &fiber.Error{Code: fiber.StatusBadRequest, Message: "Invalid chat_id or message_id"}
 	}
-	file, err := service.GetTGFileReader(c.Context(), int64(chatID), messageID)
+	file, err := service.GetTGFileReader(c.RequestCtx(), int64(chatID), messageID)
 	if err != nil {
 		return &fiber.Error{Code: fiber.StatusInternalServerError, Message: err.Error()}
 	}
@@ -136,7 +136,7 @@ func StreamFile(c *fiber.Ctx) error {
 //	@Failure		401			{object}	map[string]string	"未授权"
 //	@Failure		500			{object}	map[string]string	"服务器内部错误"
 //	@Router			/client/callexten/{exten} [post]
-func CallClientExtension(c *fiber.Ctx) error {
+func CallClientExtension(c fiber.Ctx) error {
 	if !isMasterAPIKey(c) {
 		return &fiber.Error{Code: fiber.StatusForbidden, Message: "This operation requires master API key"}
 	}
@@ -148,10 +148,10 @@ func CallClientExtension(c *fiber.Ctx) error {
 		return &fiber.Error{Code: fiber.StatusInternalServerError, Message: "User client is not initialized"}
 	}
 	var input map[string]any
-	if err := c.BodyParser(&input); err != nil {
+	if err := c.Bind().Body(&input); err != nil {
 		return &fiber.Error{Code: fiber.StatusBadRequest, Message: "Invalid request body"}
 	}
-	result, err := userclient.GetUserClient().CallExtenApi(c.Context(), exten, input)
+	result, err := userclient.GetUserClient().CallExtenApi(c.RequestCtx(), exten, input)
 	if err != nil {
 		return &fiber.Error{Code: fiber.StatusInternalServerError, Message: err.Error()}
 	}

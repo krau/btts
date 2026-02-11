@@ -2,9 +2,9 @@ package migrate
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
-	"github.com/bytedance/sonic"
 	"github.com/charmbracelet/log"
 	"github.com/krau/btts/config"
 	"github.com/krau/btts/database"
@@ -137,12 +137,12 @@ func migrateChat(ctx context.Context, oldIndex, newIndex meilisearch.IndexManage
 			}
 			return fmt.Errorf("no documents returned but offset %d < total %d", offset, total)
 		}
-		hitBytes, err := sonic.Marshal(resp.Results)
+		hitBytes, err := json.Marshal(resp.Results)
 		if err != nil {
 			return fmt.Errorf("failed to marshal documents: %w", err)
 		}
 		hits := make([]*types.MessageDocument, 0, len(resp.Results))
-		err = sonic.Unmarshal(hitBytes, &hits)
+		err = json.Unmarshal(hitBytes, &hits)
 		if err != nil {
 			return fmt.Errorf("failed to unmarshal documents: %w", err)
 		}

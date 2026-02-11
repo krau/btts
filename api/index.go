@@ -3,7 +3,7 @@ package api
 import (
 	"errors"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/krau/btts/database"
 	"github.com/krau/btts/engine"
 	"gorm.io/gorm"
@@ -23,8 +23,8 @@ import (
 //	@Failure		404	{object}	map[string]string									"未找到已索引的聊天"
 //	@Failure		500	{object}	map[string]string									"服务器内部错误"
 //	@Router			/indexed [get]
-func GetIndexed(c *fiber.Ctx) error {
-	chats, err := database.GetAllIndexChats(c.Context())
+func GetIndexed(c fiber.Ctx) error {
+	chats, err := database.GetAllIndexChats(c.RequestCtx())
 	if err != nil {
 		return &fiber.Error{Code: fiber.StatusInternalServerError, Message: err.Error()}
 	}
@@ -73,15 +73,15 @@ func GetIndexed(c *fiber.Ctx) error {
 //	@Failure		404		{object}	map[string]string								"未找到指定聊天的索引"
 //	@Failure		500		{object}	map[string]string								"服务器内部错误"
 //	@Router			/index/{chat_id} [get]
-func GetIndexInfo(c *fiber.Ctx) error {
-	chatID, err := c.ParamsInt("chat_id")
-	if err != nil {
+func GetIndexInfo(c fiber.Ctx) error {
+	chatID := fiber.Params[int](c, "chat_id")
+	if chatID == 0 {
 		return &fiber.Error{Code: fiber.StatusBadRequest, Message: "Chat ID is required"}
 	}
 	if err := ensureChatAllowed(c, int64(chatID)); err != nil {
 		return err
 	}
-	indexChat, err := database.GetIndexChat(c.Context(), int64(chatID))
+	indexChat, err := database.GetIndexChat(c.RequestCtx(), int64(chatID))
 	if err != nil {
 		code := fiber.StatusInternalServerError
 		msg := err.Error()
@@ -117,22 +117,22 @@ func GetIndexInfo(c *fiber.Ctx) error {
 //	@Failure		404		{object}	map[string]string								"未找到指定聊天的索引"
 //	@Failure		500		{object}	map[string]string								"服务器内部错误"
 //	@Router			/index/{chat_id}/msgs/fetch [post]
-func FetchMessages(c *fiber.Ctx) error {
-	chatID, err := c.ParamsInt("chat_id")
-	if err != nil {
+func FetchMessages(c fiber.Ctx) error {
+	chatID := fiber.Params[int](c, "chat_id")
+	if chatID == 0 {
 		return &fiber.Error{Code: fiber.StatusBadRequest, Message: "Chat ID is required"}
 	}
 	if err := ensureChatAllowed(c, int64(chatID)); err != nil {
 		return err
 	}
 	request := new(FetchMessagesRequest)
-	if err := c.BodyParser(request); err != nil {
+	if err := c.Bind().Body(request); err != nil {
 		return &fiber.Error{Code: fiber.StatusBadRequest, Message: "Invalid request body"}
 	}
-	if err := validate.StructCtx(c.Context(), request); err != nil {
+	if err := validate.StructCtx(c.RequestCtx(), request); err != nil {
 		return &fiber.Error{Code: fiber.StatusBadRequest, Message: "Validation failed: " + err.Error()}
 	}
-	docs, err := engine.GetEngine().GetDocuments(c.Context(), int64(chatID), request.IDs)
+	docs, err := engine.GetEngine().GetDocuments(c.RequestCtx(), int64(chatID), request.IDs)
 	if err != nil {
 		return &fiber.Error{Code: fiber.StatusInternalServerError, Message: "Failed to fetch messages: " + err.Error()}
 	}
