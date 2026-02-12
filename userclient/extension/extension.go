@@ -18,7 +18,7 @@ import (
 type ExtenApiFunc func(ctx context.Context, ectx *ext.Context, input map[string]any) (map[string]any, error)
 
 var apis = map[string]ExtenApiFunc{
-	"SetProfile": ExtenSetProfile,
+	"SetProfile": SetProfile,
 }
 
 func GetExtenApiFunc(name string) (ExtenApiFunc, bool) {
@@ -26,7 +26,7 @@ func GetExtenApiFunc(name string) (ExtenApiFunc, bool) {
 	return fn, ok
 }
 
-// ExtenSetProfile updates the user's profile information.
+// SetProfile updates the user's profile information.
 //
 // Input:
 //
@@ -37,7 +37,7 @@ func GetExtenApiFunc(name string) (ExtenApiFunc, bool) {
 // - avatar_url: URL of the avatar image (can be base64 encoded).
 //
 // - bio: Bio of the user.
-var ExtenSetProfile = func(ctx context.Context, ectx *ext.Context, input map[string]any) (map[string]any, error) {
+var SetProfile = func(ctx context.Context, ectx *ext.Context, input map[string]any) (map[string]any, error) {
 	firstName, _ := input["first_name"].(string)
 	lastName, _ := input["last_name"].(string)
 	avatarUrl, _ := input["avatar_url"].(string)

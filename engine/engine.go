@@ -81,7 +81,11 @@ func NewEngine(ctx context.Context) (Searcher, error) {
 	return instance, nil
 }
 
-func DocumentsFromMessages(ctx context.Context, messages []*tg.Message, chatID, self int64, ectx *ext.Context, downloadMedia bool) []*types.MessageDocument {
+func DocumentsFromMessages(ctx context.Context,
+	messages []*tg.Message,
+	chatID, self int64,
+	ectx *ext.Context,
+	enableOcr bool) []*types.MessageDocument {
 	docs := make([]*types.MessageDocument, 0, len(messages))
 	for _, message := range messages {
 		var userID int64
@@ -123,7 +127,7 @@ func DocumentsFromMessages(ctx context.Context, messages []*tg.Message, chatID, 
 		var ocred string
 		media, ok := message.GetMedia()
 		if ok {
-			result := utils.ExtractMessageMediaText(ctx, ectx, media, downloadMedia)
+			result := utils.ExtractMessageMediaText(ctx, ectx, media, enableOcr)
 			if result != nil {
 				msb.WriteString(result.Text)
 				ocred = result.Ocred

@@ -42,6 +42,7 @@ type IndexChat struct {
 	Type     int    `json:"type"`
 	Watching bool   `gorm:"default:true" json:"watching"`
 	NoDelete bool   `json:"no_delete"`
+	NoOcr    bool   `json:"no_ocr"`
 	Public   bool   `gorm:"default:false" json:"public"`
 	Pts      int    `gorm:"default:0" json:"pts"` // Channel message box sequence for updates
 

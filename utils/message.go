@@ -99,7 +99,7 @@ type MessageMediaExtractResult struct {
 	Type  types.MessageType
 }
 
-func ExtractMessageMediaText(ctx context.Context, client *ext.Context, media tg.MessageMediaClass, downloadMedia bool) *MessageMediaExtractResult {
+func ExtractMessageMediaText(ctx context.Context, client *ext.Context, media tg.MessageMediaClass, enableOcr bool) *MessageMediaExtractResult {
 	result := &MessageMediaExtractResult{
 		Type: types.MessageTypeText,
 	}
@@ -107,7 +107,7 @@ func ExtractMessageMediaText(ctx context.Context, client *ext.Context, media tg.
 	switch m := media.(type) {
 	case *tg.MessageMediaPhoto:
 		result.Type = types.MessageTypePhoto
-		if config.C.Ocr.Enable && downloadMedia {
+		if config.C.Ocr.Enable && enableOcr {
 			switch config.C.Ocr.Type {
 			case "paddle", "paddleocr":
 				ocrText, err := paddleOcr(ctx, client, media)

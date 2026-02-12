@@ -46,6 +46,8 @@ var commandHandlers = []commandHandler{
 	{UnWatchHandler, "unwatch", "取消监听一个聊天"},
 	{WatchDelHandler, "watchdel", "监听一个聊天的删除事件"},
 	{UnWatchDelHandler, "unwatchdel", "取消监听一个聊天的删除事件"},
+	{OcrHandler, "ocrable", "开启一个聊天的 OCR"},
+	{UnOcrHandler, "unocrable", "关闭一个聊天的 OCR"},
 	{DownloadHandler, "dl", "下载消息"},
 	{AddSubHandler, "addsub", "添加子 bot"},
 	{DelSubHandler, "delsub", "删除子 bot"},
