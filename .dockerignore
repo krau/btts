@@ -1,0 +1,10 @@
+.git
+__pycache__
+.env
+.env.local
+*.md
+.vscode
+.idea
+deploy-out
+data
+config.toml
