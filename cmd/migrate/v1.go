@@ -111,7 +111,7 @@ func MigrateToV1(ctx context.Context, dropOld bool) error {
 
 func migrateChat(ctx context.Context, oldIndex, newIndex meilisearch.IndexManager) error {
 	logger := log.FromContext(ctx)
-	stats, err := oldIndex.GetStatsWithContext(ctx)
+	stats, err := oldIndex.GetStatsWithContext(ctx, &meilisearch.StatsParams{})
 	if err != nil {
 		return fmt.Errorf("failed to get old index stats: %w", err)
 	}
