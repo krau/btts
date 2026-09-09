@@ -22,6 +22,9 @@ func Dispatcher(ctx *ext.Context, u *ext.Update) error {
 		if handled, err := handleCleanMemberSession(ctx, u); handled {
 			return err
 		}
+		if handled, err := handleCleanMemberExport(ctx, u); handled {
+			return err
+		}
 		text := u.EffectiveMessage.GetMessage()
 		matched, command, args := func() (bool, string, string) {
 			for _, prefix := range config.C.Plugin.Prefixes {

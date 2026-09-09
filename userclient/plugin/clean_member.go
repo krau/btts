@@ -1,7 +1,10 @@
 package plugin
 
 import (
+	"bytes"
+	"encoding/csv"
 	"fmt"
+	"math"
 	"math/rand/v2"
 	"strconv"
 	"strings"
@@ -9,6 +12,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/log"
+	"github.com/gotd/td/telegram/uploader"
 	"github.com/gotd/td/tg"
 	"github.com/gotd/td/tgerr"
 	"github.com/krau/mygotg/ext"
@@ -19,8 +23,10 @@ const (
 	cleanMemberMinDays       = 7               // 按天数清理时的最小天数
 	cleanMemberKickDuration  = 5 * time.Minute // 临时封禁时长, 到期自动解封
 	cleanMemberSessionTTL    = 5 * time.Minute // 交互会话超时时间
+	cleanMemberExportTTL     = 5 * time.Minute // 导出列表指令的有效期
 	cleanMemberPageSize      = 200             // 每次拉取成员的数量
 	cleanMemberMaxFloodRetry = 3               // FloodWait 重试次数
+	cleanMemberInlineLimit   = 20              // 命中人数不超过该值时直接在消息中列出
 )
 
 const (
@@ -34,6 +40,8 @@ const (
 	cleanMemberCountPrompt   = "清理发言少于多少条的群成员："
 	cleanMemberConfirmPrompt = "查找还是清理？"
 	cleanMemberWorkingText   = "遍历成员中。。。"
+	cleanMemberExportCmd     = "导出"
+	cleanMemberExportHint    = "人数较多，发送「导出」以文件形式获取列表。"
 )
 
 type cleanMemberStep int
@@ -86,6 +94,52 @@ func deleteCleanMemberSession(chatID int64) {
 	delete(cleanMemberSessions, chatID)
 }
 
+type cleanMemberHit struct {
+	id       int64
+	username string
+	name     string
+	detail   string
+}
+
+type cleanMemberExport struct {
+	chatID    int64
+	promptID  int
+	hits      []cleanMemberHit
+	expiresAt time.Time
+}
+
+var (
+	cleanMemberExportsMu sync.Mutex
+	cleanMemberExports   = make(map[int64]*cleanMemberExport)
+)
+
+func setCleanMemberExport(export *cleanMemberExport) {
+	export.expiresAt = time.Now().Add(cleanMemberExportTTL)
+	cleanMemberExportsMu.Lock()
+	defer cleanMemberExportsMu.Unlock()
+	cleanMemberExports[export.chatID] = export
+}
+
+func getCleanMemberExport(chatID int64) *cleanMemberExport {
+	cleanMemberExportsMu.Lock()
+	defer cleanMemberExportsMu.Unlock()
+	export, ok := cleanMemberExports[chatID]
+	if !ok {
+		return nil
+	}
+	if time.Now().After(export.expiresAt) {
+		delete(cleanMemberExports, chatID)
+		return nil
+	}
+	return export
+}
+
+func deleteCleanMemberExport(chatID int64) {
+	cleanMemberExportsMu.Lock()
+	defer cleanMemberExportsMu.Unlock()
+	delete(cleanMemberExports, chatID)
+}
+
 // CleanMemberHandler 按多种方式清理群成员. 用法: [prefix]clean_member
 func CleanMemberHandler(ctx *Context, u *ext.Update) error {
 	msg := u.EffectiveMessage
@@ -107,6 +161,7 @@ func CleanMemberHandler(ctx *Context, u *ext.Update) error {
 	if !isAdmin {
 		return editCleanMemberMessage(ctx.Context, chat, msg.GetID(), "您不是群管理员，无法使用此命令")
 	}
+	deleteCleanMemberExport(chat.GetID())
 	setCleanMemberSession(&cleanMemberSession{
 		chatID:   chat.GetID(),
 		step:     cleanMemberStepMode,
@@ -280,15 +335,21 @@ func processCleanMember(ctx *ext.Context, chat types.EffectiveChat, session *cle
 		}
 	}
 	count := 0
+	unresolved := 0
+	hits := make([]cleanMemberHit, 0)
 	err := forEachCleanMember(ctx, chat, func(user *tg.User) (bool, error) {
-		matched, err := shouldCleanMember(ctx, chat, user, session.mode, session.day)
+		matched, undetermined, detail, err := shouldCleanMember(ctx, chat, user, session.mode, session.day)
 		if err != nil {
 			return false, err
 		}
 		if !matched {
+			if undetermined {
+				unresolved++
+			}
 			return false, nil
 		}
 		count++
+		hits = append(hits, newCleanMemberHit(user, detail))
 		if onlySearch {
 			return false, nil
 		}
@@ -308,55 +369,210 @@ func processCleanMember(ctx *ext.Context, chat types.EffectiveChat, session *cle
 		}
 		return
 	}
+	var text string
 	if onlySearch {
-		report(fmt.Sprintf("查找到了 %d 人。", count))
+		text = fmt.Sprintf("查找到了 %d 人。", count)
 	} else {
-		report(fmt.Sprintf("成功清理了 %d 人。", count))
+		text = fmt.Sprintf("成功清理了 %d 人。", count)
+	}
+	if unresolved > 0 {
+		text += fmt.Sprintf("另有 %d 人最近上线时间不明确，未处理。", unresolved)
+	}
+	if len(hits) > 0 {
+		if len(hits) <= cleanMemberInlineLimit {
+			text += "\n\n" + formatCleanMemberHits(hits)
+		} else {
+			setCleanMemberExport(&cleanMemberExport{
+				chatID:   chat.GetID(),
+				promptID: session.promptID,
+				hits:     hits,
+			})
+			text += "\n\n" + cleanMemberExportHint
+		}
+	}
+	report(text)
+}
+
+// cleanMemberInactiveDaysRange 返回该状态可确定的最小/最大未上线天数, ok 为 false 表示无法判断.
+// 未公开精确上线时间时 Telegram 只返回近似值, 参考 https://telegram.org/faq :
+// recently 1 秒-3 天, within a week 3-7 天, within a month 7-30 天, a long time ago 超过 30 天.
+func cleanMemberInactiveDaysRange(status tg.UserStatusClass) (minDays, maxDays int, ok bool) {
+	switch status.(type) {
+	case *tg.UserStatusOnline:
+		return 0, 0, true
+	case *tg.UserStatusRecently:
+		return 0, 3, true
+	case *tg.UserStatusLastWeek:
+		return 3, 7, true
+	case *tg.UserStatusLastMonth:
+		return 7, 30, true
+	case *tg.UserStatusEmpty:
+		return 30, math.MaxInt, true
+	default:
+		return 0, 0, false
 	}
 }
 
-func shouldCleanMember(ctx *ext.Context, chat types.EffectiveChat, user *tg.User, mode string, day int) (bool, error) {
+func shouldCleanMember(ctx *ext.Context, chat types.EffectiveChat, user *tg.User, mode string, day int) (matched bool, unresolved bool, detail string, err error) {
 	switch mode {
 	case "1":
-		status, ok := user.Status.(*tg.UserStatusOffline)
-		if !ok {
-			return false, nil
+		if offline, ok := user.Status.(*tg.UserStatusOffline); ok {
+			return time.Unix(int64(offline.WasOnline), 0).Before(time.Now().AddDate(0, 0, -day)), false,
+				cleanMemberStatusDetail(user.Status), nil
 		}
-		return time.Unix(int64(status.WasOnline), 0).Before(time.Now().AddDate(0, 0, -day)), nil
+		minDays, maxDays, ok := cleanMemberInactiveDaysRange(user.Status)
+		if !ok {
+			return false, false, "", nil
+		}
+		// 只有能确定未上线时间超过 day 天才清理, 介于两者之间的记为待定
+		return minDays >= day, minDays < day && maxDays >= day, cleanMemberStatusDetail(user.Status), nil
 	case "2":
 		if user.AccessHash == 0 {
-			return false, nil
+			return false, false, "", nil
 		}
 		last, err := lastCleanMemberMessage(ctx, chat, user)
 		if err != nil {
 			if tgerr.Is(err, "PEER_ID_INVALID") {
-				return false, nil
+				return false, false, "", nil
 			}
-			return false, err
+			return false, false, "", err
 		}
 		if last == nil {
-			return false, nil
+			return false, false, "", nil
 		}
-		return time.Unix(int64(last.Date), 0).Before(time.Now().AddDate(0, 0, -day)), nil
+		detail := "最后发言: " + time.Unix(int64(last.Date), 0).Format("2006-01-02 15:04")
+		return time.Unix(int64(last.Date), 0).Before(time.Now().AddDate(0, 0, -day)), false, detail, nil
 	case "3":
 		if user.AccessHash == 0 {
-			return false, nil
+			return false, false, "", nil
 		}
 		count, err := countCleanMemberMessages(ctx, chat, user)
 		if err != nil {
 			if tgerr.Is(err, "PEER_ID_INVALID") {
-				return false, nil
+				return false, false, "", nil
 			}
-			return false, err
+			return false, false, "", err
 		}
-		return count < day, nil
+		return count < day, false, fmt.Sprintf("发言数: %d", count), nil
 	case "4":
-		return user.Deleted, nil
+		return user.Deleted, false, "已注销账号", nil
 	case "5":
-		return true, nil
+		return true, false, "全部成员", nil
 	default:
+		return false, false, "", nil
+	}
+}
+
+// cleanMemberStatusDetail 描述用户的最近上线状态
+func cleanMemberStatusDetail(status tg.UserStatusClass) string {
+	switch s := status.(type) {
+	case *tg.UserStatusOffline:
+		return "最后上线: " + time.Unix(int64(s.WasOnline), 0).Format("2006-01-02 15:04")
+	case *tg.UserStatusOnline:
+		return "在线"
+	case *tg.UserStatusRecently:
+		return "最后上线: 3 天内"
+	case *tg.UserStatusLastWeek:
+		return "最后上线: 3-7 天前"
+	case *tg.UserStatusLastMonth:
+		return "最后上线: 7-30 天前"
+	case *tg.UserStatusEmpty:
+		return "最后上线: 超过 30 天"
+	default:
+		return ""
+	}
+}
+
+func newCleanMemberHit(user *tg.User, detail string) cleanMemberHit {
+	name := strings.TrimSpace(user.FirstName + " " + user.LastName)
+	if name == "" {
+		name = "未知"
+	}
+	return cleanMemberHit{
+		id:       user.ID,
+		username: user.Username,
+		name:     name,
+		detail:   detail,
+	}
+}
+
+func formatCleanMemberHits(hits []cleanMemberHit) string {
+	var b strings.Builder
+	for i, hit := range hits {
+		if i > 0 {
+			b.WriteByte('\n')
+		}
+		fmt.Fprintf(&b, "%d. %s", i+1, hit.name)
+		if hit.username != "" {
+			fmt.Fprintf(&b, " (@%s)", hit.username)
+		}
+		fmt.Fprintf(&b, " | ID: %d", hit.id)
+		if hit.detail != "" {
+			fmt.Fprintf(&b, " | %s", hit.detail)
+		}
+	}
+	return b.String()
+}
+
+// buildCleanMemberListCSV 生成命中用户列表文件内容
+func buildCleanMemberListCSV(hits []cleanMemberHit) []byte {
+	var buf bytes.Buffer
+	buf.WriteString("\xEF\xBB\xBF") // UTF-8 BOM, 便于 Excel 识别中文
+	w := csv.NewWriter(&buf)
+	_ = w.Write([]string{"用户ID", "用户名", "姓名", "详情"})
+	for _, hit := range hits {
+		username := hit.username
+		if username != "" {
+			username = "@" + username
+		}
+		_ = w.Write([]string{strconv.FormatInt(hit.id, 10), username, hit.name, hit.detail})
+	}
+	w.Flush()
+	return buf.Bytes()
+}
+
+func sendCleanMemberFile(ctx *ext.Context, chat types.EffectiveChat, hits []cleanMemberHit) error {
+	fileName := "clean_member_" + time.Now().Format("20060102_1504") + ".csv"
+	file, err := uploader.NewUploader(ctx.Raw).FromBytes(ctx, fileName, buildCleanMemberListCSV(hits))
+	if err != nil {
+		return err
+	}
+	_, err = ctx.Raw.MessagesSendMedia(ctx, &tg.MessagesSendMediaRequest{
+		Peer:     chat.GetInputPeer(),
+		RandomID: rand.Int64(),
+		Message:  fmt.Sprintf("共 %d 人", len(hits)),
+		Media: &tg.InputMediaUploadedDocument{
+			File:     file,
+			MimeType: "text/csv",
+			Attributes: []tg.DocumentAttributeClass{
+				&tg.DocumentAttributeFilename{FileName: fileName},
+			},
+		},
+	})
+	return err
+}
+
+// handleCleanMemberExport 处理导出列表的指令, 返回该消息是否已被消费
+func handleCleanMemberExport(ctx *ext.Context, u *ext.Update) (bool, error) {
+	msg := u.EffectiveMessage
+	chat := u.EffectiveChat()
+	if msg == nil || chat.GetID() == 0 || msg.EditDate != 0 || msg.IsService {
 		return false, nil
 	}
+	if strings.TrimSpace(msg.GetMessage()) != cleanMemberExportCmd {
+		return false, nil
+	}
+	export := getCleanMemberExport(chat.GetID())
+	if export == nil {
+		return false, nil
+	}
+	if err := sendCleanMemberFile(ctx, chat, export.hits); err != nil {
+		_ = editCleanMemberMessage(ctx, chat, export.promptID, "导出失败: "+err.Error())
+		return true, err
+	}
+	deleteCleanMemberExport(chat.GetID())
+	deleteCleanMemberMessage(ctx, chat, msg.GetID())
+	return true, nil
 }
 
 func lastCleanMemberMessage(ctx *ext.Context, chat types.EffectiveChat, user *tg.User) (*tg.Message, error) {
