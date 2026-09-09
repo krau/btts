@@ -19,7 +19,7 @@ require (
 	github.com/meilisearch/meilisearch-go v0.36.3
 	github.com/ncruces/go-sqlite3 v0.35.4
 	github.com/rs/xid v1.6.0
-	github.com/unvgo/ghselfupdate v1.0.1
+	github.com/unvgo/ghselfupdate v1.0.2
 	go.uber.org/zap v1.28.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	gorm.io/gorm v1.31.2
@@ -60,7 +60,7 @@ require (
 	github.com/gofiber/schema v1.8.6 // indirect
 	github.com/gofiber/utils/v2 v2.5.1 // indirect
 	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
-	github.com/google/go-github/v30 v30.1.0 // indirect
+	github.com/google/go-github/v90 v90.0.0 // indirect
 	github.com/google/go-querystring v1.2.0 // indirect
 	github.com/inconshreveable/go-update v0.0.0-20160112193335-8152e7eb6ccf // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
