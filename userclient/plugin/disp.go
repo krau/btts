@@ -10,7 +10,8 @@ import (
 type PluginFunc func(ctx *Context, u *ext.Update) error
 
 var commandPlugins = map[string]PluginFunc{
-	"re": RepeatHandler,
+	"re":           RepeatHandler,
+	"clean_member": CleanMemberHandler,
 }
 
 func Dispatcher(ctx *ext.Context, u *ext.Update) error {
@@ -18,6 +19,9 @@ func Dispatcher(ctx *ext.Context, u *ext.Update) error {
 		return nil
 	}
 	if u.EffectiveMessage.Out {
+		if handled, err := handleCleanMemberSession(ctx, u); handled {
+			return err
+		}
 		text := u.EffectiveMessage.GetMessage()
 		matched, command, args := func() (bool, string, string) {
 			for _, prefix := range config.C.Plugin.Prefixes {
