@@ -226,18 +226,15 @@ func (m *Meilisearch) DeleteDocuments(ctx context.Context, chatID int64, ids []i
 	for _, id := range ids {
 		docIds = append(docIds, fmt.Sprintf("%d_%d", chatID, id))
 	}
-	_, err := m.Client.Index(m.Index).DeleteDocumentsWithContext(ctx, docIds, &meilisearch.DocumentOptions{
-		PrimaryKey: new("id"),
-	})
+	// 删除接口不支持 primaryKey 查询参数, 只能传 customMetadata
+	_, err := m.Client.Index(m.Index).DeleteDocumentsWithContext(ctx, docIds, nil)
 	return err
 }
 
 // DeleteIndex implements engine.Searcher.
 func (m *Meilisearch) DeleteIndex(ctx context.Context, chatID int64) error {
 	// 删除索引相当于删除属于这个chat的所有文档
-	if _, err := m.Client.Index(m.Index).DeleteDocumentsByFilterWithContext(ctx, fmt.Sprintf("chat_id = %d", chatID), &meilisearch.DocumentOptions{
-		PrimaryKey: new("id"),
-	}); err != nil {
+	if _, err := m.Client.Index(m.Index).DeleteDocumentsByFilterWithContext(ctx, fmt.Sprintf("chat_id = %d", chatID), nil); err != nil {
 		return err
 	}
 	return nil
