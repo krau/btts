@@ -27,6 +27,7 @@ const (
 	cleanMemberPageSize      = 200             // 每次拉取成员的数量
 	cleanMemberMaxFloodRetry = 3               // FloodWait 重试次数
 	cleanMemberInlineLimit   = 20              // 命中人数不超过该值时直接在消息中列出
+	cleanMemberMaxPages      = 10000           // 分页遍历的安全上限, 防止偏移量异常时陷入死循环
 )
 
 const (
@@ -662,7 +663,11 @@ func kickCleanMember(ctx *ext.Context, chat types.EffectiveChat, user *tg.User) 
 			return true, nil
 		}
 		if wait, ok := tgerr.AsFloodWait(err); ok && attempt < cleanMemberMaxFloodRetry {
-			time.Sleep(wait + time.Duration(500+rand.IntN(500))*time.Millisecond)
+			select {
+			case <-ctx.Done():
+				return false, ctx.Err()
+			case <-time.After(wait + time.Duration(500+rand.IntN(500))*time.Millisecond):
+			}
 			continue
 		}
 		if tgerr.IsCode(err, 400) {
@@ -686,7 +691,13 @@ func forEachCleanMember(ctx *ext.Context, chat types.EffectiveChat, fn func(*tg.
 
 func forEachChannelCleanMember(ctx *ext.Context, chat *types.Channel, fn func(*tg.User) (bool, error)) error {
 	offset := 0
-	for {
+	// 被踢出的成员不会减少 offset, 正常情况靠成员从列表消失来推进; 一旦服务端
+	// 不再返回新成员, offset 就可能原地打转. 用页数上限兜底, 避免单个 goroutine
+	// 无限空转、持续请求接口进而把整个账号拖入 FloodWait.
+	for page := 0; ; page++ {
+		if page >= cleanMemberMaxPages {
+			return fmt.Errorf("clean_member: 遍历成员超过 %d 页, 已中止", cleanMemberMaxPages)
+		}
 		res, err := ctx.Raw.ChannelsGetParticipants(ctx, &tg.ChannelsGetParticipantsRequest{
 			Channel: chat.GetInputChannel(),
 			Filter:  &tg.ChannelParticipantsSearch{Q: ""},
