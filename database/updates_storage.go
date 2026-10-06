@@ -29,22 +29,56 @@ func NewUpdatesStorage() *UpdatesStorage {
 	return &UpdatesStorage{}
 }
 
+// legacyUpdatesStateID is where the hand-rolled catch-up stored the account
+// state before the update manager took over.
+const legacyUpdatesStateID = 1
+
 // GetState implements updates.StateStorage.
 func (s *UpdatesStorage) GetState(ctx context.Context, userID int64) (updates.State, bool, error) {
-	var row UpdatesState
-	err := db.WithContext(ctx).Where("id = ?", uint(userID)).First(&row).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return updates.State{}, false, nil
-	}
+	row, found, err := s.rowByID(ctx, uint(userID))
 	if err != nil {
 		return updates.State{}, false, err
 	}
-	return updates.State{
-		Pts:  row.Pts,
-		Qts:  row.Qts,
-		Date: row.Date,
-		Seq:  row.Seq,
-	}, true, nil
+	if found {
+		return row.asState(), row.meaningful(), nil
+	}
+	// Adopt the row the previous implementation wrote (fixed ID 1) so an
+	// upgraded installation resumes from its old cursor instead of treating the
+	// account as new and skipping everything missed while it was down.
+	if uint(userID) == legacyUpdatesStateID {
+		return updates.State{}, false, nil
+	}
+	legacy, found, err := s.rowByID(ctx, legacyUpdatesStateID)
+	if err != nil || !found {
+		return updates.State{}, false, err
+	}
+	if err := db.WithContext(ctx).Model(&UpdatesState{}).
+		Where("id = ?", legacyUpdatesStateID).Update("id", uint(userID)).Error; err != nil {
+		return updates.State{}, false, err
+	}
+	return legacy.asState(), legacy.meaningful(), nil
+}
+
+func (s *UpdatesStorage) rowByID(ctx context.Context, id uint) (*UpdatesState, bool, error) {
+	var row UpdatesState
+	err := db.WithContext(ctx).Where("id = ?", id).First(&row).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, err
+	}
+	return &row, true, nil
+}
+
+func (r *UpdatesState) asState() updates.State {
+	return updates.State{Pts: r.Pts, Qts: r.Qts, Date: r.Date, Seq: r.Seq}
+}
+
+// meaningful reports whether the row holds a cursor worth resuming from. The
+// old GetUpdatesState created an all-zero row on first access.
+func (r *UpdatesState) meaningful() bool {
+	return r.Pts != 0 || r.Qts != 0 || r.Date != 0 || r.Seq != 0
 }
 
 // SetState implements updates.StateStorage.
