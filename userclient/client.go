@@ -52,17 +52,7 @@ func (u *UserClient) GetContext() *ext.Context {
 }
 
 func (u *UserClient) StartWatch(ctx context.Context) {
-	// 启动时同步错过的消息
-	if !config.C.SkipCatchup {
-		if err := u.SyncMissedUpdates(ctx); err != nil {
-			log.FromContext(ctx).Error("Failed to sync missed updates", "error", err)
-		}
-	}
 	disp := u.TClient.Dispatcher
-	disp.AddHandlerToGroup(handlers.NewAnyUpdate(func(ctx *ext.Context, update *ext.Update) error {
-		u.updateStateFromUpdates(ctx, update.UpdateClass)
-		return dispatcher.SkipCurrentGroup
-	}), 0)
 	disp.AddHandlerToGroup(handlers.NewAnyUpdate(func(ctx *ext.Context, u *ext.Update) error {
 		switch update := u.UpdateClass.(type) {
 		case *tg.UpdateDeleteChannelMessages:
@@ -211,6 +201,10 @@ func NewUserClient(ctx context.Context) (*UserClient, error) {
 				DisableCopyright: true,
 				Middlewares:      middlewares.NewDefaultMiddlewares(ctx, 5*time.Minute),
 				AutoFetchReply:   true,
+				// Persist the update manager state (pts/qts/seq and per-channel pts)
+				// so updates missed while the process was offline are recovered by
+				// gotd's updates manager on the next start.
+				UpdateStateStorage: database.NewUpdatesStorage(),
 			},
 		)
 		if err != nil {
