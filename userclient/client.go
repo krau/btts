@@ -148,9 +148,12 @@ func (u *UserClient) StartWatch(ctx context.Context) {
 		}
 		return true
 	}, func(ctx *ext.Context, u *ext.Update) error {
-		if err := plugin.Dispatcher(ctx, u); err != nil {
-			log.FromContext(ctx).Error("Plugin dispatcher error", "error", err)
-		}
+		// Do not run plugins inline: the dispatcher handles every update in a
+		// single goroutine, so a blocking plugin request (FLOOD_WAIT sleeps from
+		// the floodwait middleware, slow member enumeration, ...) would freeze
+		// all update handling until a restart. DispatchPlugin hands the work to
+		// a per-chat worker and returns immediately.
+		plugin.DispatchPlugin(ctx, u)
 		return dispatcher.SkipCurrentGroup
 	}), 3)
 }

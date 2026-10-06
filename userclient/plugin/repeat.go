@@ -44,5 +44,9 @@ func RepeatHandler(ctx *Context, u *ext.Update) error {
 			ctx.ForwardMessages(chatId, chatId, req)
 		})
 	}
+	// Wait for every forward to finish: without this the handler returned while
+	// its goroutines were still running, leaking them and leaving them to race
+	// on the shared plugin Context with the next update.
+	wg.Wait()
 	return nil
 }
