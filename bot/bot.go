@@ -2,6 +2,7 @@ package bot
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/charmbracelet/log"
@@ -39,9 +40,19 @@ func (b *Bot) GetContext() *ext.Context {
 	return b.ectx
 }
 
-func (b *Bot) Start(ctx context.Context) {
+func (b *Bot) Start(ctx context.Context) error {
 	log := log.FromContext(ctx)
 	log.Info("Starting bot...")
+	defer func() {
+		log.Info("Exiting...")
+		if err := b.UserClient.Close(); err != nil {
+			log.Errorf("Failed to close user client: %v", err)
+		}
+		b.Client.Stop()
+		for _, sb := range subbot.GetAll() {
+			sb.Stop()
+		}
+	}()
 
 	b.RegisterHandlers(ctx)
 
@@ -54,23 +65,14 @@ func (b *Bot) Start(ctx context.Context) {
 		b.UserClient.AddGlobalIgnoreUser(sb.ID)
 	}
 
-	// Every consumer is registered now (user-client handlers, sub bots and the
-	// ignore list), so it is safe to start update recovery: recovered updates go
-	// to the handlers registered above instead of being dropped with the cursor
-	// already advanced past them.
+	// Recovery must wait until all consumers and the ignore list are ready.
 	if err := b.UserClient.TClient.StartUpdateRecovery(ctx); err != nil {
-		log.Errorf("Failed to start update recovery: %v", err)
+		return fmt.Errorf("start update recovery: %w", err)
 	}
 
 	log.Info("Bot started.")
 	<-ctx.Done()
-	log.Info("Exiting...")
-	if err := b.UserClient.Close(); err != nil {
-		log.Errorf("Failed to close user client: %v", err)
-	}
-	for _, sb := range subbot.GetAll() {
-		sb.Stop()
-	}
+	return nil
 }
 
 func (b *Bot) GetUsername() string {

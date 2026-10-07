@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/signal"
 	"time"
@@ -18,7 +19,7 @@ import (
 	"github.com/krau/btts/userclient"
 )
 
-func run() {
+func run() error {
 	config.Init()
 	logger := log.NewWithOptions(os.Stdout, log.Options{
 		Level:           log.DebugLevel,
@@ -27,8 +28,7 @@ func run() {
 		ReportCaller:    true,
 	})
 	if err := os.MkdirAll("data", os.ModePerm); err != nil {
-		logger.Errorf("Failed to create data directory: %v", err)
-		return
+		return fmt.Errorf("create data directory: %w", err)
 	}
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
@@ -36,26 +36,27 @@ func run() {
 	ctx = log.WithContext(ctx, logger)
 
 	if err := database.InitDatabase(ctx); err != nil {
-		log.Errorf("Failed to initialize database: %v", err)
-		return
+		return fmt.Errorf("initialize database: %w", err)
 	}
 
 	userClient, err := userclient.NewUserClient(ctx)
 	if err != nil {
-		log.Errorf("Failed to create user client: %v", err)
-		return
+		return fmt.Errorf("create user client: %w", err)
 	}
+	defer func() {
+		if err := userClient.Close(); err != nil {
+			logger.Errorf("Failed to close user client: %v", err)
+		}
+	}()
 
 	engine, err := engine.NewEngine(ctx)
 	if err != nil {
-		log.Errorf("Failed to create engine: %v", err)
-		return
+		return fmt.Errorf("create engine: %w", err)
 	}
 
 	bot, err := bot.NewBot(ctx, userClient, engine)
 	if err != nil {
-		log.Errorf("Failed to create bot: %v", err)
-		return
+		return fmt.Errorf("create bot: %w", err)
 	}
 	if backgroundMigrate || backgroundMigrateDropOld {
 		go func() {
@@ -72,5 +73,5 @@ func run() {
 		api.Serve(config.C.Api.Addr)
 		log.Infof("API server started at %s", config.C.Api.Addr)
 	}
-	bot.Start(ctx)
+	return bot.Start(ctx)
 }

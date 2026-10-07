@@ -13,8 +13,8 @@ var (
 
 var rootCmd = &cobra.Command{
 	Use: "btts",
-	Run: func(cmd *cobra.Command, args []string) {
-		run()
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return run()
 	},
 }
 

@@ -44,7 +44,6 @@ type IndexChat struct {
 	NoDelete bool   `json:"no_delete"`
 	NoOcr    bool   `json:"no_ocr"`
 	Public   bool   `gorm:"default:false" json:"public"`
-	Pts      int    `gorm:"default:0" json:"pts"` // Channel message box sequence for updates
 
 	Members []UserInfo `gorm:"many2many:index_chat_members;constraint:OnDelete:CASCADE;joinForeignKey:IndexChatID;joinReferences:UserChatID" json:"members"`
 }
@@ -56,6 +55,13 @@ type UpdatesState struct {
 	Qts  int  `json:"qts"`  // Secondary event sequence (secret chats, certain bot events)
 	Date int  `json:"date"` // Unix timestamp
 	Seq  int  `json:"seq"`  // Updates sequence number
+}
+
+// Channel cursors belong to the Telegram account, not the bot's indexing policy.
+type updatesChannelState struct {
+	UserID    int64 `gorm:"primaryKey;autoIncrement:false"`
+	ChannelID int64 `gorm:"primaryKey;autoIncrement:false"`
+	Pts       int
 }
 
 type SubBot struct {

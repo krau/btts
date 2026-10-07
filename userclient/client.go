@@ -2,6 +2,7 @@ package userclient
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"sync"
 	"time"
@@ -28,8 +29,11 @@ import (
 )
 
 var uc *UserClient
+var clientMu sync.Mutex
 
 func GetUserClient() *UserClient {
+	clientMu.Lock()
+	defer clientMu.Unlock()
 	if uc == nil {
 		panic("UserClient is not initialized, call NewUserClient first")
 	}
@@ -42,6 +46,7 @@ type UserClient struct {
 	GlobalIgnoreUsers []int64
 	ectx              *ext.Context // created by TClient.CreateContext()
 	mu                sync.Mutex
+	noUpdates         bool
 }
 
 func (u *UserClient) GetContext() *ext.Context {
@@ -146,6 +151,14 @@ func (u *UserClient) StartWatch(ctx context.Context) {
 }
 
 func (u *UserClient) Close() error {
+	clientMu.Lock()
+	defer clientMu.Unlock()
+	if u.TClient != nil {
+		u.TClient.Stop()
+	}
+	if uc == u {
+		uc = nil
+	}
 	if u.logger != nil {
 		return u.logger.Sync()
 	}
@@ -176,26 +189,29 @@ type clientConfig struct {
 	noUpdates bool
 }
 
-// WithNoUpdates creates a client that does not handle updates at all. Use it for
-// export-only clients such as takeout: with deferred recovery they would
-// otherwise buffer updates in memory forever without ever consuming them.
+// WithNoUpdates disables updates for export-only clients; it cannot reuse an update-enabled client.
 func WithNoUpdates() Option {
 	return func(c *clientConfig) { c.noUpdates = true }
 }
 
 func NewUserClient(ctx context.Context, options ...Option) (*UserClient, error) {
 	log.FromContext(ctx).Debug("Initializing user client")
-	if uc != nil {
-		return uc, nil
-	}
+	clientMu.Lock()
+	defer clientMu.Unlock()
 	cfg := &clientConfig{}
 	for _, option := range options {
 		option(cfg)
 	}
+	if uc != nil {
+		if uc.noUpdates != cfg.noUpdates {
+			return nil, fmt.Errorf("user client already initialized with NoUpdates=%t; requested NoUpdates=%t", uc.noUpdates, cfg.noUpdates)
+		}
+		return uc, nil
+	}
 	res := make(chan struct {
 		client *UserClient
 		err    error
-	})
+	}, 1)
 	go func() {
 		tclientLog := zap.New(zapcore.NewCore(
 			zapcore.NewJSONEncoder(zap.NewProductionEncoderConfig()),
@@ -219,17 +235,11 @@ func NewUserClient(ctx context.Context, options ...Option) (*UserClient, error) 
 				DisableCopyright: true,
 				Middlewares:      middlewares.NewDefaultMiddlewares(ctx, 5*time.Minute),
 				AutoFetchReply:   true,
-				// Recovery is deferred: the bot registers every consumer first and
-				// then calls StartUpdateRecovery, so recovered updates are not handed
-				// to a dispatcher without handlers (and the cursor is not advanced
-				// before they can be processed).
+				// Consumers must register before recovery can advance persisted cursors.
 				DeferUpdateRecovery: true,
-				// Export-only clients (takeout) never consume updates; deferred
-				// recovery would otherwise buffer them in memory forever.
+				// Export-only clients must not buffer unconsumed updates.
 				NoUpdates: cfg.noUpdates,
-				// Persist the update manager state (pts/qts/seq and per-channel pts)
-				// so updates missed while the process was offline are recovered by
-				// gotd's updates manager on the next start.
+				// Persist cursors across restarts.
 				UpdateStateStorage: database.NewUpdatesStorage(),
 			},
 		)
@@ -238,11 +248,9 @@ func NewUserClient(ctx context.Context, options ...Option) (*UserClient, error) 
 				client *UserClient
 				err    error
 			}{nil, err}
+			return
 		}
 		res <- struct {
-			client *UserClient
-			err    error
-		}(struct {
 			client *UserClient
 			err    error
 		}{&UserClient{
@@ -250,7 +258,8 @@ func NewUserClient(ctx context.Context, options ...Option) (*UserClient, error) 
 			logger:            tclientLog,
 			GlobalIgnoreUsers: make([]int64, 0),
 			ectx:              tclient.CreateContext(),
-		}, nil})
+			noUpdates:         cfg.noUpdates,
+		}, nil}
 	}()
 
 	select {
