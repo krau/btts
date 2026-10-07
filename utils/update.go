@@ -2,8 +2,24 @@ package utils
 
 import (
 	"github.com/gotd/td/tg"
+	"github.com/krau/mygotg/dispatcher"
 	"github.com/krau/mygotg/ext"
 )
+
+// IgnoreBotMessages prevents outgoing replies from re-entering Bot commands and searches.
+func IgnoreBotMessages(ctx *ext.Context, u *ext.Update) error {
+	m := u.EffectiveMessage
+	if m == nil || m.Message == nil {
+		return dispatcher.ContinueGroups
+	}
+	if m.Out {
+		return dispatcher.EndGroups
+	}
+	if sender, ok := m.FromID.(*tg.PeerUser); ok && sender.UserID == ctx.Self.ID {
+		return dispatcher.EndGroups
+	}
+	return dispatcher.ContinueGroups
+}
 
 func GetUpdatePeerUser(u *ext.Update) *tg.PeerUser {
 	if u.Entities == nil {

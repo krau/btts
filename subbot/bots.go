@@ -29,6 +29,7 @@ type SubBot struct {
 
 func (s *SubBot) Start() {
 	disp := s.Client.Dispatcher
+	disp.AddHandlerToGroup(handlers.NewAnyUpdate(utils.IgnoreBotMessages), -1)
 	disp.AddHandler(handlers.NewCommand("start", StartHandler))
 	disp.AddHandler(handlers.NewCommand("help", StartHandler))
 	disp.AddHandler(handlers.NewCommand("search", SearchHandler))

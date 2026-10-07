@@ -7,6 +7,7 @@ import (
 	"github.com/duke-git/lancet/v2/slice"
 	"github.com/gotd/td/tg"
 	"github.com/krau/btts/config"
+	"github.com/krau/btts/utils"
 
 	"github.com/krau/mygotg/dispatcher/handlers"
 	"github.com/krau/mygotg/dispatcher/handlers/filters"
@@ -62,6 +63,7 @@ var commandHandlers = []commandHandler{
 
 func (b *Bot) RegisterHandlers(ctx context.Context) {
 	disp := b.Client.Dispatcher
+	disp.AddHandlerToGroup(handlers.NewAnyUpdate(utils.IgnoreBotMessages), -1)
 	for _, cmdHandler := range commandHandlers {
 		disp.AddHandler(handlers.NewCommand(cmdHandler.cmd, cmdHandler.handlerFunc))
 	}
