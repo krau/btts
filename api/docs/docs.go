@@ -1114,10 +1114,6 @@ const docTemplate = `{
                 "no_delete": {
                     "type": "boolean"
                 },
-                "pts": {
-                    "description": "Channel message box sequence for updates",
-                    "type": "integer"
-                },
                 "public": {
                     "type": "boolean"
                 },

@@ -2,6 +2,7 @@ package userclient
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"sync"
 	"time"
@@ -28,8 +29,11 @@ import (
 )
 
 var uc *UserClient
+var clientMu sync.Mutex
 
 func GetUserClient() *UserClient {
+	clientMu.Lock()
+	defer clientMu.Unlock()
 	if uc == nil {
 		panic("UserClient is not initialized, call NewUserClient first")
 	}
@@ -42,6 +46,7 @@ type UserClient struct {
 	GlobalIgnoreUsers []int64
 	ectx              *ext.Context // created by TClient.CreateContext()
 	mu                sync.Mutex
+	noUpdates         bool
 }
 
 func (u *UserClient) GetContext() *ext.Context {
@@ -52,17 +57,7 @@ func (u *UserClient) GetContext() *ext.Context {
 }
 
 func (u *UserClient) StartWatch(ctx context.Context) {
-	// 启动时同步错过的消息
-	if !config.C.SkipCatchup {
-		if err := u.SyncMissedUpdates(ctx); err != nil {
-			log.FromContext(ctx).Error("Failed to sync missed updates", "error", err)
-		}
-	}
 	disp := u.TClient.Dispatcher
-	disp.AddHandlerToGroup(handlers.NewAnyUpdate(func(ctx *ext.Context, update *ext.Update) error {
-		u.updateStateFromUpdates(ctx, update.UpdateClass)
-		return dispatcher.SkipCurrentGroup
-	}), 0)
 	disp.AddHandlerToGroup(handlers.NewAnyUpdate(func(ctx *ext.Context, u *ext.Update) error {
 		switch update := u.UpdateClass.(type) {
 		case *tg.UpdateDeleteChannelMessages:
@@ -156,6 +151,14 @@ func (u *UserClient) StartWatch(ctx context.Context) {
 }
 
 func (u *UserClient) Close() error {
+	clientMu.Lock()
+	defer clientMu.Unlock()
+	if u.TClient != nil {
+		u.TClient.Stop()
+	}
+	if uc == u {
+		uc = nil
+	}
 	if u.logger != nil {
 		return u.logger.Sync()
 	}
@@ -179,15 +182,36 @@ func (u *UserClient) RemoveGlobalIgnoreUser(userID int64) {
 	}
 }
 
-func NewUserClient(ctx context.Context) (*UserClient, error) {
+// Option customises how the user client is created.
+type Option func(*clientConfig)
+
+type clientConfig struct {
+	noUpdates bool
+}
+
+// WithNoUpdates disables updates for export-only clients; it cannot reuse an update-enabled client.
+func WithNoUpdates() Option {
+	return func(c *clientConfig) { c.noUpdates = true }
+}
+
+func NewUserClient(ctx context.Context, options ...Option) (*UserClient, error) {
 	log.FromContext(ctx).Debug("Initializing user client")
+	clientMu.Lock()
+	defer clientMu.Unlock()
+	cfg := &clientConfig{}
+	for _, option := range options {
+		option(cfg)
+	}
 	if uc != nil {
+		if uc.noUpdates != cfg.noUpdates {
+			return nil, fmt.Errorf("user client already initialized with NoUpdates=%t; requested NoUpdates=%t", uc.noUpdates, cfg.noUpdates)
+		}
 		return uc, nil
 	}
 	res := make(chan struct {
 		client *UserClient
 		err    error
-	})
+	}, 1)
 	go func() {
 		tclientLog := zap.New(zapcore.NewCore(
 			zapcore.NewJSONEncoder(zap.NewProductionEncoderConfig()),
@@ -211,6 +235,12 @@ func NewUserClient(ctx context.Context) (*UserClient, error) {
 				DisableCopyright: true,
 				Middlewares:      middlewares.NewDefaultMiddlewares(ctx, 5*time.Minute),
 				AutoFetchReply:   true,
+				// Consumers must register before recovery can advance persisted cursors.
+				DeferUpdateRecovery: true,
+				// Export-only clients must not buffer unconsumed updates.
+				NoUpdates: cfg.noUpdates,
+				// Persist cursors across restarts.
+				UpdateStateStorage: database.NewUpdatesStorage(),
 			},
 		)
 		if err != nil {
@@ -218,11 +248,9 @@ func NewUserClient(ctx context.Context) (*UserClient, error) {
 				client *UserClient
 				err    error
 			}{nil, err}
+			return
 		}
 		res <- struct {
-			client *UserClient
-			err    error
-		}(struct {
 			client *UserClient
 			err    error
 		}{&UserClient{
@@ -230,7 +258,8 @@ func NewUserClient(ctx context.Context) (*UserClient, error) {
 			logger:            tclientLog,
 			GlobalIgnoreUsers: make([]int64, 0),
 			ectx:              tclient.CreateContext(),
-		}, nil})
+			noUpdates:         cfg.noUpdates,
+		}, nil}
 	}()
 
 	select {

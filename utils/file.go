@@ -76,7 +76,7 @@ func FileFromMedia(media tg.MessageMediaClass, client downloader.Client) (TGFile
 			}
 		}
 		file := NewTGFile(
-			document.AsInputDocumentFileLocation(),
+			document.AsInputDocumentFileLocation(""),
 			client,
 			document.Size,
 			fileName,

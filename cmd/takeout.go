@@ -37,7 +37,9 @@ Note: This is a one-time export operation and may take a long time depending on 
 			}
 
 			// 初始化 UserClient
-			uc, err := userclient.NewUserClient(ctx)
+			// Takeout never consumes updates: build an export-only client so it does
+			// not buffer them (recovery stays off).
+			uc, err := userclient.NewUserClient(ctx, userclient.WithNoUpdates())
 			if err != nil {
 				logger.Fatal("Failed to initialize user client", "error", err)
 				return

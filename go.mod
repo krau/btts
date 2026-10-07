@@ -14,8 +14,8 @@ require (
 	github.com/gofiber/contrib/v3/swaggo v1.0.10
 	github.com/gofiber/fiber/v3 v3.5.0
 	github.com/gotd/contrib v0.21.1
-	github.com/gotd/td v0.153.0
-	github.com/krau/mygotg v0.2.1
+	github.com/gotd/td v0.159.0
+	github.com/krau/mygotg v0.4.0
 	github.com/meilisearch/meilisearch-go v0.36.3
 	github.com/ncruces/go-sqlite3 v0.35.4
 	github.com/rs/xid v1.6.0
@@ -62,6 +62,8 @@ require (
 	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
 	github.com/google/go-github/v90 v90.0.0 // indirect
 	github.com/google/go-querystring v1.2.0 // indirect
+	github.com/gotd/log v0.1.0 // indirect
+	github.com/gotd/log/logzap v0.1.1 // indirect
 	github.com/inconshreveable/go-update v0.0.0-20160112193335-8152e7eb6ccf // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect

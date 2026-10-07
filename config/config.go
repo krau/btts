@@ -9,12 +9,11 @@ import (
 )
 
 type AppConfig struct {
-	AppID       int     `toml:"app_id" mapstructure:"app_id"`
-	AppHash     string  `toml:"app_hash" mapstructure:"app_hash"`
-	BotToken    string  `toml:"bot_token" mapstructure:"bot_token"`
-	Admins      []int64 `toml:"admins" mapstructure:"admins"`
-	SkipCatchup bool    `toml:"skip_catchup" mapstructure:"skip_catchup"`
-	Plugin      struct {
+	AppID    int     `toml:"app_id" mapstructure:"app_id"`
+	AppHash  string  `toml:"app_hash" mapstructure:"app_hash"`
+	BotToken string  `toml:"bot_token" mapstructure:"bot_token"`
+	Admins   []int64 `toml:"admins" mapstructure:"admins"`
+	Plugin   struct {
 		Enable   bool     `toml:"enable" mapstructure:"enable"`
 		Prefixes []string `toml:"prefixes" mapstructure:"prefixes"`
 	} `toml:"plugin" mapstructure:"plugin"`
