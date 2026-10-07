@@ -54,6 +54,14 @@ func (b *Bot) Start(ctx context.Context) {
 		b.UserClient.AddGlobalIgnoreUser(sb.ID)
 	}
 
+	// Every consumer is registered now (user-client handlers, sub bots and the
+	// ignore list), so it is safe to start update recovery: recovered updates go
+	// to the handlers registered above instead of being dropped with the cursor
+	// already advanced past them.
+	if err := b.UserClient.TClient.StartUpdateRecovery(ctx); err != nil {
+		log.Errorf("Failed to start update recovery: %v", err)
+	}
+
 	log.Info("Bot started.")
 	<-ctx.Done()
 	log.Info("Exiting...")

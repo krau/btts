@@ -169,10 +169,28 @@ func (u *UserClient) RemoveGlobalIgnoreUser(userID int64) {
 	}
 }
 
-func NewUserClient(ctx context.Context) (*UserClient, error) {
+// Option customises how the user client is created.
+type Option func(*clientConfig)
+
+type clientConfig struct {
+	noUpdates bool
+}
+
+// WithNoUpdates creates a client that does not handle updates at all. Use it for
+// export-only clients such as takeout: with deferred recovery they would
+// otherwise buffer updates in memory forever without ever consuming them.
+func WithNoUpdates() Option {
+	return func(c *clientConfig) { c.noUpdates = true }
+}
+
+func NewUserClient(ctx context.Context, options ...Option) (*UserClient, error) {
 	log.FromContext(ctx).Debug("Initializing user client")
 	if uc != nil {
 		return uc, nil
+	}
+	cfg := &clientConfig{}
+	for _, option := range options {
+		option(cfg)
 	}
 	res := make(chan struct {
 		client *UserClient
@@ -201,6 +219,14 @@ func NewUserClient(ctx context.Context) (*UserClient, error) {
 				DisableCopyright: true,
 				Middlewares:      middlewares.NewDefaultMiddlewares(ctx, 5*time.Minute),
 				AutoFetchReply:   true,
+				// Recovery is deferred: the bot registers every consumer first and
+				// then calls StartUpdateRecovery, so recovered updates are not handed
+				// to a dispatcher without handlers (and the cursor is not advanced
+				// before they can be processed).
+				DeferUpdateRecovery: true,
+				// Export-only clients (takeout) never consume updates; deferred
+				// recovery would otherwise buffer them in memory forever.
+				NoUpdates: cfg.noUpdates,
 				// Persist the update manager state (pts/qts/seq and per-channel pts)
 				// so updates missed while the process was offline are recovered by
 				// gotd's updates manager on the next start.
