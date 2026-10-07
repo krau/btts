@@ -17,7 +17,6 @@ require (
 	github.com/gotd/td v0.159.0
 	github.com/krau/mygotg v0.4.0
 	github.com/meilisearch/meilisearch-go v0.36.3
-	github.com/ncruces/go-sqlite3 v0.35.4
 	github.com/rs/xid v1.6.0
 	github.com/unvgo/ghselfupdate v1.0.2
 	go.uber.org/zap v1.28.0
@@ -76,6 +75,7 @@ require (
 	github.com/muesli/ansi v0.0.0-20230316100256-276c6243b2f6 // indirect
 	github.com/muesli/cancelreader v0.2.2 // indirect
 	github.com/muesli/termenv v0.16.0 // indirect
+	github.com/ncruces/go-sqlite3 v0.35.4 // indirect
 	github.com/ncruces/go-sqlite3-wasm/v5 v5.0.35304 // indirect
 	github.com/ncruces/go-strftime v1.0.0 // indirect
 	github.com/ncruces/julianday v1.0.0 // indirect
