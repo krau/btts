@@ -7,8 +7,6 @@ import (
 	"os/signal"
 	"time"
 
-	_ "github.com/ncruces/go-sqlite3/embed"
-
 	"github.com/charmbracelet/log"
 	"github.com/krau/btts/api"
 	"github.com/krau/btts/bot"
