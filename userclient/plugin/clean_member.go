@@ -27,6 +27,7 @@ const (
 	cleanMemberPageSize      = 200             // 每次拉取成员的数量
 	cleanMemberMaxFloodRetry = 3               // FloodWait 重试次数
 	cleanMemberInlineLimit   = 20              // 命中人数不超过该值时直接在消息中列出
+	cleanMemberMaxPages      = 10000           // 分页遍历的安全上限, 防止偏移量异常时陷入死循环
 )
 
 const (
@@ -662,7 +663,11 @@ func kickCleanMember(ctx *ext.Context, chat types.EffectiveChat, user *tg.User) 
 			return true, nil
 		}
 		if wait, ok := tgerr.AsFloodWait(err); ok && attempt < cleanMemberMaxFloodRetry {
-			time.Sleep(wait + time.Duration(500+rand.IntN(500))*time.Millisecond)
+			select {
+			case <-ctx.Done():
+				return false, ctx.Err()
+			case <-time.After(wait + time.Duration(500+rand.IntN(500))*time.Millisecond):
+			}
 			continue
 		}
 		if tgerr.IsCode(err, 400) {
@@ -686,7 +691,11 @@ func forEachCleanMember(ctx *ext.Context, chat types.EffectiveChat, fn func(*tg.
 
 func forEachChannelCleanMember(ctx *ext.Context, chat *types.Channel, fn func(*tg.User) (bool, error)) error {
 	offset := 0
-	for {
+	visited := make(map[int64]bool)
+	for page := 0; ; page++ {
+		if page >= cleanMemberMaxPages {
+			return fmt.Errorf("clean_member: 遍历成员超过 %d 页, 已中止", cleanMemberMaxPages)
+		}
 		res, err := ctx.Raw.ChannelsGetParticipants(ctx, &tg.ChannelsGetParticipantsRequest{
 			Channel: chat.GetInputChannel(),
 			Filter:  &tg.ChannelParticipantsSearch{Q: ""},
@@ -701,6 +710,17 @@ func forEachChannelCleanMember(ctx *ext.Context, chat *types.Channel, fn func(*t
 		if !ok || len(page.Participants) == 0 {
 			return nil
 		}
+		hasNew := false
+		for _, participant := range page.Participants {
+			id := channelParticipantUserID(participant)
+			if _, seen := visited[id]; id != 0 && !seen {
+				hasNew = true
+				break
+			}
+		}
+		if !hasNew {
+			return fmt.Errorf("clean_member: 成员分页未返回新成员, 已中止")
+		}
 		users := make(map[int64]*tg.User, len(page.Users))
 		for _, u := range page.Users {
 			if user, ok := u.(*tg.User); ok {
@@ -709,7 +729,18 @@ func forEachChannelCleanMember(ctx *ext.Context, chat *types.Channel, fn func(*t
 		}
 		removed := 0
 		for _, p := range page.Participants {
-			user := users[channelParticipantUserID(p)]
+			id := channelParticipantUserID(p)
+			if id == 0 {
+				continue
+			}
+			if wasRemoved, seen := visited[id]; seen {
+				if wasRemoved {
+					removed++
+				}
+				continue
+			}
+			visited[id] = false
+			user := users[id]
 			if user == nil {
 				continue
 			}
@@ -717,6 +748,7 @@ func forEachChannelCleanMember(ctx *ext.Context, chat *types.Channel, fn func(*t
 			if err != nil {
 				return err
 			}
+			visited[id] = ok
 			if ok {
 				removed++
 			}
