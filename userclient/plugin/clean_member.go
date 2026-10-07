@@ -691,9 +691,7 @@ func forEachCleanMember(ctx *ext.Context, chat types.EffectiveChat, fn func(*tg.
 
 func forEachChannelCleanMember(ctx *ext.Context, chat *types.Channel, fn func(*tg.User) (bool, error)) error {
 	offset := 0
-	// 被踢出的成员不会减少 offset, 正常情况靠成员从列表消失来推进; 一旦服务端
-	// 不再返回新成员, offset 就可能原地打转. 用页数上限兜底, 避免单个 goroutine
-	// 无限空转、持续请求接口进而把整个账号拖入 FloodWait.
+	visited := make(map[int64]bool)
 	for page := 0; ; page++ {
 		if page >= cleanMemberMaxPages {
 			return fmt.Errorf("clean_member: 遍历成员超过 %d 页, 已中止", cleanMemberMaxPages)
@@ -712,6 +710,17 @@ func forEachChannelCleanMember(ctx *ext.Context, chat *types.Channel, fn func(*t
 		if !ok || len(page.Participants) == 0 {
 			return nil
 		}
+		hasNew := false
+		for _, participant := range page.Participants {
+			id := channelParticipantUserID(participant)
+			if _, seen := visited[id]; id != 0 && !seen {
+				hasNew = true
+				break
+			}
+		}
+		if !hasNew {
+			return fmt.Errorf("clean_member: 成员分页未返回新成员, 已中止")
+		}
 		users := make(map[int64]*tg.User, len(page.Users))
 		for _, u := range page.Users {
 			if user, ok := u.(*tg.User); ok {
@@ -720,7 +729,18 @@ func forEachChannelCleanMember(ctx *ext.Context, chat *types.Channel, fn func(*t
 		}
 		removed := 0
 		for _, p := range page.Participants {
-			user := users[channelParticipantUserID(p)]
+			id := channelParticipantUserID(p)
+			if id == 0 {
+				continue
+			}
+			if wasRemoved, seen := visited[id]; seen {
+				if wasRemoved {
+					removed++
+				}
+				continue
+			}
+			visited[id] = false
+			user := users[id]
 			if user == nil {
 				continue
 			}
@@ -728,6 +748,7 @@ func forEachChannelCleanMember(ctx *ext.Context, chat *types.Channel, fn func(*t
 			if err != nil {
 				return err
 			}
+			visited[id] = ok
 			if ok {
 				removed++
 			}
