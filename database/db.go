@@ -23,6 +23,12 @@ func InitDatabase(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	sqlDB, err := openDb.DB()
+	if err != nil {
+		return err
+	}
+	// Serialize read-to-write transactions so SQLite cannot reject their lock upgrade.
+	sqlDB.SetMaxOpenConns(1)
 	db = openDb
 	if err := db.WithContext(ctx).AutoMigrate(&UserInfo{}, &IndexChat{}, &SubBot{}, &ApiKey{}, &UpdatesState{}, &updatesChannelState{}); err != nil {
 		return err
