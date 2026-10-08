@@ -15,7 +15,7 @@ require (
 	github.com/gofiber/fiber/v3 v3.5.0
 	github.com/gotd/contrib v0.21.1
 	github.com/gotd/td v0.159.0
-	github.com/krau/mygotg v0.4.0
+	github.com/krau/mygotg v0.4.1
 	github.com/meilisearch/meilisearch-go v0.36.3
 	github.com/rs/xid v1.6.0
 	github.com/unvgo/ghselfupdate v1.0.2

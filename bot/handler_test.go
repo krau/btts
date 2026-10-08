@@ -2,7 +2,6 @@ package bot
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -127,7 +126,7 @@ func dispatchMessage(t *testing.T, client *mygotg.Client, f *dispatchRPC, msg *t
 		Updates: []tg.UpdateClass{update}, Users: dispatchUsers(),
 		Chats: []tg.ChatClass{&tg.Channel{ID: dispatchChannelID, AccessHash: 1702, Megagroup: true}},
 	})
-	if err != nil && !errors.Is(err, dispatcher.EndGroups) {
+	if err != nil {
 		t.Fatal(err)
 	}
 }
@@ -229,7 +228,7 @@ func TestBotDispatchDoesNotSearchOwnMessages(t *testing.T) {
 				t.Fatalf("self messages affected search count: got %d, want 4", len(searcher.queries))
 			}
 			err := client.Dispatcher.Handle(context.Background(), &tg.Updates{Updates: []tg.UpdateClass{&tg.UpdateBotCallbackQuery{QueryID: 10, UserID: dispatchUserID, Peer: &tg.PeerUser{UserID: dispatchUserID}, Data: []byte("search 1 expired")}}, Users: dispatchUsers()})
-			if err != nil && !errors.Is(err, dispatcher.EndGroups) {
+			if err != nil {
 				t.Fatal(err)
 			}
 			if f.callbacks != 1 {
