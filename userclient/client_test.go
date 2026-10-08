@@ -3,6 +3,8 @@ package userclient
 import (
 	"context"
 	"testing"
+
+	"github.com/krau/btts/config"
 )
 
 func TestNewUserClientRejectsCachedModeMismatch(t *testing.T) {
@@ -39,5 +41,16 @@ func TestCloseReleasesCachedClient(t *testing.T) {
 	}
 	if uc != nil {
 		t.Fatal("closed client remains available for reuse")
+	}
+}
+
+func TestNewUserClientRejectsInvalidLogLevelBeforeLogin(t *testing.T) {
+	previousClient, previousLevel := uc, config.C.ClientLogLevel
+	t.Cleanup(func() { uc, config.C.ClientLogLevel = previousClient, previousLevel })
+	uc = nil
+	config.C.ClientLogLevel = "verbose"
+	client, err := NewUserClient(context.Background())
+	if err == nil || client != nil || uc != nil {
+		t.Fatalf("invalid log level started a client: client=%p cached=%p err=%v", client, uc, err)
 	}
 }

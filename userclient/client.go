@@ -208,6 +208,12 @@ func NewUserClient(ctx context.Context, options ...Option) (*UserClient, error) 
 		}
 		return uc, nil
 	}
+	clientLogLevel := zap.InfoLevel
+	if config.C.ClientLogLevel != "" {
+		if err := clientLogLevel.UnmarshalText([]byte(config.C.ClientLogLevel)); err != nil {
+			return nil, fmt.Errorf("invalid client_log_level: %w", err)
+		}
+	}
 	res := make(chan struct {
 		client *UserClient
 		err    error
@@ -221,7 +227,7 @@ func NewUserClient(ctx context.Context, options ...Option) (*UserClient, error) 
 				MaxSize:    10,
 				MaxAge:     7,
 			}),
-			zap.DebugLevel,
+			clientLogLevel,
 		))
 		tclient, err := mygotg.NewClient(
 			config.C.AppID,

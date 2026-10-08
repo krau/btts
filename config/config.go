@@ -9,11 +9,12 @@ import (
 )
 
 type AppConfig struct {
-	AppID    int     `toml:"app_id" mapstructure:"app_id"`
-	AppHash  string  `toml:"app_hash" mapstructure:"app_hash"`
-	BotToken string  `toml:"bot_token" mapstructure:"bot_token"`
-	Admins   []int64 `toml:"admins" mapstructure:"admins"`
-	Plugin   struct {
+	AppID          int     `toml:"app_id" mapstructure:"app_id"`
+	AppHash        string  `toml:"app_hash" mapstructure:"app_hash"`
+	BotToken       string  `toml:"bot_token" mapstructure:"bot_token"`
+	Admins         []int64 `toml:"admins" mapstructure:"admins"`
+	ClientLogLevel string  `toml:"client_log_level" mapstructure:"client_log_level"`
+	Plugin         struct {
 		Enable   bool     `toml:"enable" mapstructure:"enable"`
 		Prefixes []string `toml:"prefixes" mapstructure:"prefixes"`
 	} `toml:"plugin" mapstructure:"plugin"`
@@ -67,6 +68,7 @@ func Init() {
 	viper.SetDefault("file_cache.disable", false)
 	viper.SetDefault("file_cache.dir", "data/file_cache")
 	viper.SetDefault("file_cache.ttl", "24h")
+	viper.SetDefault("client_log_level", "info")
 
 	viper.SetDefault("plugin.prefixes", []string{","})
 
