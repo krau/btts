@@ -54,6 +54,16 @@ var _ engine.Searcher = (*Engine)(nil)
 // Wrap decorates a Searcher with optional text/media enrichment. It returns
 // the original searcher unchanged when enrichment is disabled.
 func Wrap(ctx context.Context, inner engine.Searcher, fetcher MediaFetcher) (engine.Searcher, error) {
+	return wrap(ctx, inner, fetcher, true)
+}
+
+// WrapForImport enables enrichment for offline imports without starting queue
+// workers. Callers use EnrichNow with local media bytes instead.
+func WrapForImport(ctx context.Context, inner engine.Searcher) (engine.Searcher, error) {
+	return wrap(ctx, inner, nil, false)
+}
+
+func wrap(ctx context.Context, inner engine.Searcher, fetcher MediaFetcher, startWorkers bool) (engine.Searcher, error) {
 	cfg := config.C
 	if !cfg.Enrich.Enable {
 		return inner, nil
@@ -152,20 +162,23 @@ func Wrap(ctx context.Context, inner engine.Searcher, fetcher MediaFetcher) (eng
 	if err := inner.CreateIndex(ctx, 0); err != nil {
 		return nil, fmt.Errorf("configure main index for enrichment: %w", err)
 	}
-	if err := database.PrepareEnrichJobs(ctx, version); err != nil {
-		logger.Errorf("Prepare durable enrichment queue: %v", err)
-	}
-	if err := database.PruneDoneEnrichJobs(ctx, time.Now().Add(-30*24*time.Hour).Unix()); err != nil {
-		logger.Warnf("Prune completed enrichment jobs: %v", err)
-	}
-	if counts, err := database.EnrichJobCounts(ctx); err == nil {
-		logger.Infof("Durable enrichment queue: pending=%d running=%d done=%d dead=%d",
-			counts[database.EnrichJobPending], counts[database.EnrichJobRunning],
-			counts[database.EnrichJobDone], counts[database.EnrichJobDead])
-	}
-	workers := cfg.Enrich.Workers
-	for range workers {
-		go enrichEngine.worker(ctx)
+	workers := 0
+	if startWorkers {
+		if err := database.PrepareEnrichJobs(ctx, version); err != nil {
+			logger.Errorf("Prepare durable enrichment queue: %v", err)
+		}
+		if err := database.PruneDoneEnrichJobs(ctx, time.Now().Add(-30*24*time.Hour).Unix()); err != nil {
+			logger.Warnf("Prune completed enrichment jobs: %v", err)
+		}
+		if counts, err := database.EnrichJobCounts(ctx); err == nil {
+			logger.Infof("Durable enrichment queue: pending=%d running=%d done=%d dead=%d",
+				counts[database.EnrichJobPending], counts[database.EnrichJobRunning],
+				counts[database.EnrichJobDone], counts[database.EnrichJobDead])
+		}
+		workers = cfg.Enrich.Workers
+		for range workers {
+			go enrichEngine.worker(ctx)
+		}
 	}
 	logger.Infof("Enrichment enabled (embedder=%t tagger=%t media=%t pdf=%t video=%t workers=%d)",
 		enrichEngine.embedder != nil, enrichEngine.tagger != nil, enrichEngine.media != nil,

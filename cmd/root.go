@@ -23,6 +23,7 @@ func init() {
 	rootCmd.Flags().BoolVar(&backgroundMigrateDropOld, "migrate-drop-old", false, "Drop old indexes after background migration")
 	migrate.RegisterCmd(rootCmd)
 	RegisterTakeoutCmd(rootCmd)
+	RegisterTDesktopCmd(rootCmd)
 }
 
 func Execute() {

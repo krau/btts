@@ -136,7 +136,31 @@ Takeout 模式直接在**在线 bot 进程内**运行，不需要停 bot 或离�
 
 新设备可能返回 `TAKEOUT_INIT_DELAY`，此时需要等账号满足 Takeout 条件后再执行；命令会直接报告错误，不会进行无意义的快速重试。
 
+### Telegram Desktop 导出冷启动
 
+如果不想重新登录或走 Telegram API，可以直接导入 Telegram Desktop 的 JSON 导出：
+
+1. 在 Telegram Desktop 中选择 **Export chat history** 或 **Export Telegram data**，格式选择 **Machine-readable JSON**；
+2. 让 btts 使用导出目录或 `result.json`：
+
+```bash
+# 全量导入，使用导出目录中的 result.json 和本地媒体
+btts import-tdesktop /path/to/export
+
+# 指定 result.json；--no-media 只索引文本
+btts import-tdesktop /path/to/export/result.json --no-media
+
+# 导入后把这些聊天标记为监听
+btts import-tdesktop /path/to/export --watch
+```
+
+- 支持单聊导出和全量导出（`chats.list`；暂不导入 `left_chats`）；
+- 媒体路径相对于导出目录解析，只访问导出目录内的文件；
+- 开启 enrich 时，会在本地对图片/音视频/PDF 调用 `EnrichNow`，不经过 Telegram 下载；
+- 超过 `enrich.max_download_mb` 的本地媒体会跳过；
+- 已存在的聊天会更新元数据并 upsert 消息，可重复执行；
+- `--no-media` 会跳过本地媒体和 enrich，仅保留文本/关键词索引。
+- 建议在 btts 停止时执行冷导入，完成后重新启动 bot。
 
 - 导入进度写入独立的 `index_imports` 表（`generation`、`range_index`、`cursor`、`lease_at`、`completed`），与聊天元数据、enrich 开关解耦；进程中断后再次 `/add` 或 `/addtakeout` 会从游标继续，不会从头开始。同一时间只允许一个历史导入。
 - `[import] background` 控制后台执行，`[import] batch_delay` 控制每 100 条历史消息的间隔；两者与 enrich 是否开启无关。
