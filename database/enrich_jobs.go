@@ -79,6 +79,8 @@ func ClaimEnrichJob(ctx context.Context) (*EnrichJob, error) {
 	if err != nil {
 		return nil, err
 	}
+	job.Status = EnrichJobRunning
+	job.UpdatedAt = now
 	return &job, nil
 }
 

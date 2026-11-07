@@ -121,7 +121,12 @@ func (s SearchHit) MessageLink() string {
 }
 
 func (s SearchHit) FullFormattedText() string {
-	return strings.TrimSpace(s.Formatted.Message + " " + s.Formatted.Ocred + " " + s.Formatted.AIGenerated + " " + s.Formatted.Extracted)
+	return joinNonEmpty(
+		s.Formatted.Message,
+		s.Formatted.Ocred,
+		s.Formatted.AIGenerated,
+		s.Formatted.Extracted,
+	)
 }
 
 // FullText returns every searchable text field of a message.
@@ -130,9 +135,17 @@ func (d MessageDocument) FullText() string {
 	if tags == "" && len(d.Tags) > 0 {
 		tags = strings.Join(d.Tags, " ")
 	}
-	return strings.TrimSpace(strings.Join([]string{
-		d.Message, d.Ocred, d.AIGenerated, d.Extracted, tags,
-	}, " "))
+	return joinNonEmpty(d.Message, d.Ocred, d.AIGenerated, d.Extracted, tags)
+}
+
+func joinNonEmpty(parts ...string) string {
+	nonEmpty := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if part != "" {
+			nonEmpty = append(nonEmpty, part)
+		}
+	}
+	return strings.Join(nonEmpty, " ")
 }
 
 func (s SearchHit) FullText() string {

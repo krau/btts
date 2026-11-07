@@ -24,11 +24,19 @@ type MediaFetcher interface {
 	Fetch(ctx context.Context, chatID int64, messageID int, mimeHint string) ([]byte, string, error)
 }
 
+// embedder is the multimodal embedding client contract.
+type embedder interface {
+	Dimensions() int
+	EmbedText(ctx context.Context, text string) ([]float32, error)
+	EmbedImageWithText(ctx context.Context, text string, data []byte) ([]float32, error)
+	EmbedAudio(ctx context.Context, data []byte) ([]float32, error)
+}
+
 type Engine struct {
 	inner        engine.Searcher
 	fetcher      MediaFetcher
 	cfg          config.AppConfig
-	embedder     *ollamaClient
+	embedder     embedder
 	tagger       *taggerClient
 	media        *mediaIndex
 	pdf          *pdfExtractor
@@ -285,16 +293,12 @@ func (e *Engine) Search(ctx context.Context, req types.SearchRequest) (*types.Se
 	}
 	window := offset + limit
 	if mode == "media" {
-		hits, total, err := e.media.search(ctx, req, vector, window, "")
-		if err != nil {
-			return nil, err
-		}
-		resp, err := e.hydrate(ctx, hits)
+		hits, total, err := e.searchMediaHits(ctx, req, vector, window, "")
 		if err != nil {
 			return nil, err
 		}
 		return &types.SearchResponse{
-			Hits:               paginate(resp, offset, limit),
+			Hits:               paginate(hits, offset, limit),
 			EstimatedTotalHits: total,
 			Offset:             offset,
 			Limit:              limit,
@@ -307,14 +311,9 @@ func (e *Engine) Search(ctx context.Context, req types.SearchRequest) (*types.Se
 	if err != nil {
 		return nil, err
 	}
-	mediaHits, mediaTotal, err := e.media.search(ctx, req, vector, window, "")
+	mediaResp, mediaTotal, err := e.searchMediaHits(ctx, req, vector, window, "")
 	if err != nil {
 		log.FromContext(ctx).Warnf("Media search failed: %v", err)
-		return keywordPage(textResp, offset, limit), nil
-	}
-	mediaResp, err := e.hydrate(ctx, mediaHits)
-	if err != nil {
-		log.FromContext(ctx).Warnf("Hydrate media results failed: %v", err)
 		return keywordPage(textResp, offset, limit), nil
 	}
 	merged := fuseHits(textResp.Hits, mediaResp)
@@ -650,6 +649,35 @@ func (e *Engine) processData(ctx context.Context, job *database.EnrichJob, doc *
 		return fmt.Errorf("enrich media for %d_%d: %w", job.ChatID, job.MessageID, errors.Join(enrichErrs...))
 	}
 	return nil
+}
+
+// maxMediaFetch bounds the adaptive candidate window for media searches.
+const maxMediaFetch = 1000
+
+// searchMediaHits returns at least need unique messages when the media index
+// holds them. One message can produce several media documents (image, text and
+// audio windows), so a raw hit window can deduplicate to fewer messages.
+func (e *Engine) searchMediaHits(ctx context.Context, req types.SearchRequest, vector []float32, need int64, modality string) ([]types.SearchHit, int64, error) {
+	if need <= 0 {
+		need = types.PerSearchLimit
+	}
+	fetch := need
+	var total int64
+	for {
+		raw, mediaTotal, err := e.media.search(ctx, req, vector, fetch, modality)
+		if err != nil {
+			return nil, 0, err
+		}
+		total = mediaTotal
+		hits, err := e.hydrate(ctx, raw)
+		if err != nil {
+			return nil, 0, err
+		}
+		if int64(len(hits)) >= need || int64(len(raw)) < fetch || fetch >= maxMediaFetch {
+			return hits, total, nil
+		}
+		fetch = min(fetch*2, maxMediaFetch)
+	}
 }
 
 func (e *Engine) documentExists(ctx context.Context, chatID int64, messageID int) (bool, error) {

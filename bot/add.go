@@ -163,11 +163,13 @@ func addHandler(ctx *ext.Context, update *ext.Update, useTakeout bool) error {
 		var runErr error
 		if useTakeout {
 			processed, finalRange, finalCursor, runErr = importHistoryTakeout(
-				runCtx, ctx, inputPeer, chatID, imp.RangeIndex, imp.Cursor, imp.Generation, delay, enricher,
+				runCtx, ctx, bi.UserClient.GetContext(), bi.UserClient, bi.Engine,
+				inputPeer, chatID, imp.RangeIndex, imp.Cursor, imp.Generation, delay, enricher,
 			)
 		} else {
 			processed, finalCursor, runErr = importHistory(
-				runCtx, ctx, utclient, inputPeer, chatID, imp.Cursor, imp.Generation, delay, enricher,
+				runCtx, ctx, bi.UserClient.GetContext(), utclient, bi.Engine,
+				inputPeer, chatID, imp.Cursor, imp.Generation, delay, enricher,
 			)
 			finalRange = 0
 		}
@@ -237,14 +239,20 @@ func ensureIndexChat(ctx context.Context, chatID int64, inputPeer tg.InputPeerCl
 	return database.UpsertIndexChat(ctx, indexChat)
 }
 
+type documentAdder interface {
+	AddDocuments(ctx context.Context, chatID int64, docs []*types.MessageDocument) error
+}
+
 // importHistory walks the chat from newest to oldest. The returned cursor is
 // the ID of the last message successfully written to the main index.
 func importHistory(
 	ctx context.Context,
 	extCtx *ext.Context,
+	mediaCtx *ext.Context,
 	utclient interface {
 		API() *tg.Client
 	},
+	adder documentAdder,
 	inputPeer tg.InputPeerClass,
 	chatID int64,
 	cursor int,
@@ -268,11 +276,11 @@ func importHistory(
 		if err := database.RefreshImport(ctx, chatID, generation); err != nil {
 			return err
 		}
-		docs := engine.DocumentsFromMessages(ctx, batch, chatID, extCtx.Self.ID, bi.UserClient.GetContext(), false, enricher)
+		docs := engine.DocumentsFromMessages(ctx, batch, chatID, extCtx.Self.ID, mediaCtx, false, enricher)
 		engine.MarkImported(docs)
 		var addErr error
 		for attempt := range 3 {
-			if addErr = bi.Engine.AddDocuments(ctx, chatID, docs); addErr == nil {
+			if addErr = adder.AddDocuments(ctx, chatID, docs); addErr == nil {
 				break
 			}
 			logger.Warnf("Index batch for chat %d failed (attempt %d): %v", chatID, attempt+1, addErr)
@@ -334,12 +342,25 @@ func takeoutPause(ctx context.Context) error {
 	return utils.SleepContext(ctx, takeoutMediaDelay())
 }
 
+type takeoutImporter interface {
+	TakeoutImportChat(
+		ctx context.Context,
+		inputPeer tg.InputPeerClass,
+		chatID int64,
+		startRange, startCursor int,
+		handler func(context.Context, userclient.TakeoutChatPage) error,
+	) error
+}
+
 // importHistoryTakeout exports one chat through a Telegram takeout session.
 // It stores per-split-range progress so a session expiry or restart resumes
 // at the correct range and offset.
 func importHistoryTakeout(
 	ctx context.Context,
 	extCtx *ext.Context,
+	mediaCtx *ext.Context,
+	importer takeoutImporter,
+	adder documentAdder,
 	inputPeer tg.InputPeerClass,
 	chatID int64,
 	startRange, startCursor int,
@@ -357,10 +378,10 @@ func importHistoryTakeout(
 			return err
 		}
 		if len(page.Messages) > 0 {
-			docs := engine.DocumentsFromMessages(ctx, page.Messages, chatID, extCtx.Self.ID, bi.UserClient.GetContext(), false, enricher)
+			docs := engine.DocumentsFromMessages(ctx, page.Messages, chatID, extCtx.Self.ID, mediaCtx, false, enricher)
 			engine.MarkImported(docs)
 
-			addDocuments := bi.Engine.AddDocuments
+			addDocuments := adder.AddDocuments
 			if enricher != nil {
 				addDocuments = enricher.AddDocumentsOnly
 			}
@@ -432,7 +453,7 @@ func importHistoryTakeout(
 		}
 		return nil
 	}
-	if err := bi.UserClient.TakeoutImportChat(ctx, inputPeer, chatID, startRange, startCursor, handler); err != nil {
+	if err := importer.TakeoutImportChat(ctx, inputPeer, chatID, startRange, startCursor, handler); err != nil {
 		return processed, finalRange, finalCursor, err
 	}
 	return processed, finalRange, finalCursor, nil

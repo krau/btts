@@ -38,7 +38,7 @@ func setupUpdatesTestDB(t *testing.T) string {
 	t.Cleanup(func() { db, watchedChatsID, allChatIDs = oldDB, oldWatched, oldAll })
 	path := filepath.Join(t.TempDir(), "updates.db")
 	db = openUpdatesTestDB(t, path)
-	if err := db.AutoMigrate(&UserInfo{}, &IndexChat{}, &IndexImport{}, &UpdatesState{}, &updatesChannelState{}); err != nil {
+	if err := db.AutoMigrate(&UserInfo{}, &IndexChat{}, &IndexImport{}, &EnrichJob{}, &UpdatesState{}, &updatesChannelState{}); err != nil {
 		t.Fatal(err)
 	}
 	return path

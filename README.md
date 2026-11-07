@@ -137,6 +137,31 @@ Takeout 模式直接在**在线 bot 进程内**运行，不需要停 bot 或离�
 - 媒体量很大时，优先保证账号安全：`media_fetch_per_second` 建议从 1–2 开始，观察是否出现 `FLOOD_WAIT` 再调整。
 - 需要查看积压时看日志中的 `Enrichment queue: pending=... dead=...`，或使用 `/enrich` 查看计数和最近的 dead 任务；`/enrich retry <id>` 可重新入队。
 
+### 测试
+
+单元测试不依赖外部服务：
+
+```bash
+go test ./...
+go test -race ./...
+```
+
+集成测试使用真实的 Meilisearch 与 Ollama，默认不参与 `go test ./...`：
+
+```bash
+docker run -d --rm --name btts-meili-test -p 127.0.0.1:7700:7700 getmeili/meilisearch:latest
+
+BTTS_TEST_MEILI_URL=http://127.0.0.1:7700 \
+BTTS_TEST_OLLAMA_URL=http://127.0.0.1:11434 \
+BTTS_TEST_OLLAMA_MODEL=embeddinggemma-2:latest \
+BTTS_TEST_PDF_DIR=/tmp/pdfs \
+go test -tags=integration ./engine/meili ./service/enrich -v
+```
+
+覆盖范围：Meilisearch 索引 schema、部分更新保留 `tags`/`extracted`、删除后不重建、标签过滤、媒体向量与混合检索/RRF 分页/以图搜图；Ollama 真实文本/图片/音频 embedding（模型需声明 `vision`/`audio`，否则自动跳过对应断言）；真实 PDF 的文本提取与语义检索；音频窗口切分（ffmpeg）；tagger 响应解析。历史导入（普通分页、Takeout 分页、断点、失败回退）使用假 Telegram invoker + 真实 SQLite。
+
+`BTTS_TEST_OLLAMA_DIMENSIONS` 可覆盖维度断言（默认 768）；`BTTS_TEST_PDF_DIR` 默认 `/tmp/pdfs`。PDF 目录不存在或不足两个可提取文本的 PDF 时，PDF 语义测试自动跳过。
+
 ### 配置和启动
 
 在本项目 [release](https://github.com/krau/btts/releases) 页面下载最新 btts 版本并解压, 然后进入解压后的目录.
