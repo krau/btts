@@ -23,6 +23,10 @@ type SearchRequest struct {
 	EnableAIGenerated bool   `json:"enable_aigenerated"` // [TODO] 搜索 AI 生成的内容(not implemented yet)
 	Limit             int64  `json:"limit"`
 	Offset            int64  `json:"offset"`
+	// ImageData and AudioData keep the original query media in the callback
+	// cache so pagination can repeat the same media search.
+	ImageData []byte `json:"-"`
+	AudioData []byte `json:"-"`
 }
 
 func (r SearchRequest) FilterExpression() (string, error) {

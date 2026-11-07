@@ -107,7 +107,7 @@ max_chars = 12000
 - 媒体文档带两个过滤字段：`modality`（向量类型：`text`/`image`/`audio`）和 `media_type`（来源：`image`/`audio`/`video`/`document`）。纯文本消息仍然没有向量文档。
 - 文本查询会同时做：主索引关键词检索 + 媒体索引语义检索，再按 Reciprocal Rank Fusion 合并（深分页时两路各取 `offset+limit` 个候选）。纯文本消息仍可被关键词命中。
 - 内联查询（inline）固定走关键词检索，避免每次按键都请求一次 embedding。
-- 回复一张图片并发送 `/search`，即可用该图片检索相似消息。
+- 私聊直接发送图片即可用该图片检索相似消息；回复图片发送 `/search` 同样有效。图片搜索结果支持翻页和类型筛选。
 - API 搜索请求支持 `tags`、`tag_match`、`mode`（`hybrid`/`keyword`/`media`）、`modality`、`image`、`audio` 字段。`modality` 指定目标：`all`（默认）、`text`、`image`、`audio`、`video`。
   - 文本查询 + `modality=image`：以文本搜图片（只匹配图片向量）；
   - 图片查询 + `modality=text`：以图搜 PDF/文档正文（caption/OCR 不生成文本向量）；

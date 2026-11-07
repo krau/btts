@@ -2,6 +2,8 @@ package enrich
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"os/exec"
@@ -16,6 +18,7 @@ import (
 	"github.com/krau/btts/engine"
 	"github.com/krau/btts/types"
 	"github.com/krau/btts/utils"
+	"github.com/krau/btts/utils/cache"
 )
 
 // MediaFetcher downloads a message's media. It is implemented by the Telegram
@@ -307,6 +310,7 @@ func applyTargetFilters(req *types.SearchRequest, target string) {
 }
 
 func (e *Engine) Search(ctx context.Context, req types.SearchRequest) (*types.SearchResponse, error) {
+	start := time.Now()
 	mode := strings.ToLower(req.Mode)
 	target := normalizeTargetModality(req.Modality)
 	applyTargetFilters(&req, target)
@@ -321,9 +325,11 @@ func (e *Engine) Search(ctx context.Context, req types.SearchRequest) (*types.Se
 		}
 		return e.inner.Search(ctx, req)
 	}
-	embedCtx, cancel := context.WithTimeout(ctx, e.cfg.Enrich.Embedder.QueryTimeout)
-	vector, err := e.embedder.EmbedText(embedCtx, "task: search result | query: "+req.Query)
-	cancel()
+	vector, err := e.cachedQueryVector(ctx, "text", req.Query, nil, func() ([]float32, error) {
+		embedCtx, cancel := context.WithTimeout(ctx, e.cfg.Enrich.Embedder.QueryTimeout)
+		defer cancel()
+		return e.embedder.EmbedText(embedCtx, "task: search result | query: "+req.Query)
+	})
 	if err != nil {
 		log.FromContext(ctx).Warnf("Query embedding failed, falling back to keyword search: %v", err)
 		return e.inner.Search(ctx, req)
@@ -341,6 +347,7 @@ func (e *Engine) Search(ctx context.Context, req types.SearchRequest) (*types.Se
 		}
 		return &types.SearchResponse{
 			Hits:               paginate(hits, offset, limit),
+			ProcessingTimeMs:   time.Since(start).Milliseconds(),
 			EstimatedTotalHits: total,
 			Offset:             offset,
 			Limit:              limit,
@@ -367,6 +374,35 @@ func (e *Engine) Search(ctx context.Context, req types.SearchRequest) (*types.Se
 	return textResp, nil
 }
 
+// cachedQueryVector reuses embeddings for paging and repeated searches. The
+// key includes the enrichment version, which covers model and dimension
+// changes, plus the query text and media bytes.
+func (e *Engine) cachedQueryVector(ctx context.Context, kind, text string, data []byte, embed func() ([]float32, error)) ([]float32, error) {
+	hash := sha256.New()
+	hash.Write([]byte(e.version))
+	hash.Write([]byte{0})
+	hash.Write([]byte(kind))
+	hash.Write([]byte{0})
+	hash.Write([]byte(text))
+	hash.Write([]byte{0})
+	hash.Write(data)
+	key := "queryvec:" + hex.EncodeToString(hash.Sum(nil))
+
+	if vector, ok := cache.Get[[]float32](key); ok && len(vector) > 0 {
+		return vector, nil
+	}
+	vector, err := embed()
+	if err != nil {
+		return nil, err
+	}
+	if len(vector) > 0 {
+		if err := cache.Set(key, vector, cache.DefaultTTL); err != nil {
+			log.FromContext(ctx).Debugf("Cache query embedding: %v", err)
+		}
+	}
+	return vector, nil
+}
+
 // SearchImage searches media vectors with an image query. The target defaults
 // to images and may be set to text, audio, video or all via req.Modality.
 func (e *Engine) SearchImage(ctx context.Context, req types.SearchRequest, data []byte) (*types.SearchResponse, error) {
@@ -380,19 +416,21 @@ func (e *Engine) SearchAudio(ctx context.Context, req types.SearchRequest, data 
 }
 
 func (e *Engine) searchMediaVector(ctx context.Context, req types.SearchRequest, queryKind string, data []byte) (*types.SearchResponse, error) {
+	start := time.Now()
 	if e.embedder == nil || e.media == nil {
 		return nil, fmt.Errorf("media embedding is not enabled")
 	}
-	var vector []float32
-	var err error
-	switch queryKind {
-	case "image":
-		vector, err = e.embedder.EmbedImageWithText(ctx, req.Query, data)
-	case "audio":
-		vector, err = e.embedder.EmbedAudio(ctx, data)
-	default:
+	if queryKind != "image" && queryKind != "audio" {
 		return nil, fmt.Errorf("unsupported media query kind %q", queryKind)
 	}
+	vector, err := e.cachedQueryVector(ctx, queryKind, req.Query, data, func() ([]float32, error) {
+		switch queryKind {
+		case "image":
+			return e.embedder.EmbedImageWithText(ctx, req.Query, data)
+		default:
+			return e.embedder.EmbedAudio(ctx, data)
+		}
+	})
 	if err != nil {
 		return nil, fmt.Errorf("embed query %s: %w", queryKind, err)
 	}
@@ -412,6 +450,7 @@ func (e *Engine) searchMediaVector(ctx context.Context, req types.SearchRequest,
 	}
 	return &types.SearchResponse{
 		Hits:               paginate(hits, offset, limit),
+		ProcessingTimeMs:   time.Since(start).Milliseconds(),
 		EstimatedTotalHits: total,
 		Offset:             offset,
 		Limit:              limit,
