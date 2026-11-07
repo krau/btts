@@ -149,7 +149,7 @@ func setupIntegrationEnrich(t *testing.T, cfg config.AppConfig, emb embedder, pd
 	})
 
 	inner := &meili.Meilisearch{Client: client, Index: cfg.Engine.Index, WaitTasks: true}
-	inner.SetExtraFields([]string{"tags"}, []string{"tags_text", "extracted"})
+	inner.SetExtraFields([]string{"tags"}, []string{"tags", "extracted"})
 	if err := inner.CreateIndex(ctx, 0); err != nil {
 		t.Fatalf("create main index: %v", err)
 	}
@@ -242,7 +242,7 @@ func TestIntegrationHybridAndImageSearch(t *testing.T) {
 	cfg.Enrich.WaitIndexTasks = true
 
 	inner := &meili.Meilisearch{Client: client, Index: base, WaitTasks: true}
-	inner.SetExtraFields([]string{"tags"}, []string{"tags_text", "extracted"})
+	inner.SetExtraFields([]string{"tags"}, []string{"tags", "extracted"})
 	if err := inner.CreateIndex(ctx, 0); err != nil {
 		t.Fatalf("create main index: %v", err)
 	}
@@ -290,19 +290,23 @@ func TestIntegrationHybridAndImageSearch(t *testing.T) {
 
 	var resp *types.SearchResponse
 	var err error
-	waitForIntegration(t, 15*time.Second, "media vectors", func() bool {
-		resp, err = e.Search(ctx, types.SearchRequest{ChatID: 1, Query: "sunset cat", Mode: "media", Limit: 10})
-		return err == nil && len(resp.Hits) == 2
+	waitForIntegration(t, 15*time.Second, "image vectors", func() bool {
+		resp, err = e.SearchImage(ctx, types.SearchRequest{ChatID: 1, Limit: 10}, pngA)
+		return err == nil && len(resp.Hits) > 0 && resp.Hits[0].ID == 1
 	})
-	if resp.Hits[0].ID != 1 {
-		t.Fatalf("media search top hit = %d, want 1", resp.Hits[0].ID)
-	}
-	page, err := e.Search(ctx, types.SearchRequest{ChatID: 1, Query: "sunset cat", Mode: "media", Limit: 1, Offset: 1})
+	waitForIntegration(t, 15*time.Second, "second image vector", func() bool {
+		page, err := e.SearchImage(ctx, types.SearchRequest{ChatID: 1, Limit: 10}, pngB)
+		return err == nil && len(page.Hits) > 0 && page.Hits[0].ID == 3
+	})
+	// Captions must not exist as independent text vectors.
+	captions, err := e.Search(ctx, types.SearchRequest{
+		ChatID: 1, Query: "sunset cat", Mode: "media", Modality: "text", Limit: 10,
+	})
 	if err != nil {
-		t.Fatalf("media pagination: %v", err)
+		t.Fatalf("caption text search: %v", err)
 	}
-	if len(page.Hits) != 1 || page.Hits[0].ID != 3 {
-		t.Fatalf("media pagination hits = %+v, want document 3", page.Hits)
+	if len(captions.Hits) != 0 {
+		t.Fatalf("captions were vectorized as text: %+v", captions.Hits)
 	}
 
 	hybrid, err := e.Search(ctx, types.SearchRequest{ChatID: 1, Query: "sunset cat", Limit: 10})
@@ -331,7 +335,7 @@ func TestIntegrationHybridAndImageSearch(t *testing.T) {
 		t.Fatalf("image search hits = %+v, want document 1 first", imageResp.Hits)
 	}
 
-	if err := inner.UpdateDocuments(ctx, 1, []*types.MessageDocument{{ID: 1, Tags: []string{"cat"}, TagsText: "cat"}}); err != nil {
+	if err := inner.UpdateDocuments(ctx, 1, []*types.MessageDocument{{ID: 1, Tags: []string{"cat"}}}); err != nil {
 		t.Fatalf("set tags: %v", err)
 	}
 	waitForIntegration(t, 10*time.Second, "tag filter", func() bool {
@@ -350,12 +354,13 @@ func TestIntegrationHybridAndImageSearch(t *testing.T) {
 		got, err := inner.GetDocuments(ctx, 1, []int{4})
 		return err == nil && len(got) == 1
 	})
-	e.fetcher = fakeFetcher{data: testPNG(t, color.RGBA{G: 255, A: 255}), mime: "image/png"}
+	green := testPNG(t, color.RGBA{G: 255, A: 255})
+	e.fetcher = fakeFetcher{data: green, mime: "image/png"}
 	if err := e.process(ctx, jobFromDocument(1, doc4, e.version)); err != nil {
 		t.Fatalf("process fetched media: %v", err)
 	}
 	waitForIntegration(t, 10*time.Second, "fetched media vectors", func() bool {
-		fetched, err := e.Search(ctx, types.SearchRequest{ChatID: 1, Query: "green tree", Mode: "media", Limit: 10})
+		fetched, err := e.SearchImage(ctx, types.SearchRequest{ChatID: 1, Limit: 10}, green)
 		return err == nil && len(fetched.Hits) > 0 && fetched.Hits[0].ID == 4
 	})
 }
@@ -500,17 +505,6 @@ func TestIntegrationRealMediaPipeline(t *testing.T) {
 		t.Fatalf("text-to-image hits = %+v, want document 1 first", textToImage.Hits)
 	}
 
-	// Image query targeting text vectors.
-	imageToText, err := e.SearchImage(ctx, types.SearchRequest{
-		ChatID: 1, Modality: "text", Limit: 10,
-	}, redPNG)
-	if err != nil {
-		t.Fatalf("image to text: %v", err)
-	}
-	if !slices.Contains(hitIDs(imageToText), int64(1)) {
-		t.Fatalf("image-to-text hits = %v, want document 1", hitIDs(imageToText))
-	}
-
 	// Pure text messages have no vector document.
 	pureText, err := e.Search(ctx, types.SearchRequest{
 		ChatID: 1, Query: "pure text about a red square", Modality: "text", Mode: "media", Limit: 10,
@@ -552,16 +546,6 @@ func TestIntegrationRealMediaPipeline(t *testing.T) {
 	if len(audioToVideo.Hits) == 0 || audioToVideo.Hits[0].ID != 4 {
 		t.Fatalf("audio-to-video hits = %+v, want document 4 first", audioToVideo.Hits)
 	}
-	audioToText, err := e.SearchAudio(ctx, types.SearchRequest{
-		ChatID: 1, Modality: "text", Limit: 10,
-	}, wavBytes(samples))
-	if err != nil {
-		t.Fatalf("audio to text: %v", err)
-	}
-	if !slices.Contains(hitIDs(audioToText), int64(3)) {
-		t.Fatalf("audio-to-text hits = %v, want document 3", hitIDs(audioToText))
-	}
-
 	// Image and text queries targeting video.
 	imageToVideo, err := e.SearchImage(ctx, types.SearchRequest{
 		ChatID: 1, Modality: "video", Limit: 10,

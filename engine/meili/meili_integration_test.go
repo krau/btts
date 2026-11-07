@@ -106,7 +106,7 @@ func TestIntegrationDocumentLifecycle(t *testing.T) {
 	if m.Capabilities().TagFilters {
 		t.Fatal("tag filters must be disabled before enrichment fields are configured")
 	}
-	m.SetExtraFields([]string{"tags"}, []string{"tags_text", "extracted"})
+	m.SetExtraFields([]string{"tags"}, []string{"tags", "extracted"})
 	if err := m.CreateIndex(ctx, 0); err != nil {
 		t.Fatalf("create index: %v", err)
 	}
@@ -122,7 +122,7 @@ func TestIntegrationDocumentLifecycle(t *testing.T) {
 			t.Fatalf("filterable attributes missing %q: %v", attr, settings.FilterableAttributes)
 		}
 	}
-	for _, attr := range []string{"message", "tags_text", "extracted"} {
+	for _, attr := range []string{"message", "tags", "extracted"} {
 		if !slices.Contains(settings.SearchableAttributes, attr) {
 			t.Fatalf("searchable attributes missing %q: %v", attr, settings.SearchableAttributes)
 		}
@@ -131,7 +131,7 @@ func TestIntegrationDocumentLifecycle(t *testing.T) {
 	docs := []*types.MessageDocument{
 		{ID: 1, Type: int(types.MessageTypeText), Message: "hello cat", UserID: 1, Timestamp: 100},
 		{ID: 2, Type: int(types.MessageTypePhoto), Message: "photo", UserID: 2, Timestamp: 200,
-			Tags: []string{"cat", "sunset"}, TagsText: "cat sunset", Extracted: "pdf words"},
+			Tags: []string{"cat", "sunset"}, Extracted: "pdf words"},
 	}
 	if err := m.AddDocuments(ctx, 1, docs); err != nil {
 		t.Fatalf("add documents: %v", err)
@@ -183,7 +183,7 @@ func TestIntegrationDocumentLifecycle(t *testing.T) {
 	}
 
 	// Partial updates preserve enrichment fields that are omitted by AddDocuments.
-	if err := m.UpdateDocuments(ctx, 1, []*types.MessageDocument{{ID: 2, Tags: []string{"dog"}, TagsText: "dog"}}); err != nil {
+	if err := m.UpdateDocuments(ctx, 1, []*types.MessageDocument{{ID: 2, Tags: []string{"dog"}}}); err != nil {
 		t.Fatalf("update tags: %v", err)
 	}
 	waitFor(t, 10*time.Second, "tags updated", func() bool {
@@ -201,7 +201,7 @@ func TestIntegrationDocumentLifecycle(t *testing.T) {
 	if err != nil || len(got) != 1 {
 		t.Fatalf("get updated document: %+v, %v", got, err)
 	}
-	if !slices.Equal(got[0].Tags, []string{"dog"}) || got[0].TagsText != "dog" {
+	if !slices.Equal(got[0].Tags, []string{"dog"}) {
 		t.Fatalf("re-add dropped enrichment fields: %+v", got[0])
 	}
 

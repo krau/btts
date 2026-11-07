@@ -30,7 +30,6 @@ type MeilisearchMessageDocument struct {
 	// The AI generated text of the message(summarization, caption, tagging, etc.)
 	AIGenerated string   `json:"aigenerated"`
 	Tags        []string `json:"tags,omitempty"`
-	TagsText    string   `json:"tags_text,omitempty"`
 	Extracted   string   `json:"extracted,omitempty"`
 	// The ID of the user who sent the message
 	UserID int64 `json:"user_id"`
@@ -65,7 +64,6 @@ func (h *MeiliSearchHit) ToSearchHit() types.SearchHit {
 			Ocred:       h.Ocred,
 			AIGenerated: h.AIGenerated,
 			Tags:        h.Tags,
-			TagsText:    h.TagsText,
 			Extracted:   h.Extracted,
 			UserID:      h.UserID,
 			ChatID:      h.ChatID,
@@ -95,7 +93,6 @@ func docsFromMessages(docs []*types.MessageDocument) []*MeilisearchMessageDocume
 			Ocred:       doc.Ocred,
 			AIGenerated: doc.AIGenerated,
 			Tags:        doc.Tags,
-			TagsText:    doc.TagsText,
 			Extracted:   doc.Extracted,
 			UserID:      doc.UserID,
 			ChatID:      doc.ChatID,
@@ -116,7 +113,6 @@ func docsToMessages(docs []*MeilisearchMessageDocument) []*types.MessageDocument
 			Ocred:       doc.Ocred,
 			AIGenerated: doc.AIGenerated,
 			Tags:        doc.Tags,
-			TagsText:    doc.TagsText,
 			Extracted:   doc.Extracted,
 			UserID:      doc.UserID,
 			ChatID:      doc.ChatID,
@@ -203,7 +199,6 @@ func (m *Meilisearch) AddDocuments(ctx context.Context, chatID int64, docs []*ty
 type meiliUpdateDocument struct {
 	ID        string   `json:"id"`
 	Tags      []string `json:"tags,omitempty"`
-	TagsText  string   `json:"tags_text,omitempty"`
 	Extracted string   `json:"extracted,omitempty"`
 }
 
@@ -219,7 +214,6 @@ func (m *Meilisearch) UpdateDocuments(ctx context.Context, chatID int64, docs []
 		update := &meiliUpdateDocument{
 			ID:        fmt.Sprintf("%d_%d", chatID, doc.ID),
 			Tags:      doc.Tags,
-			TagsText:  doc.TagsText,
 			Extracted: doc.Extracted,
 		}
 		updates = append(updates, update)

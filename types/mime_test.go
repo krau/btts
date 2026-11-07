@@ -46,8 +46,4 @@ func TestDocumentFullText(t *testing.T) {
 	if got := doc.FullText(); got != want {
 		t.Fatalf("FullText: got %q, want %q", got, want)
 	}
-	doc.TagsText = "cat sunset"
-	if got := doc.FullText(); got != want {
-		t.Fatalf("FullText with TagsText: got %q, want %q", got, want)
-	}
 }

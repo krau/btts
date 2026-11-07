@@ -109,6 +109,8 @@ func Wrap(ctx context.Context, inner engine.Searcher, fetcher MediaFetcher) (eng
 			if err != nil {
 				logger.Errorf("Media index unavailable, continuing with text only: %v", err)
 				enrichEngine.media = nil
+			} else if err := enrichEngine.media.purgeLegacyTextVectors(ctx); err != nil {
+				logger.Warnf("Purge legacy caption vectors: %v", err)
 			}
 		}
 	}
@@ -141,7 +143,7 @@ func Wrap(ctx context.Context, inner engine.Searcher, fetcher MediaFetcher) (eng
 	if configurer, ok := inner.(interface {
 		SetExtraFields(filterable, searchable []string)
 	}); ok {
-		configurer.SetExtraFields([]string{"tags"}, []string{"tags_text", "extracted"})
+		configurer.SetExtraFields([]string{"tags"}, []string{"tags", "extracted"})
 	}
 	if err := inner.CreateIndex(ctx, 0); err != nil {
 		return nil, fmt.Errorf("configure main index for enrichment: %w", err)
@@ -168,9 +170,9 @@ func Wrap(ctx context.Context, inner engine.Searcher, fetcher MediaFetcher) (eng
 }
 
 func enrichVersion(cfg config.AppConfig) string {
-	// v2 adds media_type and video frame vectors, so old documents must be
-	// re-enriched before modality filters can see them.
-	return fmt.Sprintf("v2|%t/%s/%d/%s|%t/%s/%g/%d|%t/%s/%d|%t/%t|%t/%d",
+	// v3 stops indexing media captions as separate text vectors. Old jobs are
+	// re-enriched so legacy text documents can be purged.
+	return fmt.Sprintf("v3|%t/%s/%d/%s|%t/%s/%g/%d|%t/%s/%d|%t/%t|%t/%d",
 		cfg.Enrich.Embedder.Enable,
 		cfg.Enrich.Embedder.Model,
 		cfg.Enrich.Embedder.Dimensions,
@@ -619,7 +621,6 @@ func (e *Engine) processData(ctx context.Context, job *database.EnrichJob, doc *
 		} else {
 			tags = tagList
 			update.Tags = tags
-			update.TagsText = strings.Join(tags, " ")
 		}
 	}
 
@@ -707,14 +708,13 @@ func (e *Engine) processData(ctx context.Context, job *database.EnrichJob, doc *
 				}
 			}
 		}
-		// Embed the text side only for media-rich messages. Pure text messages
-		// stay keyword-only, which keeps indexing cost proportional to content
-		// that benefits from semantic retrieval.
-		if text != "" && (isImage || isAudio || isVideo || isPDF) {
+		// Captions/OCR already live in the main keyword index. Only documents
+		// whose body is text (PDF) need a separate semantic text vector.
+		if isPDF && text != "" {
 			fullText := truncate(text, 8000)
 			vector, err := e.embedder.EmbedText(ctx, "title: none | text: "+fullText)
 			if err != nil {
-				enrichErrs = append(enrichErrs, fmt.Errorf("embed media text: %w", err))
+				enrichErrs = append(enrichErrs, fmt.Errorf("embed document text: %w", err))
 			} else {
 				mediaDocs = append(mediaDocs, &mediaDocument{
 					ID:        fmt.Sprintf("%d_%d_text", job.ChatID, job.MessageID),

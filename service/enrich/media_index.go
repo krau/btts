@@ -116,6 +116,27 @@ func (m *mediaIndex) add(ctx context.Context, docs []*mediaDocument) error {
 	return err
 }
 
+// purgeLegacyTextVectors removes caption/OCR text vectors created by older
+// versions. Only PDF/document text vectors are kept.
+func (m *mediaIndex) purgeLegacyTextVectors(ctx context.Context) error {
+	task, err := m.client.Index(m.name).DeleteDocumentsByFilterWithContext(
+		ctx, `modality = "text" AND media_type != "document"`, nil,
+	)
+	if err != nil || task == nil || !m.waitTasks {
+		return err
+	}
+	waitCtx, cancel := context.WithTimeout(ctx, time.Minute)
+	defer cancel()
+	done, err := m.client.WaitForTaskWithContext(waitCtx, task.TaskUID, 500*time.Millisecond)
+	if err != nil {
+		return err
+	}
+	if done.Status != meilisearch.TaskStatusSucceeded {
+		return fmt.Errorf("purge legacy text vectors task %d ended with status %s", task.TaskUID, done.Status)
+	}
+	return nil
+}
+
 func (m *mediaIndex) deleteMessages(ctx context.Context, chatID int64, ids []int) error {
 	if len(ids) == 0 {
 		return nil

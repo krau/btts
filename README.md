@@ -97,10 +97,11 @@ max_chars = 12000
 - **纯文本消息不生成向量**，只参与关键词检索；不会因为开启该功能而为每条消息调用 embedding。
 - 只有受支持的媒体/文档才会下载和增强；不支持的格式在下载前直接跳过，避免浪费 Telegram 流量和增强算力。当前支持的图片格式为 JPEG/PNG；音频/视频需能被 ffmpeg 解码；PDF 需要开启文档提取。
 - 只有含媒体/文档的消息才会：
-  - 图片：图像向量 + caption/OCR/标签文本向量；
-  - 音频/语音：音频窗口向量 + caption 文本向量；
-  - 视频：关键帧图像向量（每 10 秒一帧，`video_frames` 限制数量）+ 音轨窗口向量 + caption 文本向量；
+  - 图片：图像向量（caption/OCR/标签作为图像 embedding 的文本上下文，不生成独立文本向量）；
+  - 音频/语音：音频窗口向量；
+  - 视频：关键帧图像向量（每 10 秒一帧，`video_frames` 限制数量）+ 音轨窗口向量；
   - PDF：提取文本并生成文本向量（同时写入主文档的 `extracted` 供关键词检索）。
+- **caption/OCR 只进入主索引关键词字段，不做独立文本向量化**；`modality=text` 只对应 PDF/文档正文的文本向量。
 - 向量写入独立的 `<index>_media_<media_name>_<dimensions>` 索引；图片/音频/视频字节不会进入 Meilisearch，只在这里存向量。
 - 媒体文档带两个过滤字段：`modality`（向量类型：`text`/`image`/`audio`）和 `media_type`（来源：`image`/`audio`/`video`/`document`）。纯文本消息仍然没有向量文档。
 - 文本查询会同时做：主索引关键词检索 + 媒体索引语义检索，再按 Reciprocal Rank Fusion 合并（深分页时两路各取 `offset+limit` 个候选）。纯文本消息仍可被关键词命中。
@@ -108,7 +109,7 @@ max_chars = 12000
 - 回复一张图片并发送 `/search`，即可用该图片检索相似消息。
 - API 搜索请求支持 `tags`、`tag_match`、`mode`（`hybrid`/`keyword`/`media`）、`modality`、`image`、`audio` 字段。`modality` 指定目标：`all`（默认）、`text`、`image`、`audio`、`video`。
   - 文本查询 + `modality=image`：以文本搜图片（只匹配图片向量）；
-  - 图片查询 + `modality=text`：以图搜文本（媒体消息的 caption/OCR/PDF 文本，不含纯文本消息）；
+  - 图片查询 + `modality=text`：以图搜 PDF/文档正文（caption/OCR 不生成文本向量）；
   - 图片查询 + `modality=video`：以图搜视频关键帧；
   - 音频查询 + `modality=audio|video`：以音频搜音频/视频音轨；
   - 文本查询 + `modality=video`：文本搜视频（关键帧/音轨/caption 任一向量命中）。
