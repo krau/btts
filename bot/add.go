@@ -436,8 +436,16 @@ func importHistoryTakeout(
 					if !ok {
 						continue
 					}
+					if size := engine.MediaSize(media); size > maxBytes {
+						logger.Debugf("Skipping oversized takeout media %d_%d: %d bytes", chatID, doc.ID, size)
+						continue
+					}
 					buf := &utils.CappedBuffer{Limit: maxBytes}
 					if err := page.Download(ctx, media, buf); err != nil {
+						if errors.Is(err, utils.ErrMediaTooLarge) {
+							logger.Debugf("Skipping oversized takeout media %d_%d: %v", chatID, doc.ID, err)
+							continue
+						}
 						logger.Warnf("Takeout media %d_%d failed, queueing fallback: %v", chatID, doc.ID, err)
 						if fallbackErr := enricher.EnqueueDocument(ctx, chatID, doc); fallbackErr != nil {
 							return fmt.Errorf("enqueue fallback media %d_%d: %w", chatID, doc.ID, fallbackErr)

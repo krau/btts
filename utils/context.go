@@ -3,9 +3,14 @@ package utils
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"time"
 )
+
+// ErrMediaTooLarge marks media that exceeds the configured download limit.
+// It is a permanent skip, not a retryable enrichment failure.
+var ErrMediaTooLarge = errors.New("media exceeds the configured size limit")
 
 // SleepContext waits for d or until ctx is cancelled, whichever comes first.
 func SleepContext(ctx context.Context, d time.Duration) error {
@@ -30,7 +35,7 @@ type CappedBuffer struct {
 
 func (b *CappedBuffer) Write(p []byte) (int, error) {
 	if b.Limit > 0 && int64(b.Len()+len(p)) > b.Limit {
-		return 0, fmt.Errorf("data exceeds %d bytes", b.Limit)
+		return 0, fmt.Errorf("%w: data exceeds %d bytes", ErrMediaTooLarge, b.Limit)
 	}
 	return b.Buffer.Write(p)
 }

@@ -440,6 +440,11 @@ func (e *Engine) worker(ctx context.Context) {
 		jobCtx, cancel := context.WithTimeout(ctx, 15*time.Minute)
 		err = e.process(jobCtx, job)
 		cancel()
+		if errors.Is(err, utils.ErrMediaTooLarge) {
+			// The size limit is a permanent skip, not a failed attempt.
+			logger.Debugf("Skipping oversized media %d_%d: %v", job.ChatID, job.MessageID, err)
+			err = nil
+		}
 		if err != nil {
 			logger.Warnf("Enrich %d_%d failed (attempt %d): %v", job.ChatID, job.MessageID, job.Attempts+1, err)
 			if job.Attempts+1 >= e.maxAttempts {

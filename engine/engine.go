@@ -189,6 +189,54 @@ func MarkImported(docs []*types.MessageDocument) {
 	}
 }
 
+// MediaSize returns the largest known file size of a message's media, or 0
+// when Telegram does not expose it.
+func MediaSize(media tg.MessageMediaClass) int64 {
+	switch m := media.(type) {
+	case *tg.MessageMediaDocument:
+		docClass, ok := m.GetDocument()
+		if !ok {
+			return 0
+		}
+		doc, ok := docClass.AsNotEmpty()
+		if !ok {
+			return 0
+		}
+		return doc.Size
+	case *tg.MessageMediaPhoto:
+		photoClass, ok := m.GetPhoto()
+		if !ok {
+			return 0
+		}
+		photo, ok := photoClass.AsNotEmpty()
+		if !ok {
+			return 0
+		}
+		var size int64
+		for _, class := range photo.Sizes {
+			var current int64
+			switch s := class.(type) {
+			case *tg.PhotoSize:
+				current = int64(s.Size)
+			case *tg.PhotoCachedSize:
+				current = int64(len(s.Bytes))
+			case *tg.PhotoStrippedSize:
+				current = int64(len(s.Bytes))
+			case *tg.PhotoSizeProgressive:
+				if len(s.Sizes) > 0 {
+					current = int64(s.Sizes[len(s.Sizes)-1])
+				}
+			}
+			if current > size {
+				size = current
+			}
+		}
+		return size
+	default:
+		return 0
+	}
+}
+
 // MediaMeta returns the MIME type and original file name of a message's media.
 // Stickers and animations return empty values so they are never downloaded.
 func MediaMeta(media tg.MessageMediaClass) (mime, name string) {

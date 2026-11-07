@@ -116,6 +116,9 @@ func (f *telegramMediaFetcher) fetchOnce(ctx context.Context, chatID int64, mess
 	if !ok {
 		return nil, "", fmt.Errorf("message %d has no media", messageID)
 	}
+	if size := engine.MediaSize(media); size > f.maxBytes {
+		return nil, "", fmt.Errorf("%w: %d bytes (limit %d)", utils.ErrMediaTooLarge, size, f.maxBytes)
+	}
 	mime := mimeHint
 	if mime == "" {
 		mime, _ = engine.MediaMeta(media)
