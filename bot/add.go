@@ -67,9 +67,14 @@ func addHandler(ctx *ext.Context, update *ext.Update, useTakeout bool) error {
 		inputPeer = effChat.GetInputPeer()
 		chatID = effChat.GetID()
 	} else {
-		inputPeer = utclient.PeerStorage.GetInputPeerById(chatID)
+		inputPeer, err = utclient.CreateContext().ResolveInputPeerById(chatID)
+		if err != nil {
+			ctx.Reply(update, ext.ReplyTextString("Chat not found: "+err.Error()), nil)
+			return dispatcher.EndGroups
+		}
+		chatID = inputPeerID(inputPeer)
 	}
-	if inputPeer == nil || chatID == 0 {
+	if chatID == 0 {
 		ctx.Reply(update, ext.ReplyTextString("Chat not found"), nil)
 		return dispatcher.EndGroups
 	}
@@ -219,6 +224,20 @@ func addHandler(ctx *ext.Context, update *ext.Update, useTakeout bool) error {
 	}
 	run(ctx)
 	return dispatcher.EndGroups
+}
+
+// inputPeerID returns the plain MTProto ID carried by a resolved peer.
+func inputPeerID(peer tg.InputPeerClass) int64 {
+	switch p := peer.(type) {
+	case *tg.InputPeerUser:
+		return p.UserID
+	case *tg.InputPeerChat:
+		return p.ChatID
+	case *tg.InputPeerChannel:
+		return p.ChannelID
+	default:
+		return 0
+	}
 }
 
 func ensureIndexChat(ctx context.Context, chatID int64, inputPeer tg.InputPeerClass) error {
