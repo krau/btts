@@ -48,6 +48,41 @@ type IndexChat struct {
 	Members []UserInfo `gorm:"many2many:index_chat_members;constraint:OnDelete:CASCADE;joinForeignKey:IndexChatID;joinReferences:UserChatID" json:"members"`
 }
 
+// IndexImport tracks the resumable cold-history import of one chat. It is a
+// separate row so chat metadata updates can never roll back import progress.
+type IndexImport struct {
+	ChatID int64 `gorm:"primaryKey"`
+	// Generation is unique per import run; progress updates are scoped to it.
+	Generation int64
+	Mode       string
+	RangeIndex int
+	Cursor     int
+	// LeaseAt is the unix timestamp of the last progress update, 0 when stopped.
+	LeaseAt   int64
+	Completed bool
+}
+
+// EnrichJob is a durable media-enrichment task. Only media-rich messages are
+// queued; plain text messages never enter this table.
+type EnrichJob struct {
+	ID        uint  `gorm:"primaryKey;index:idx_enrich_claim,priority:4"`
+	ChatID    int64 `gorm:"uniqueIndex:idx_enrich_chat_msg"`
+	MessageID int   `gorm:"uniqueIndex:idx_enrich_chat_msg"`
+	UserID    int64
+	MsgType   int
+	Timestamp int64
+	MIME      string
+	Name      string
+	Version   string
+	Priority  int    `gorm:"index:idx_enrich_claim,priority:2"`
+	Status    string `gorm:"index:idx_enrich_claim,priority:1"`
+	Attempts  int
+	NextRun   int64 `gorm:"index:idx_enrich_claim,priority:3"` // unix seconds
+	LastError string
+	CreatedAt int64
+	UpdatedAt int64
+}
+
 // UpdatesState 存储 Telegram updates 的状态信息，用于断线重连时获取错过的消息
 type UpdatesState struct {
 	ID   uint `gorm:"primaryKey"`
@@ -123,19 +158,26 @@ func (ic *IndexChat) AfterSave(tx *gorm.DB) error {
 		log.FromContext(tx.Statement.Context).Warnf("AfterSave IndexChat: chat_id is 0")
 		return nil
 	}
+	updateIndexChatCaches(ic)
+	return nil
+}
+
+func updateIndexChatCaches(ic *IndexChat) {
+	if ic.ChatID == 0 {
+		return
+	}
 	watchedChatsIDMu.Lock()
-	defer watchedChatsIDMu.Unlock()
 	if ic.Watching {
 		watchedChatsID[ic.ChatID] = struct{}{}
 	} else {
 		delete(watchedChatsID, ic.ChatID)
 	}
+	watchedChatsIDMu.Unlock()
 	allChatIDsMu.Lock()
-	defer allChatIDsMu.Unlock()
 	if !slices.Contains(allChatIDs, ic.ChatID) {
 		allChatIDs = append(allChatIDs, ic.ChatID)
 	}
-	return nil
+	allChatIDsMu.Unlock()
 }
 
 func (ic *IndexChat) BeforeDelete(tx *gorm.DB) error {

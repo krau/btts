@@ -1,6 +1,7 @@
 package bot
 
 import (
+	"bytes"
 	"strconv"
 	"strings"
 
@@ -16,11 +17,72 @@ import (
 	"github.com/krau/mygotg/ext"
 )
 
+func replyPhoto(update *ext.Update) (*tg.MessageMediaPhoto, bool) {
+	if update.EffectiveMessage == nil || update.EffectiveMessage.ReplyToMessage == nil {
+		return nil, false
+	}
+	media, ok := update.EffectiveMessage.ReplyToMessage.GetMedia()
+	if !ok {
+		return nil, false
+	}
+	photo, ok := media.(*tg.MessageMediaPhoto)
+	return photo, ok
+}
+
+func searchByReplyPhoto(ctx *ext.Context, update *ext.Update, req types.SearchRequest) bool {
+	photo, ok := replyPhoto(update)
+	if !ok {
+		return false
+	}
+	if !bi.Engine.Capabilities().ImageSearch {
+		ctx.Reply(update, ext.ReplyTextString("Image search is not enabled"), nil)
+		return true
+	}
+	var buf bytes.Buffer
+	if _, err := ctx.DownloadMedia(photo, ext.DownloadOutputStream{Writer: &buf}, nil); err != nil {
+		log.FromContext(ctx).Errorf("Failed to download query photo: %v", err)
+		ctx.Reply(update, ext.ReplyTextString("Failed to read the replied photo"), nil)
+		return true
+	}
+	resp, err := bi.Engine.SearchImage(ctx, req, buf.Bytes())
+	if err != nil {
+		log.FromContext(ctx).Errorf("Image search failed: %v", err)
+		ctx.Reply(update, ext.ReplyTextString("Image search is not available: "+err.Error()), nil)
+		return true
+	}
+	if len(resp.Hits) == 0 {
+		ctx.Reply(update, ext.ReplyTextString("No results found"), nil)
+		return true
+	}
+	// Image results cannot be paginated through callback data (the image is
+	// not cached), so send them without the text pagination keyboard.
+	ctx.Reply(update, ext.ReplyTextStyledTextArray(utils.BuildResultStyling(ctx, resp, bi.GetUsername())), nil)
+	return true
+}
+
+func replySearchResults(ctx *ext.Context, update *ext.Update, req types.SearchRequest, resp *types.SearchResponse) error {
+	if resp == nil || len(resp.Hits) == 0 {
+		ctx.Reply(update, ext.ReplyTextString("No results found"), nil)
+		return dispatcher.EndGroups
+	}
+	markup, err := utils.BuildSearchReplyMarkup(ctx, 1, req)
+	if err != nil {
+		log.FromContext(ctx).Errorf("Failed to build reply markup: %v", err)
+		return dispatcher.EndGroups
+	}
+	ctx.Reply(update, ext.ReplyTextStyledTextArray(utils.BuildResultStyling(ctx, resp, bi.GetUsername())), &ext.ReplyOpts{
+		Markup: markup,
+	})
+	return dispatcher.EndGroups
+}
+
 func SearchHandler(ctx *ext.Context, update *ext.Update) error {
 	query := strings.TrimPrefix(strings.TrimPrefix(update.EffectiveMessage.GetMessage(), "/search"), "@"+ctx.Self.Username)
 	if query == "" {
-		ctx.Reply(update, ext.ReplyTextString("Usage: Send query in PM, or use /search <query> in group"), nil)
-		return dispatcher.EndGroups
+		if _, hasPhoto := replyPhoto(update); !hasPhoto {
+			ctx.Reply(update, ext.ReplyTextString("Usage: Send query in PM, use /search <query> in group, or reply to a photo with /search"), nil)
+			return dispatcher.EndGroups
+		}
 	}
 	isChannel := update.GetChannel() != nil
 
@@ -32,29 +94,21 @@ func SearchHandler(ctx *ext.Context, update *ext.Update) error {
 			return dispatcher.EndGroups
 		}
 
-		resp, err := bi.Engine.Search(ctx, types.SearchRequest{
+		req := types.SearchRequest{
 			ChatID: channelID,
 			Query:  query,
-		})
+		}
+		if query == "" {
+			if searchByReplyPhoto(ctx, update, req) {
+				return dispatcher.EndGroups
+			}
+		}
+		resp, err := bi.Engine.Search(ctx, req)
 		if err != nil {
 			ctx.Reply(update, ext.ReplyTextString("Error: "+err.Error()), nil)
 			return dispatcher.EndGroups
 		}
-		if len(resp.Hits) == 0 {
-			ctx.Reply(update, ext.ReplyTextString("No results found"), nil)
-			return dispatcher.EndGroups
-		}
-		markup, err := utils.BuildSearchReplyMarkup(ctx, 1, types.SearchRequest{
-			ChatID: channelID,
-			Query:  query,
-		})
-		if err != nil {
-			log.FromContext(ctx).Errorf("Failed to build reply markup: %v", err)
-			return dispatcher.EndGroups
-		}
-		ctx.Reply(update, ext.ReplyTextStyledTextArray(utils.BuildResultStyling(ctx, resp, bi.GetUsername())), &ext.ReplyOpts{
-			Markup: markup})
-		return dispatcher.EndGroups
+		return replySearchResults(ctx, update, req, resp)
 	}
 	req := &types.SearchRequest{Query: query}
 
@@ -98,25 +152,18 @@ func SearchHandler(ctx *ext.Context, update *ext.Update) error {
 			req.ChatIDs = append(req.ChatIDs, chat.ChatID)
 		}
 	}
+	if query == "" {
+		if searchByReplyPhoto(ctx, update, *req) {
+			return dispatcher.EndGroups
+		}
+	}
 	resp, err := bi.Engine.Search(ctx, *req)
 	if err != nil {
 		log.FromContext(ctx).Errorf("Failed to search: %v", err)
 		ctx.Reply(update, ext.ReplyTextString("Error Happened"), nil)
 		return dispatcher.EndGroups
 	}
-	if len(resp.Hits) == 0 {
-		ctx.Reply(update, ext.ReplyTextString("No results found"), nil)
-		return dispatcher.EndGroups
-	}
-	markup, err := utils.BuildSearchReplyMarkup(ctx, 1, *req)
-	if err != nil {
-		log.FromContext(ctx).Errorf("Failed to build reply markup: %v", err)
-		return dispatcher.EndGroups
-	}
-	ctx.Reply(update, ext.ReplyTextStyledTextArray(utils.BuildResultStyling(ctx, resp, bi.GetUsername())), &ext.ReplyOpts{
-		Markup: markup,
-	})
-	return dispatcher.EndGroups
+	return replySearchResults(ctx, update, *req, resp)
 }
 
 func SearchCallbackHandler(ctx *ext.Context, update *ext.Update) error {

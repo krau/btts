@@ -320,6 +320,13 @@ func BuildResultStyling(ctx context.Context, resp *types.SearchResponse, botUser
 
 		timeStr := time.Unix(hit.Timestamp, 0).Format("06-01-02 15:04:05")
 		resultStyling = append(resultStyling, styling.Plain(fmt.Sprintf(" [%s]\n", timeStr)))
+		if len(hit.Tags) > 0 {
+			tags := hit.Tags
+			if len(tags) > 6 {
+				tags = tags[:6]
+			}
+			resultStyling = append(resultStyling, styling.Plain(" 🏷 "+strings.Join(tags, ", ")+"\n"))
+		}
 
 		msgLink := func() string {
 			if chat.Type == int(database.ChatTypeChannel) || botUsername == nil {

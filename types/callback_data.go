@@ -2,6 +2,7 @@ package types
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/duke-git/lancet/v2/slice"
 )
@@ -13,8 +14,11 @@ type SearchRequest struct {
 	AllChats          bool          `json:"all_chats"`
 	TypeFilters       []MessageType `json:"type_filters"`
 	UserFilters       []int64       `json:"user_filters"`
-	DisableOcred      bool          `json:"disable_ocred"`      // 不搜索 OCR 文字
-	EnableAIGenerated bool          `json:"enable_aigenerated"` // [TODO] 搜索 AI 生成的内容(not implemented yet)
+	Tags              []string      `json:"tags,omitempty"`
+	TagMatch          string        `json:"tag_match,omitempty"` // "any" (default) or "all"
+	Mode              string        `json:"mode,omitempty"`      // ""/hybrid, "keyword", "media"
+	DisableOcred      bool          `json:"disable_ocred"`       // 不搜索 OCR 文字
+	EnableAIGenerated bool          `json:"enable_aigenerated"`  // [TODO] 搜索 AI 生成的内容(not implemented yet)
 	Limit             int64         `json:"limit"`
 	Offset            int64         `json:"offset"`
 }
@@ -45,6 +49,29 @@ func (r SearchRequest) FilterExpression() (string, error) {
 	}
 
 	addInt64Filter("user_id", r.UserFilters)
+
+	if len(r.Tags) > 0 {
+		seen := make(map[string]struct{}, len(r.Tags))
+		tagFilters := make([]string, 0, len(r.Tags))
+		for _, tag := range r.Tags {
+			tag = strings.TrimSpace(tag)
+			if tag == "" {
+				continue
+			}
+			if _, ok := seen[tag]; ok {
+				continue
+			}
+			seen[tag] = struct{}{}
+			tagFilters = append(tagFilters, fmt.Sprintf("tags = %q", tag))
+		}
+		if len(tagFilters) > 0 {
+			sep := " OR "
+			if strings.EqualFold(r.TagMatch, "all") {
+				sep = " AND "
+			}
+			filters = append(filters, "("+strings.Join(tagFilters, sep)+")")
+		}
+	}
 
 	if len(r.TypeFilters) > 0 {
 		typeStrs := slice.Map(r.TypeFilters, func(_ int, item MessageType) string { return fmt.Sprintf("%d", item) })

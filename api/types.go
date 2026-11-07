@@ -19,6 +19,10 @@ type SearchOnChatByPostRequest struct {
 	Limit             int64    `json:"limit" default:"10" example:"10"`              // 限制数量，用于分页
 	Users             []int64  `json:"users,omitempty" example:"123456,789012"`      // 用户ID过滤列表，可选
 	Types             []string `json:"types,omitempty" example:"text,photo"`         // 消息类型过滤列表，可选值：text,photo,video,document,voice,audio,poll,story
+	Tags              []string `json:"tags,omitempty" example:"cat,sunset"`          // 标签过滤
+	TagMatch          string   `json:"tag_match,omitempty" example:"any"`            // any (默认) 或 all
+	Mode              string   `json:"mode,omitempty" example:"hybrid"`              // hybrid (默认), keyword, media
+	Image             string   `json:"image,omitempty"`                              // base64 图片，用于以图搜图
 	DisableOcred      bool     `json:"disable_ocred,omitempty" example:"false"`      // 是否禁用OCR文本
 	EnableAIGenerated bool     `json:"enable_aigenerated,omitempty" example:"false"` // 是否启用AI生成的文本
 }
@@ -32,6 +36,10 @@ type SearchOnMultiChatByPostRequest struct {
 	Limit             int64    `json:"limit" default:"10" example:"10"`              // 限制数量，用于分页
 	Users             []int64  `json:"users,omitempty" example:"123456,789012"`      // 用户ID过滤列表，可选
 	Types             []string `json:"types,omitempty" example:"text,photo"`         // 消息类型过滤列表，可选值：text,photo,video,document,voice,audio,poll,story
+	Tags              []string `json:"tags,omitempty" example:"cat,sunset"`          // 标签过滤
+	TagMatch          string   `json:"tag_match,omitempty" example:"any"`            // any (默认) 或 all
+	Mode              string   `json:"mode,omitempty" example:"hybrid"`              // hybrid (默认), keyword, media
+	Image             string   `json:"image,omitempty"`                              // base64 图片，用于以图搜图
 	DisableOcred      bool     `json:"disable_ocred,omitempty" example:"false"`      // 是否禁用OCR文本
 	EnableAIGenerated bool     `json:"enable_aigenerated,omitempty" example:"false"` // 是否启用AI生成的文本
 }
@@ -53,6 +61,8 @@ type SearchHitResponse struct {
 	Message           string                   `json:"message"`                  // The original text of the message
 	Ocred             string                   `json:"ocred"`                    // The OCRed text of the message
 	AIGenerated       string                   `json:"aigenerated"`              // The AI generated text of the message
+	Tags              []string                 `json:"tags,omitempty"`           // Image tags
+	Extracted         string                   `json:"extracted,omitempty"`      // Text extracted from a document
 	UserID            int64                    `json:"user_id"`                  // The ID of the user who sent the message
 	ChatID            int64                    `json:"chat_id"`                  // The ID of the chat where the message was sent
 	UserFullName      string                   `json:"user_full_name,omitempty"` // The full name of the user who sent the message, if available
@@ -99,13 +109,15 @@ func ResponseSearch(c fiber.Ctx, rawResp *types.SearchResponse) error {
 			Message:           hit.Message,
 			Ocred:             hit.Ocred,
 			AIGenerated:       hit.AIGenerated,
+			Tags:              hit.Tags,
+			Extracted:         hit.Extracted,
 			UserID:            hit.UserID,
 			UserFullName:      UserFullName,
 			ChatID:            hit.ChatID,
 			ChatTitle:         ChatTitle,
 			Timestamp:         hit.Timestamp,
 			Formatted:         hit.Formatted,
-			FullText:          strings.TrimSpace(hit.Message + " " + hit.Ocred + " " + hit.AIGenerated),
+			FullText:          hit.FullText(),
 			FullFormattedText: hit.FullFormattedText(),
 		}
 	}
@@ -145,7 +157,9 @@ func ResponseDocuments(c fiber.Ctx, docs []*types.MessageDocument) error {
 			Message:      doc.Message,
 			Ocred:        doc.Ocred,
 			AIGenerated:  doc.AIGenerated,
-			FullText:     strings.TrimSpace(doc.Message + " " + doc.Ocred + " " + doc.AIGenerated),
+			Tags:         doc.Tags,
+			Extracted:    doc.Extracted,
+			FullText:     doc.FullText(),
 			UserID:       doc.UserID,
 			UserFullName: userFullName,
 			ChatID:       doc.ChatID,

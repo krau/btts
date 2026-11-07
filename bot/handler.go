@@ -40,6 +40,7 @@ var commandHandlers = []commandHandler{
 	{SearchHandler, "search", "搜索消息"},
 	{ListHandler, "ls", "列出已索引聊天"},
 	{AddHandler, "add", "添加聊天到索引"},
+	{AddTakeoutHandler, "addtakeout", "用 Takeout API 添加大频道"},
 	{DelHandler, "del", "删除聊天索引"},
 	{PubHandler, "pub", "将一个聊天设为公开"},
 	{UnPubHandler, "unpub", "将一个聊天设为私有"},
@@ -58,6 +59,7 @@ var commandHandlers = []commandHandler{
 	{DelApiKeyHandler, "delapikey", "删除子 api key"},
 	{ListApiKeyHandler, "lsapikey", "列出子 api key"},
 	{SetApiKeyHandler, "setapikey", "设置子 api key 作用域"},
+	{EnrichStatusHandler, "enrich", "查看/重试媒体增强队列"},
 	{StartHandler, "help", "帮助"},
 }
 

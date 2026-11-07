@@ -432,6 +432,8 @@ func InlineQueryHandler(ctx *ext.Context, update *ext.Update) error {
 			Limit:   48,
 			Query:   query,
 			ChatIDs: chatIds,
+			// Inline queries fire on every keystroke; keep them keyword-only.
+			Mode: "keyword",
 		})
 	if err != nil {
 		logger.Errorf("Failed to search: %v", err)

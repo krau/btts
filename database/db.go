@@ -30,7 +30,7 @@ func InitDatabase(ctx context.Context) error {
 	// Serialize read-to-write transactions so SQLite cannot reject their lock upgrade.
 	sqlDB.SetMaxOpenConns(1)
 	db = openDb
-	if err := db.WithContext(ctx).AutoMigrate(&UserInfo{}, &IndexChat{}, &SubBot{}, &ApiKey{}, &UpdatesState{}, &updatesChannelState{}); err != nil {
+	if err := db.WithContext(ctx).AutoMigrate(&UserInfo{}, &IndexChat{}, &IndexImport{}, &SubBot{}, &ApiKey{}, &UpdatesState{}, &updatesChannelState{}, &EnrichJob{}); err != nil {
 		return err
 	}
 	chats, err := GetAllIndexChats(ctx)
