@@ -70,9 +70,11 @@ model = "embeddinggemma-2:latest"
 dimensions = 768
 timeout = "60s"
 query_timeout = "10s"                    # 查询 embedding 超时，超时回退关键词检索
-media_enable = true                      # 图片/语音/视频音轨向量
+media_enable = true                      # 图片/音频/视频向量
 media_min_score = 0.8                    # 媒体语义结果的最低相关度，按语料调整
-audio_enable = false                     # 需要 ffmpeg
+audio_enable = false                     # 音频窗口向量，需要 ffmpeg
+video_enable = true                      # 视频关键帧向量，需要支持 vision 的模型与 ffmpeg
+video_frames = 3                         # 最多提取的关键帧数（每 10 秒一帧）
 warmup = true
 num_ctx = 8192
 
@@ -96,17 +98,27 @@ max_chars = 12000
 - 只有受支持的媒体/文档才会下载和增强；不支持的格式在下载前直接跳过，避免浪费 Telegram 流量和增强算力。当前支持的图片格式为 JPEG/PNG；音频/视频需能被 ffmpeg 解码；PDF 需要开启文档提取。
 - 只有含媒体/文档的消息才会：
   - 图片：图像向量 + caption/OCR/标签文本向量；
-  - 语音/视频：音频窗口向量 + caption 文本向量；
+  - 音频/语音：音频窗口向量 + caption 文本向量；
+  - 视频：关键帧图像向量（每 10 秒一帧，`video_frames` 限制数量）+ 音轨窗口向量 + caption 文本向量；
   - PDF：提取文本并生成文本向量（同时写入主文档的 `extracted` 供关键词检索）。
-- 向量写入独立的 `<index>_media_<media_name>_<dimensions>` 索引；图片/音频字节不会进入 Meilisearch，也只在这里存向量。
+- 向量写入独立的 `<index>_media_<media_name>_<dimensions>` 索引；图片/音频/视频字节不会进入 Meilisearch，只在这里存向量。
+- 媒体文档带两个过滤字段：`modality`（向量类型：`text`/`image`/`audio`）和 `media_type`（来源：`image`/`audio`/`video`/`document`）。纯文本消息仍然没有向量文档。
 - 文本查询会同时做：主索引关键词检索 + 媒体索引语义检索，再按 Reciprocal Rank Fusion 合并（深分页时两路各取 `offset+limit` 个候选）。纯文本消息仍可被关键词命中。
 - 内联查询（inline）固定走关键词检索，避免每次按键都请求一次 embedding。
 - 回复一张图片并发送 `/search`，即可用该图片检索相似消息。
-- API 搜索请求新增 `tags`、`tag_match`、`mode`（`hybrid`/`keyword`/`media`）、`image`（base64 或 data URL）字段。标签只存在于主索引：未开启 enrich 时 `tags` 返回 400；`mode=media` 必须开启 enrich 且提供 `q`；`tags` 与 `mode=media` 或 `image` 组合返回 400。
-- 语音/视频音轨按 30 秒窗口编码，默认只处理前 4 个窗口；视频当前只处理音轨，不做帧检索。
+- API 搜索请求支持 `tags`、`tag_match`、`mode`（`hybrid`/`keyword`/`media`）、`modality`、`image`、`audio` 字段。`modality` 指定目标：`all`（默认）、`text`、`image`、`audio`、`video`。
+  - 文本查询 + `modality=image`：以文本搜图片（只匹配图片向量）；
+  - 图片查询 + `modality=text`：以图搜文本（媒体消息的 caption/OCR/PDF 文本，不含纯文本消息）；
+  - 图片查询 + `modality=video`：以图搜视频关键帧；
+  - 音频查询 + `modality=audio|video`：以音频搜音频/视频音轨；
+  - 文本查询 + `modality=video`：文本搜视频（关键帧/音轨/caption 任一向量命中）。
+  - `image` 与 `audio` 互斥；音频查询不接受 `q`；`mode=media` 以文本查询时必须提供 `q`，图片/音频查询不需要；标签只存在于主索引，未开启 enrich 时 `tags` 返回 400。
+  - 当前查询输入支持文本、图片、音频；视频可以作为检索目标（`modality=video`），但暂不支持把视频文件本身作为查询。
+- 音频窗口按 30 秒编码，默认最多 4 个窗口；视频关键帧按 10 秒间隔提取，默认最多 3 帧。
 - PDF 目前提取全文并写入 `extracted` 字段，不做页级定位。
 - 更换 embedding 模型或维度时，修改 `media_name` 或 `dimensions` 会生成新的媒体索引；旧索引可手动删除。
-- `enrich.embedder.enable = true` 但 Ollama/模型不可用时会启动失败并给出明确错误，避免入库任务被静默破坏。
+- `enrich.embedder.enable = true` 但 Ollama/模型不可用时会启动失败并给出明确错误，避免入库任务被静默破坏。开启 `video_enable` 需要模型声明 `vision` capability。
+- 媒体索引 schema 升级会改变 `enrichVersion`，保留的已完成任务会重新入队；被 prune 掉的历史任务需要 `/del` 后重新 `/add`。
 - 已有消息：纯文本消息无需处理；媒体消息的向量/标签需要先 `/del` 再 `/add`（`/dl` 不会重新处理已完成任务的向量）。已经完成的聊天再次 `/add` 会被拒绝。
 
 ### 大规模冷导入 / Takeout
@@ -158,7 +170,7 @@ BTTS_TEST_PDF_DIR=/tmp/pdfs \
 go test -tags=integration ./engine/meili ./service/enrich -v
 ```
 
-覆盖范围：Meilisearch 索引 schema、部分更新保留 `tags`/`extracted`、删除后不重建、标签过滤、媒体向量与混合检索/RRF 分页/以图搜图；Ollama 真实文本/图片/音频 embedding（模型需声明 `vision`/`audio`，否则自动跳过对应断言）；真实 PDF 的文本提取与语义检索；音频窗口切分（ffmpeg）；tagger 响应解析。历史导入（普通分页、Takeout 分页、断点、失败回退）使用假 Telegram invoker + 真实 SQLite。
+覆盖范围：Meilisearch 索引 schema、部分更新保留 `tags`/`extracted`、删除后不重建、标签过滤、媒体向量与混合检索/RRF 分页/以图搜图；Ollama 真实文本/图片/音频 embedding（模型需声明 `vision`/`audio`，否则自动跳过对应断言）；跨模态目标检索（文本↔图片↔音频，以及视频关键帧/音轨）；真实 PDF 的文本提取与语义检索；视频关键帧提取、音频窗口切分（ffmpeg）；tagger 响应解析。历史导入（普通分页、Takeout 分页、断点、失败回退）使用假 Telegram invoker + 真实 SQLite。
 
 `BTTS_TEST_OLLAMA_DIMENSIONS` 可覆盖维度断言（默认 768）；`BTTS_TEST_PDF_DIR` 默认 `/tmp/pdfs`。PDF 目录不存在或不足两个可提取文本的 PDF 时，PDF 语义测试自动跳过。
 

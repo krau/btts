@@ -79,6 +79,8 @@ type AppConfig struct {
 			MediaEnable   bool          `toml:"media_enable" mapstructure:"media_enable"`
 			MediaMinScore float64       `toml:"media_min_score" mapstructure:"media_min_score"`
 			AudioEnable   bool          `toml:"audio_enable" mapstructure:"audio_enable"`
+			VideoEnable   bool          `toml:"video_enable" mapstructure:"video_enable"`
+			VideoFrames   int           `toml:"video_frames" mapstructure:"video_frames"`
 			Warmup        bool          `toml:"warmup" mapstructure:"warmup"`
 			NumCtx        int           `toml:"num_ctx" mapstructure:"num_ctx"`
 		} `toml:"embedder" mapstructure:"embedder"`
@@ -100,6 +102,8 @@ type AppConfig struct {
 }
 
 var C AppConfig
+
+const maxConfiguredVideoFrames = 8
 
 func Init() {
 	viper.SetConfigName("config")
@@ -139,6 +143,8 @@ func Init() {
 	viper.SetDefault("enrich.embedder.media_enable", true)
 	viper.SetDefault("enrich.embedder.media_min_score", 0.8)
 	viper.SetDefault("enrich.embedder.audio_enable", false)
+	viper.SetDefault("enrich.embedder.video_enable", true)
+	viper.SetDefault("enrich.embedder.video_frames", 3)
 	viper.SetDefault("enrich.embedder.num_ctx", 8192)
 	viper.SetDefault("enrich.tagger.threshold", 0.4)
 	viper.SetDefault("enrich.tagger.max_tags", 32)
@@ -197,6 +203,12 @@ func normalize() {
 	}
 	if enrich.Embedder.NumCtx <= 0 {
 		enrich.Embedder.NumCtx = 8192
+	}
+	if enrich.Embedder.VideoFrames <= 0 {
+		enrich.Embedder.VideoFrames = 3
+	}
+	if enrich.Embedder.VideoFrames > maxConfiguredVideoFrames {
+		enrich.Embedder.VideoFrames = maxConfiguredVideoFrames
 	}
 	if enrich.Tagger.MaxTags <= 0 {
 		enrich.Tagger.MaxTags = 32

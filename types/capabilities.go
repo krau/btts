@@ -7,6 +7,8 @@ import "context"
 type Capabilities struct {
 	// ImageSearch reports whether SearchImage can run.
 	ImageSearch bool
+	// AudioSearch reports whether SearchAudio can run.
+	AudioSearch bool
 	// TagFilters reports whether messages carry tags and can be filtered by them.
 	TagFilters bool
 	// Semantic reports whether media vectors are available for hybrid/media search.

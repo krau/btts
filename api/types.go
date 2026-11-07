@@ -22,7 +22,9 @@ type SearchOnChatByPostRequest struct {
 	Tags              []string `json:"tags,omitempty" example:"cat,sunset"`          // 标签过滤
 	TagMatch          string   `json:"tag_match,omitempty" example:"any"`            // any (默认) 或 all
 	Mode              string   `json:"mode,omitempty" example:"hybrid"`              // hybrid (默认), keyword, media
+	Modality          string   `json:"modality,omitempty" example:"image"`           // 目标模态: all,text,image,audio,video
 	Image             string   `json:"image,omitempty"`                              // base64 图片，用于以图搜图
+	Audio             string   `json:"audio,omitempty"`                              // base64 音频，用于以音频搜索
 	DisableOcred      bool     `json:"disable_ocred,omitempty" example:"false"`      // 是否禁用OCR文本
 	EnableAIGenerated bool     `json:"enable_aigenerated,omitempty" example:"false"` // 是否启用AI生成的文本
 }
@@ -39,7 +41,9 @@ type SearchOnMultiChatByPostRequest struct {
 	Tags              []string `json:"tags,omitempty" example:"cat,sunset"`          // 标签过滤
 	TagMatch          string   `json:"tag_match,omitempty" example:"any"`            // any (默认) 或 all
 	Mode              string   `json:"mode,omitempty" example:"hybrid"`              // hybrid (默认), keyword, media
+	Modality          string   `json:"modality,omitempty" example:"image"`           // 目标模态: all,text,image,audio,video
 	Image             string   `json:"image,omitempty"`                              // base64 图片，用于以图搜图
+	Audio             string   `json:"audio,omitempty"`                              // base64 音频，用于以音频搜索
 	DisableOcred      bool     `json:"disable_ocred,omitempty" example:"false"`      // 是否禁用OCR文本
 	EnableAIGenerated bool     `json:"enable_aigenerated,omitempty" example:"false"` // 是否启用AI生成的文本
 }

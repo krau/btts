@@ -27,6 +27,58 @@ func TestFuseHitsReciprocalRank(t *testing.T) {
 	}
 }
 
+func TestMediaTargetFilter(t *testing.T) {
+	cases := []struct {
+		target, queryKind, want string
+	}{
+		{"", "text", ""},
+		{"all", "image", ""},
+		{"text", "text", `modality = "text"`},
+		{"image", "text", `media_type = "image" AND modality = "image"`},
+		{"audio", "text", `media_type = "audio" AND modality = "audio"`},
+		{"video", "text", `media_type = "video"`},
+		{"video", "image", `media_type = "video" AND modality = "image"`},
+		{"video", "audio", `media_type = "video" AND modality = "audio"`},
+	}
+	for _, tc := range cases {
+		if got := mediaTargetFilter(tc.target, tc.queryKind); got != tc.want {
+			t.Errorf("target=%q query=%q: got %q, want %q", tc.target, tc.queryKind, got, tc.want)
+		}
+	}
+}
+
+func TestNormalizeTargetModality(t *testing.T) {
+	cases := map[string]string{
+		"":        "",
+		" all ":   "all",
+		"IMAGE":   "image",
+		"audio":   "audio",
+		"video":   "video",
+		"text":    "text",
+		"unknown": "",
+	}
+	for input, want := range cases {
+		if got := normalizeTargetModality(input); got != want {
+			t.Errorf("%q: got %q, want %q", input, got, want)
+		}
+	}
+}
+
+func TestModalityTypeFilters(t *testing.T) {
+	if got := modalityTypeFilters("image"); len(got) != 2 {
+		t.Fatalf("image filters = %v", got)
+	}
+	if got := modalityTypeFilters("audio"); len(got) != 3 {
+		t.Fatalf("audio filters = %v", got)
+	}
+	if got := modalityTypeFilters("video"); len(got) != 2 {
+		t.Fatalf("video filters = %v", got)
+	}
+	if got := modalityTypeFilters("text"); len(got) != 0 {
+		t.Fatalf("text filters = %v", got)
+	}
+}
+
 func TestPaginate(t *testing.T) {
 	hits := []types.SearchHit{hit(1, 1), hit(2, 2), hit(3, 3)}
 	cases := []struct {

@@ -14,13 +14,16 @@ import (
 )
 
 type mediaDocument struct {
-	ID        string         `json:"id"`
-	ChatID    int64          `json:"chat_id"`
-	MessageID int64          `json:"message_id"`
-	UserID    int64          `json:"user_id"`
-	Type      int            `json:"type"`
-	Timestamp int64          `json:"timestamp"`
-	Modality  string         `json:"modality"`
+	ID        string `json:"id"`
+	ChatID    int64  `json:"chat_id"`
+	MessageID int64  `json:"message_id"`
+	UserID    int64  `json:"user_id"`
+	Type      int    `json:"type"`
+	Timestamp int64  `json:"timestamp"`
+	// Modality is the vector kind: text, image or audio.
+	Modality string `json:"modality"`
+	// MediaType is the source media: image, audio, video or document.
+	MediaType string         `json:"media_type"`
 	Loc       float64        `json:"loc,omitempty"`
 	LocEnd    float64        `json:"loc_end,omitempty"`
 	Text      string         `json:"text,omitempty"`
@@ -70,7 +73,7 @@ func (m *mediaIndex) ensure(ctx context.Context) error {
 		}
 	}
 	settings := &meilisearch.Settings{
-		FilterableAttributes: []string{"chat_id", "message_id", "user_id", "type", "timestamp", "modality"},
+		FilterableAttributes: []string{"chat_id", "message_id", "user_id", "type", "timestamp", "modality", "media_type"},
 		SortableAttributes:   []string{"timestamp"},
 		SearchableAttributes: []string{"text"},
 		Embedders: map[string]meilisearch.Embedder{
@@ -131,7 +134,32 @@ func (m *mediaIndex) deleteChat(ctx context.Context, chatID int64) error {
 	return err
 }
 
-func (m *mediaIndex) search(ctx context.Context, req types.SearchRequest, vector []float32, limit int64, modality string) ([]mediaHit, int64, error) {
+// mediaTargetFilter maps a target modality and the query vector kind to a
+// media index filter. Text queries may target any vector of a video, while
+// image/audio queries target the matching vector kind only.
+func mediaTargetFilter(target, queryKind string) string {
+	switch strings.ToLower(target) {
+	case "text":
+		return `modality = "text"`
+	case "image":
+		return `media_type = "image" AND modality = "image"`
+	case "audio":
+		return `media_type = "audio" AND modality = "audio"`
+	case "video":
+		filter := `media_type = "video"`
+		switch queryKind {
+		case "image":
+			filter += ` AND modality = "image"`
+		case "audio":
+			filter += ` AND modality = "audio"`
+		}
+		return filter
+	default:
+		return ""
+	}
+}
+
+func (m *mediaIndex) search(ctx context.Context, req types.SearchRequest, vector []float32, limit int64, target, queryKind string) ([]mediaHit, int64, error) {
 	if limit <= 0 {
 		limit = types.PerSearchLimit
 	}
@@ -139,12 +167,11 @@ func (m *mediaIndex) search(ctx context.Context, req types.SearchRequest, vector
 	if err != nil {
 		return nil, 0, err
 	}
-	if modality != "" {
-		modalityFilter := fmt.Sprintf("modality = %q", modality)
+	if targetFilter := mediaTargetFilter(target, queryKind); targetFilter != "" {
 		if filter == "" {
-			filter = modalityFilter
+			filter = targetFilter
 		} else {
-			filter = "(" + filter + ") AND " + modalityFilter
+			filter = "(" + filter + ") AND " + targetFilter
 		}
 	}
 	request := &meilisearch.SearchRequest{

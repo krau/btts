@@ -171,6 +171,11 @@ func (m *Meilisearch) SearchImage(context.Context, types.SearchRequest, []byte) 
 	return nil, fmt.Errorf("image search is not supported by the keyword engine")
 }
 
+// SearchAudio implements engine.Searcher.
+func (m *Meilisearch) SearchAudio(context.Context, types.SearchRequest, []byte) (*types.SearchResponse, error) {
+	return nil, fmt.Errorf("audio search is not supported by the keyword engine")
+}
+
 // AddDocuments implements engine.Searcher. It uses the partial update
 // endpoint so a re-add preserves enrichment fields (tags/extracted) that are
 // omitted from the incoming message document.

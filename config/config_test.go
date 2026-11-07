@@ -64,6 +64,8 @@ func TestNormalizeDefaults(t *testing.T) {
 		C.Enrich.MediaFetchRetries != 3 ||
 		C.Enrich.Embedder.Timeout != 30*time.Second ||
 		C.Enrich.Embedder.QueryTimeout != 10*time.Second ||
+		C.Enrich.Embedder.VideoEnable ||
+		C.Enrich.Embedder.VideoFrames != 3 ||
 		C.Enrich.Tagger.Timeout != 5*time.Second ||
 		C.Enrich.Documents.PDFToText != "pdftotext" ||
 		C.Enrich.Documents.MaxSizeMB != 20 ||

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 	"os/exec"
+	"strings"
 	"sync"
 )
 
@@ -46,16 +47,31 @@ func audioWindows(ctx context.Context, data []byte, video bool) ([]audioWindow, 
 	if err != nil {
 		return nil, fmt.Errorf("ffmpeg is required for audio enrichment: %w", err)
 	}
-	args := []string{"-hide_banner", "-loglevel", "error", "-i", "pipe:0"}
+	input := "pipe:0"
+	if video {
+		// MP4 indexes often live at the end of the file, so ffmpeg needs a
+		// seekable input rather than a pipe.
+		path, cleanup, err := writeTempMedia(data)
+		if err != nil {
+			return nil, fmt.Errorf("write video temp file: %w", err)
+		}
+		defer cleanup()
+		input = path
+	}
+	args := []string{"-hide_banner", "-loglevel", "error", "-i", input}
 	if video {
 		args = append(args, "-vn")
 	}
 	args = append(args, "-t", fmt.Sprintf("%d", audioDecodeLimitSec), "-ac", "1", "-ar", fmt.Sprintf("%d", audioSampleRate), "-f", "s16le", "pipe:1")
 	cmd := exec.CommandContext(ctx, ffmpeg, args...)
-	cmd.Stdin = bytes.NewReader(data)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if !video {
+		cmd.Stdin = bytes.NewReader(data)
+	}
 	raw, err := cmd.Output()
 	if err != nil {
-		return nil, fmt.Errorf("ffmpeg decode: %w", err)
+		return nil, fmt.Errorf("ffmpeg decode: %w: %s", err, strings.TrimSpace(stderr.String()))
 	}
 	if len(raw) < 2 {
 		return nil, nil

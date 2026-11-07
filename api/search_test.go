@@ -25,12 +25,17 @@ func TestValidateSearchRequest(t *testing.T) {
 		{"invalid mode", types.SearchRequest{Query: "x", Mode: "semantic"}, all, false},
 		{"invalid tag match", types.SearchRequest{Query: "x", TagMatch: "some"}, all, false},
 		{"valid tag match", types.SearchRequest{Query: "x", Tags: []string{"a"}, TagMatch: "all"}, all, true},
+		{"valid modality", types.SearchRequest{Query: "x", Modality: "video"}, all, true},
+		{"invalid modality", types.SearchRequest{Query: "x", Modality: "frames"}, all, false},
 	}
 	for _, tc := range cases {
-		err := validateSearchRequest(tc.req, tc.caps)
+		err := validateSearchRequest(tc.req, tc.caps, false)
 		if (err == nil) != tc.ok {
 			t.Errorf("%s: err=%v, want ok=%v", tc.name, err, tc.ok)
 		}
+	}
+	if err := validateSearchRequest(types.SearchRequest{Mode: "media", Modality: "image"}, types.Capabilities{Semantic: true}, true); err != nil {
+		t.Fatalf("media query without text: %v", err)
 	}
 }
 
@@ -44,7 +49,7 @@ func TestDecodeSearchImage(t *testing.T) {
 		"raw":      raw,
 		"data URL": "data:image/png;base64," + padded,
 	} {
-		got, err := decodeSearchImage(input)
+		got, err := decodeSearchMedia(input)
 		if err != nil {
 			t.Fatalf("%s: %v", name, err)
 		}
@@ -57,7 +62,7 @@ func TestDecodeSearchImage(t *testing.T) {
 		"invalid": "not-base64%%%",
 		"empty":   "",
 	} {
-		if _, err := decodeSearchImage(input); err == nil {
+		if _, err := decodeSearchMedia(input); err == nil {
 			t.Fatalf("%s: expected error", name)
 		}
 	}

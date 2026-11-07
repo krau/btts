@@ -8,19 +8,21 @@ import (
 )
 
 type SearchRequest struct {
-	ChatID            int64         `json:"chat_id"`
-	Query             string        `json:"query"`
-	ChatIDs           []int64       `json:"chat_ids"`
-	AllChats          bool          `json:"all_chats"`
-	TypeFilters       []MessageType `json:"type_filters"`
-	UserFilters       []int64       `json:"user_filters"`
-	Tags              []string      `json:"tags,omitempty"`
-	TagMatch          string        `json:"tag_match,omitempty"` // "any" (default) or "all"
-	Mode              string        `json:"mode,omitempty"`      // ""/hybrid, "keyword", "media"
-	DisableOcred      bool          `json:"disable_ocred"`       // 不搜索 OCR 文字
-	EnableAIGenerated bool          `json:"enable_aigenerated"`  // [TODO] 搜索 AI 生成的内容(not implemented yet)
-	Limit             int64         `json:"limit"`
-	Offset            int64         `json:"offset"`
+	ChatID      int64         `json:"chat_id"`
+	Query       string        `json:"query"`
+	ChatIDs     []int64       `json:"chat_ids"`
+	AllChats    bool          `json:"all_chats"`
+	TypeFilters []MessageType `json:"type_filters"`
+	UserFilters []int64       `json:"user_filters"`
+	Tags        []string      `json:"tags,omitempty"`
+	TagMatch    string        `json:"tag_match,omitempty"` // "any" (default) or "all"
+	Mode        string        `json:"mode,omitempty"`      // ""/hybrid, "keyword", "media"
+	// Modality restricts media vectors to a target: "", "all", "text", "image", "audio", "video".
+	Modality          string `json:"modality,omitempty"`
+	DisableOcred      bool   `json:"disable_ocred"`      // 不搜索 OCR 文字
+	EnableAIGenerated bool   `json:"enable_aigenerated"` // [TODO] 搜索 AI 生成的内容(not implemented yet)
+	Limit             int64  `json:"limit"`
+	Offset            int64  `json:"offset"`
 }
 
 func (r SearchRequest) FilterExpression() (string, error) {

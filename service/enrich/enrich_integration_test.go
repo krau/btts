@@ -13,6 +13,7 @@ import (
 	"image/png"
 	"math"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -91,6 +92,26 @@ func testPNG(t *testing.T, c color.Color) []byte {
 		t.Fatal(err)
 	}
 	return buf.Bytes()
+}
+
+func testVideo(t *testing.T, ffmpeg string) []byte {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "sample.mp4")
+	cmd := exec.Command(ffmpeg,
+		"-hide_banner", "-loglevel", "error",
+		"-f", "lavfi", "-i", "color=c=red:s=320x240:d=12",
+		"-f", "lavfi", "-i", "sine=frequency=440:duration=12",
+		"-c:v", "mpeg4", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest",
+		"-y", path,
+	)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("generate sample video: %v\n%s", err, output)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return data
 }
 
 func integrationEnrichConfig(url, key, base string) config.AppConfig {
@@ -403,6 +424,8 @@ func TestIntegrationRealMediaPipeline(t *testing.T) {
 	cfg := integrationEnrichConfig(meiliURL, os.Getenv("BTTS_TEST_MEILI_KEY"), base)
 	cfg.Enrich.Embedder.Dimensions = dims
 	cfg.Enrich.Embedder.AudioEnable = true
+	cfg.Enrich.Embedder.VideoEnable = true
+	cfg.Enrich.Embedder.VideoFrames = 3
 	emb := realIntegrationEmbedder(t, ollamaURL, model, dims)
 	e := setupIntegrationEnrich(t, cfg, emb, nil)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
@@ -421,13 +444,17 @@ func TestIntegrationRealMediaPipeline(t *testing.T) {
 			Message: "blue square", HasMedia: true, MediaMIME: "image/png"},
 		{ID: 3, ChatID: 1, UserID: 3, Timestamp: 102, Type: int(types.MessageTypeAudio),
 			Message: "sine tone", HasMedia: true, MediaMIME: "audio/wav"},
+		{ID: 4, ChatID: 1, UserID: 4, Timestamp: 103, Type: int(types.MessageTypeVideo),
+			Message: "red video", HasMedia: true, MediaMIME: "video/mp4", MediaName: "red.mp4"},
+		{ID: 5, ChatID: 1, UserID: 5, Timestamp: 104, Type: int(types.MessageTypeText),
+			Message: "pure text about a red square"},
 	}
 	if err := e.inner.AddDocuments(ctx, 1, docs); err != nil {
 		t.Fatalf("add documents: %v", err)
 	}
 	waitForIntegration(t, 15*time.Second, "main documents", func() bool {
-		got, err := e.inner.GetDocuments(ctx, 1, []int{1, 2, 3})
-		return err == nil && len(got) == 3
+		got, err := e.inner.GetDocuments(ctx, 1, []int{1, 2, 3, 4, 5})
+		return err == nil && len(got) == 5
 	})
 	if err := e.EnrichNow(ctx, 1, docs[0], redPNG, "image/png"); err != nil {
 		t.Fatalf("enrich red image: %v", err)
@@ -437,6 +464,13 @@ func TestIntegrationRealMediaPipeline(t *testing.T) {
 	}
 	if err := e.EnrichNow(ctx, 1, docs[2], wavBytes(samples), "audio/wav"); err != nil {
 		t.Fatalf("enrich audio: %v", err)
+	}
+	ffmpeg, err := findFFmpeg()
+	if err != nil {
+		t.Skip("ffmpeg is not installed")
+	}
+	if err := e.EnrichNow(ctx, 1, docs[3], testVideo(t, ffmpeg), "video/mp4"); err != nil {
+		t.Fatalf("enrich video: %v", err)
 	}
 
 	waitForIntegration(t, 60*time.Second, "real image vectors", func() bool {
@@ -454,6 +488,107 @@ func TestIntegrationRealMediaPipeline(t *testing.T) {
 	if len(imageResp.Hits) == 0 || imageResp.Hits[0].ID != 1 {
 		t.Fatalf("real image search hits = %+v, want document 1 first", imageResp.Hits)
 	}
+
+	// Text query targeting images only must skip captions and pure text.
+	textToImage, err := e.Search(ctx, types.SearchRequest{
+		ChatID: 1, Query: "a red square", Modality: "image", Mode: "media", Limit: 10,
+	})
+	if err != nil {
+		t.Fatalf("text to image: %v", err)
+	}
+	if len(textToImage.Hits) == 0 || textToImage.Hits[0].ID != 1 {
+		t.Fatalf("text-to-image hits = %+v, want document 1 first", textToImage.Hits)
+	}
+
+	// Image query targeting text vectors.
+	imageToText, err := e.SearchImage(ctx, types.SearchRequest{
+		ChatID: 1, Modality: "text", Limit: 10,
+	}, redPNG)
+	if err != nil {
+		t.Fatalf("image to text: %v", err)
+	}
+	if !slices.Contains(hitIDs(imageToText), int64(1)) {
+		t.Fatalf("image-to-text hits = %v, want document 1", hitIDs(imageToText))
+	}
+
+	// Pure text messages have no vector document.
+	pureText, err := e.Search(ctx, types.SearchRequest{
+		ChatID: 1, Query: "pure text about a red square", Modality: "text", Mode: "media", Limit: 10,
+	})
+	if err != nil {
+		t.Fatalf("pure text media search: %v", err)
+	}
+	if slices.Contains(hitIDs(pureText), int64(5)) {
+		t.Fatalf("pure text message leaked into media index: %v", hitIDs(pureText))
+	}
+
+	// Text query targeting audio vectors.
+	textToAudio, err := e.Search(ctx, types.SearchRequest{
+		ChatID: 1, Query: "sine tone", Modality: "audio", Mode: "media", Limit: 10,
+	})
+	if err != nil {
+		t.Fatalf("text to audio: %v", err)
+	}
+	if len(textToAudio.Hits) == 0 || textToAudio.Hits[0].ID != 3 {
+		t.Fatalf("text-to-audio hits = %+v, want document 3 first", textToAudio.Hits)
+	}
+
+	// Audio query against audio and video soundtracks.
+	audioQuery, err := e.SearchAudio(ctx, types.SearchRequest{
+		ChatID: 1, Modality: "audio", Limit: 10,
+	}, wavBytes(samples))
+	if err != nil {
+		t.Fatalf("audio to audio: %v", err)
+	}
+	if len(audioQuery.Hits) == 0 || audioQuery.Hits[0].ID != 3 {
+		t.Fatalf("audio-to-audio hits = %+v, want document 3 first", audioQuery.Hits)
+	}
+	audioToVideo, err := e.SearchAudio(ctx, types.SearchRequest{
+		ChatID: 1, Modality: "video", Limit: 10,
+	}, wavBytes(samples))
+	if err != nil {
+		t.Fatalf("audio to video: %v", err)
+	}
+	if len(audioToVideo.Hits) == 0 || audioToVideo.Hits[0].ID != 4 {
+		t.Fatalf("audio-to-video hits = %+v, want document 4 first", audioToVideo.Hits)
+	}
+	audioToText, err := e.SearchAudio(ctx, types.SearchRequest{
+		ChatID: 1, Modality: "text", Limit: 10,
+	}, wavBytes(samples))
+	if err != nil {
+		t.Fatalf("audio to text: %v", err)
+	}
+	if !slices.Contains(hitIDs(audioToText), int64(3)) {
+		t.Fatalf("audio-to-text hits = %v, want document 3", hitIDs(audioToText))
+	}
+
+	// Image and text queries targeting video.
+	imageToVideo, err := e.SearchImage(ctx, types.SearchRequest{
+		ChatID: 1, Modality: "video", Limit: 10,
+	}, redPNG)
+	if err != nil {
+		t.Fatalf("image to video: %v", err)
+	}
+	if len(imageToVideo.Hits) == 0 || imageToVideo.Hits[0].ID != 4 {
+		t.Fatalf("image-to-video hits = %+v, want document 4 first", imageToVideo.Hits)
+	}
+	textToVideo, err := e.Search(ctx, types.SearchRequest{
+		ChatID: 1, Query: "red video", Modality: "video", Mode: "media", Limit: 10,
+	})
+	if err != nil {
+		t.Fatalf("text to video: %v", err)
+	}
+	if len(textToVideo.Hits) == 0 || textToVideo.Hits[0].ID != 4 {
+		t.Fatalf("text-to-video hits = %+v, want document 4 first", textToVideo.Hits)
+	}
+}
+
+func hitIDs(resp *types.SearchResponse) []int64 {
+	ids := make([]int64, 0, len(resp.Hits))
+	for _, hit := range resp.Hits {
+		ids = append(ids, hit.ID)
+	}
+	return ids
 }
 
 func TestIntegrationPDFSemanticSearch(t *testing.T) {

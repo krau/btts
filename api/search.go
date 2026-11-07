@@ -12,9 +12,9 @@ import (
 	"github.com/krau/btts/types"
 )
 
-const maxSearchImageBytes = 20 << 20
+const maxSearchMediaBytes = 20 << 20
 
-func decodeSearchImage(image string) ([]byte, error) {
+func decodeSearchMedia(image string) ([]byte, error) {
 	image = strings.TrimSpace(image)
 	if strings.HasPrefix(image, "data:") {
 		if _, encoded, ok := strings.Cut(image, ","); ok {
@@ -32,15 +32,15 @@ func decodeSearchImage(image string) ([]byte, error) {
 		return nil, err
 	}
 	if len(data) == 0 {
-		return nil, fmt.Errorf("image is empty")
+		return nil, fmt.Errorf("media is empty")
 	}
-	if len(data) > maxSearchImageBytes {
-		return nil, fmt.Errorf("image exceeds %d bytes", maxSearchImageBytes)
+	if len(data) > maxSearchMediaBytes {
+		return nil, fmt.Errorf("media exceeds %d bytes", maxSearchMediaBytes)
 	}
 	return data, nil
 }
 
-func validateSearchRequest(req types.SearchRequest, caps types.Capabilities) error {
+func validateSearchRequest(req types.SearchRequest, caps types.Capabilities, mediaQuery bool) error {
 	mode := strings.ToLower(strings.TrimSpace(req.Mode))
 	switch mode {
 	case "", "hybrid", "keyword", "media":
@@ -52,6 +52,11 @@ func validateSearchRequest(req types.SearchRequest, caps types.Capabilities) err
 	default:
 		return fmt.Errorf("invalid tag_match %q (use any or all)", req.TagMatch)
 	}
+	switch strings.ToLower(strings.TrimSpace(req.Modality)) {
+	case "", "all", "text", "image", "audio", "video":
+	default:
+		return fmt.Errorf("invalid modality %q (use all, text, image, audio or video)", req.Modality)
+	}
 	if len(req.Tags) > 0 {
 		if !caps.TagFilters {
 			return fmt.Errorf("tag filters require enrichment to be enabled")
@@ -60,7 +65,7 @@ func validateSearchRequest(req types.SearchRequest, caps types.Capabilities) err
 			return fmt.Errorf("tags filter is not supported with mode=media")
 		}
 	}
-	if mode == "media" {
+	if mode == "media" && !mediaQuery {
 		if !caps.Semantic {
 			return fmt.Errorf("media search is not enabled")
 		}
@@ -79,11 +84,33 @@ func searchByImage(c fiber.Ctx, req types.SearchRequest, image string) error {
 	if len(req.Tags) > 0 {
 		return &fiber.Error{Code: fiber.StatusBadRequest, Message: "tags filter is not supported with image search"}
 	}
-	data, err := decodeSearchImage(image)
+	data, err := decodeSearchMedia(image)
 	if err != nil {
 		return &fiber.Error{Code: fiber.StatusBadRequest, Message: "Invalid image base64"}
 	}
 	results, err := searcher.SearchImage(c.RequestCtx(), req, data)
+	if err != nil {
+		return &fiber.Error{Code: fiber.StatusInternalServerError, Message: err.Error()}
+	}
+	return ResponseSearch(c, results)
+}
+
+func searchByAudio(c fiber.Ctx, req types.SearchRequest, audio string) error {
+	searcher := engine.GetEngine()
+	if !searcher.Capabilities().AudioSearch {
+		return &fiber.Error{Code: fiber.StatusNotImplemented, Message: "Audio search is not enabled"}
+	}
+	if len(req.Tags) > 0 {
+		return &fiber.Error{Code: fiber.StatusBadRequest, Message: "tags filter is not supported with audio search"}
+	}
+	if req.Query != "" {
+		return &fiber.Error{Code: fiber.StatusBadRequest, Message: "q is not supported with audio search"}
+	}
+	data, err := decodeSearchMedia(audio)
+	if err != nil {
+		return &fiber.Error{Code: fiber.StatusBadRequest, Message: "Invalid audio base64"}
+	}
+	results, err := searcher.SearchAudio(c.RequestCtx(), req, data)
 	if err != nil {
 		return &fiber.Error{Code: fiber.StatusInternalServerError, Message: err.Error()}
 	}
@@ -107,6 +134,7 @@ func searchByImage(c fiber.Ctx, req types.SearchRequest, image string) error {
 //	@Param			tags		query	string	false	"标签列表，逗号分隔"
 //	@Param			tag_match	query	string	false	"any (默认) 或 all"
 //	@Param			mode		query	string	false	"hybrid (默认), keyword, media"
+//	@Param			modality	query	string	false	"目标模态: all (默认), text, image, audio, video"	Enums(all,text,image,audio,video)
 //	@Success		200		{object}	map[string]interface{}							"成功响应"
 //	@Success		200		{object}	object{status=string,results=SearchResponse}	"成功响应示例"
 //	@Failure		400		{object}	map[string]string								"请求参数错误"
@@ -128,6 +156,7 @@ func SearchOnChatByGet(c fiber.Ctx) error {
 	enableAIGenerated := fiber.Query[bool](c, "enable_aigenerated", false)
 	mode := c.Query("mode")
 	tagMatch := c.Query("tag_match")
+	modality := c.Query("modality")
 
 	req := types.SearchRequest{
 		ChatID:            int64(chatID),
@@ -135,6 +164,7 @@ func SearchOnChatByGet(c fiber.Ctx) error {
 		Offset:            int64(offset),
 		Limit:             int64(limit),
 		Mode:              mode,
+		Modality:          modality,
 		TagMatch:          tagMatch,
 		DisableOcred:      disableOcred,
 		EnableAIGenerated: enableAIGenerated,
@@ -167,7 +197,7 @@ func SearchOnChatByGet(c fiber.Ctx) error {
 		}
 	}
 	searcher := engine.GetEngine()
-	if err := validateSearchRequest(req, searcher.Capabilities()); err != nil {
+	if err := validateSearchRequest(req, searcher.Capabilities(), false); err != nil {
 		return &fiber.Error{Code: fiber.StatusBadRequest, Message: err.Error()}
 	}
 	results, err := searcher.Search(c.RequestCtx(), req)
@@ -218,6 +248,7 @@ func SearchOnChatByPost(c fiber.Ctx) error {
 		Tags:              request.Tags,
 		TagMatch:          request.TagMatch,
 		Mode:              request.Mode,
+		Modality:          request.Modality,
 		DisableOcred:      request.DisableOcred,
 		EnableAIGenerated: request.EnableAIGenerated,
 	}
@@ -229,11 +260,18 @@ func SearchOnChatByPost(c fiber.Ctx) error {
 		}
 	}
 	searcher := engine.GetEngine()
-	if err := validateSearchRequest(req, searcher.Capabilities()); err != nil {
+	mediaQuery := request.Image != "" || request.Audio != ""
+	if err := validateSearchRequest(req, searcher.Capabilities(), mediaQuery); err != nil {
 		return &fiber.Error{Code: fiber.StatusBadRequest, Message: err.Error()}
+	}
+	if request.Image != "" && request.Audio != "" {
+		return &fiber.Error{Code: fiber.StatusBadRequest, Message: "image and audio queries are mutually exclusive"}
 	}
 	if request.Image != "" {
 		return searchByImage(c, req, request.Image)
+	}
+	if request.Audio != "" {
+		return searchByAudio(c, req, request.Audio)
 	}
 	results, err := searcher.Search(c.RequestCtx(), req)
 	if err != nil {
@@ -280,6 +318,7 @@ func SearchOnMultiChatByPost(c fiber.Ctx) error {
 		Tags:              request.Tags,
 		TagMatch:          request.TagMatch,
 		Mode:              request.Mode,
+		Modality:          request.Modality,
 		AllChats:          searchAllChats,
 		DisableOcred:      request.DisableOcred,
 		EnableAIGenerated: request.EnableAIGenerated,
@@ -292,11 +331,18 @@ func SearchOnMultiChatByPost(c fiber.Ctx) error {
 		}
 	}
 	searcher := engine.GetEngine()
-	if err := validateSearchRequest(req, searcher.Capabilities()); err != nil {
+	mediaQuery := request.Image != "" || request.Audio != ""
+	if err := validateSearchRequest(req, searcher.Capabilities(), mediaQuery); err != nil {
 		return &fiber.Error{Code: fiber.StatusBadRequest, Message: err.Error()}
+	}
+	if request.Image != "" && request.Audio != "" {
+		return &fiber.Error{Code: fiber.StatusBadRequest, Message: "image and audio queries are mutually exclusive"}
 	}
 	if request.Image != "" {
 		return searchByImage(c, req, request.Image)
+	}
+	if request.Audio != "" {
+		return searchByAudio(c, req, request.Audio)
 	}
 	results, err := searcher.Search(c.RequestCtx(), req)
 	if err != nil {

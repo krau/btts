@@ -94,10 +94,11 @@ func Wrap(ctx context.Context, inner engine.Searcher, fetcher MediaFetcher) (eng
 			logger.Infof("Embedding model warmed up in %s", time.Since(start).Round(time.Millisecond))
 		}
 		enrichEngine.embedder = client
-		if cfg.Enrich.Embedder.AudioEnable {
+		if cfg.Enrich.Embedder.AudioEnable || cfg.Enrich.Embedder.VideoEnable {
 			if _, err := exec.LookPath("ffmpeg"); err != nil {
 				logger.Warn("ffmpeg not found, audio/video vectors disabled")
 				enrichEngine.cfg.Enrich.Embedder.AudioEnable = false
+				enrichEngine.cfg.Enrich.Embedder.VideoEnable = false
 			}
 		}
 		if cfg.Enrich.Embedder.MediaEnable {
@@ -160,13 +161,16 @@ func Wrap(ctx context.Context, inner engine.Searcher, fetcher MediaFetcher) (eng
 	for range workers {
 		go enrichEngine.worker(ctx)
 	}
-	logger.Infof("Enrichment enabled (embedder=%t tagger=%t media=%t pdf=%t workers=%d)",
-		enrichEngine.embedder != nil, enrichEngine.tagger != nil, enrichEngine.media != nil, enrichEngine.pdf != nil, workers)
+	logger.Infof("Enrichment enabled (embedder=%t tagger=%t media=%t pdf=%t video=%t workers=%d)",
+		enrichEngine.embedder != nil, enrichEngine.tagger != nil, enrichEngine.media != nil,
+		enrichEngine.pdf != nil, enrichEngine.cfg.Enrich.Embedder.VideoEnable, workers)
 	return enrichEngine, nil
 }
 
 func enrichVersion(cfg config.AppConfig) string {
-	return fmt.Sprintf("%t/%s/%d/%s|%t/%s/%g/%d|%t/%s/%d|%t/%t",
+	// v2 adds media_type and video frame vectors, so old documents must be
+	// re-enriched before modality filters can see them.
+	return fmt.Sprintf("v2|%t/%s/%d/%s|%t/%s/%g/%d|%t/%s/%d|%t/%t|%t/%d",
 		cfg.Enrich.Embedder.Enable,
 		cfg.Enrich.Embedder.Model,
 		cfg.Enrich.Embedder.Dimensions,
@@ -180,6 +184,8 @@ func enrichVersion(cfg config.AppConfig) string {
 		cfg.Enrich.Documents.MaxChars,
 		cfg.Enrich.Embedder.MediaEnable,
 		cfg.Enrich.Embedder.AudioEnable,
+		cfg.Enrich.Embedder.VideoEnable,
+		cfg.Enrich.Embedder.VideoFrames,
 	)
 }
 
@@ -191,6 +197,7 @@ func (e *Engine) Capabilities() types.Capabilities {
 	if e.embedder != nil && e.media != nil {
 		caps.Semantic = true
 		caps.ImageSearch = true
+		caps.AudioSearch = true
 	}
 	return caps
 }
@@ -266,8 +273,41 @@ func (e *Engine) GetDocuments(ctx context.Context, chatID int64, ids []int) ([]*
 	return e.inner.GetDocuments(ctx, chatID, ids)
 }
 
+func normalizeTargetModality(modality string) string {
+	switch strings.ToLower(strings.TrimSpace(modality)) {
+	case "":
+		return ""
+	case "all", "text", "image", "audio", "video":
+		return strings.ToLower(strings.TrimSpace(modality))
+	default:
+		return ""
+	}
+}
+
+func modalityTypeFilters(target string) []types.MessageType {
+	switch target {
+	case "image":
+		// Photos are the common case; image files can also arrive as documents.
+		return []types.MessageType{types.MessageTypePhoto, types.MessageTypeDocument}
+	case "audio":
+		return []types.MessageType{types.MessageTypeVoice, types.MessageTypeAudio, types.MessageTypeDocument}
+	case "video":
+		return []types.MessageType{types.MessageTypeVideo, types.MessageTypeDocument}
+	default:
+		return nil
+	}
+}
+
+func applyTargetFilters(req *types.SearchRequest, target string) {
+	if len(req.TypeFilters) == 0 {
+		req.TypeFilters = modalityTypeFilters(target)
+	}
+}
+
 func (e *Engine) Search(ctx context.Context, req types.SearchRequest) (*types.SearchResponse, error) {
 	mode := strings.ToLower(req.Mode)
+	target := normalizeTargetModality(req.Modality)
+	applyTargetFilters(&req, target)
 	// Pure text messages are keyword-only. Semantic vectors exist only for
 	// media-rich messages and tags live on the main index.
 	if mode == "keyword" || req.Query == "" || len(req.Tags) > 0 {
@@ -293,7 +333,7 @@ func (e *Engine) Search(ctx context.Context, req types.SearchRequest) (*types.Se
 	}
 	window := offset + limit
 	if mode == "media" {
-		hits, total, err := e.searchMediaHits(ctx, req, vector, window, "")
+		hits, total, err := e.searchMediaHits(ctx, req, vector, window, target, "text")
 		if err != nil {
 			return nil, err
 		}
@@ -311,7 +351,7 @@ func (e *Engine) Search(ctx context.Context, req types.SearchRequest) (*types.Se
 	if err != nil {
 		return nil, err
 	}
-	mediaResp, mediaTotal, err := e.searchMediaHits(ctx, req, vector, window, "")
+	mediaResp, mediaTotal, err := e.searchMediaHits(ctx, req, vector, window, target, "text")
 	if err != nil {
 		log.FromContext(ctx).Warnf("Media search failed: %v", err)
 		return keywordPage(textResp, offset, limit), nil
@@ -325,30 +365,51 @@ func (e *Engine) Search(ctx context.Context, req types.SearchRequest) (*types.Se
 	return textResp, nil
 }
 
-// SearchImage searches visual/audio media vectors with an image query.
+// SearchImage searches media vectors with an image query. The target defaults
+// to images and may be set to text, audio, video or all via req.Modality.
 func (e *Engine) SearchImage(ctx context.Context, req types.SearchRequest, data []byte) (*types.SearchResponse, error) {
+	return e.searchMediaVector(ctx, req, "image", data)
+}
+
+// SearchAudio searches media vectors with an audio query. The target defaults
+// to audio and may be set to text, image, video or all via req.Modality.
+func (e *Engine) SearchAudio(ctx context.Context, req types.SearchRequest, data []byte) (*types.SearchResponse, error) {
+	return e.searchMediaVector(ctx, req, "audio", data)
+}
+
+func (e *Engine) searchMediaVector(ctx context.Context, req types.SearchRequest, queryKind string, data []byte) (*types.SearchResponse, error) {
 	if e.embedder == nil || e.media == nil {
 		return nil, fmt.Errorf("media embedding is not enabled")
 	}
-	vector, err := e.embedder.EmbedImageWithText(ctx, req.Query, data)
-	if err != nil {
-		return nil, fmt.Errorf("embed query image: %w", err)
+	var vector []float32
+	var err error
+	switch queryKind {
+	case "image":
+		vector, err = e.embedder.EmbedImageWithText(ctx, req.Query, data)
+	case "audio":
+		vector, err = e.embedder.EmbedAudio(ctx, data)
+	default:
+		return nil, fmt.Errorf("unsupported media query kind %q", queryKind)
 	}
+	if err != nil {
+		return nil, fmt.Errorf("embed query %s: %w", queryKind, err)
+	}
+	target := normalizeTargetModality(req.Modality)
+	if target == "" {
+		target = queryKind
+	}
+	applyTargetFilters(&req, target)
 	offset := max(req.Offset, 0)
 	limit := req.Limit
 	if limit <= 0 {
 		limit = types.PerSearchLimit
 	}
-	hits, total, err := e.media.search(ctx, req, vector, offset+limit, "image")
-	if err != nil {
-		return nil, err
-	}
-	resp, err := e.hydrate(ctx, hits)
+	hits, total, err := e.searchMediaHits(ctx, req, vector, offset+limit, target, queryKind)
 	if err != nil {
 		return nil, err
 	}
 	return &types.SearchResponse{
-		Hits:               paginate(resp, offset, limit),
+		Hits:               paginate(hits, offset, limit),
 		EstimatedTotalHits: total,
 		Offset:             offset,
 		Limit:              limit,
@@ -442,8 +503,12 @@ func (e *Engine) jobNeedsWork(job *database.EnrichJob) bool {
 		return e.pdf != nil
 	case isImage:
 		return (e.tagger != nil || mediaVectors) && types.IsSupportedImage(mime, job.Name)
-	case isAudio || isVideo:
+	case isAudio:
 		return mediaVectors && e.cfg.Enrich.Embedder.AudioEnable && types.IsSupportedAV(mime, job.Name)
+	case isVideo:
+		return mediaVectors &&
+			(e.cfg.Enrich.Embedder.AudioEnable || e.cfg.Enrich.Embedder.VideoEnable) &&
+			types.IsSupportedAV(mime, job.Name)
 	default:
 		return false
 	}
@@ -518,6 +583,15 @@ func (e *Engine) processData(ctx context.Context, job *database.EnrichJob, doc *
 	isVideo := strings.HasPrefix(mime, "video/") ||
 		types.MessageType(job.MsgType) == types.MessageTypeVideo
 	isPDF := e.pdf != nil && types.IsPDF(mime, job.Name)
+	mediaType := "document"
+	switch {
+	case isImage:
+		mediaType = "image"
+	case isAudio:
+		mediaType = "audio"
+	case isVideo:
+		mediaType = "video"
+	}
 
 	var extracted string
 	var enrichErrs []error
@@ -571,6 +645,34 @@ func (e *Engine) processData(ctx context.Context, job *database.EnrichJob, doc *
 					Type:      job.MsgType,
 					Timestamp: job.Timestamp,
 					Modality:  "image",
+					MediaType: mediaType,
+					Text:      truncate(text, 500),
+					Vectors:   map[string]any{e.cfg.Enrich.Embedder.MediaName: vector},
+				})
+			}
+		}
+		if isVideo && e.cfg.Enrich.Embedder.VideoEnable {
+			frames, err := videoFrames(ctx, data, e.cfg.Enrich.Embedder.VideoFrames)
+			if err != nil {
+				enrichErrs = append(enrichErrs, fmt.Errorf("decode video frames: %w", err))
+			}
+			for i, frame := range frames {
+				vector, err := e.embedder.EmbedImageWithText(ctx, text, frame.data)
+				if err != nil {
+					enrichErrs = append(enrichErrs, fmt.Errorf("embed video frame %d: %w", i, err))
+					continue
+				}
+				mediaDocs = append(mediaDocs, &mediaDocument{
+					ID:        fmt.Sprintf("%d_%d_video_%d", job.ChatID, job.MessageID, i),
+					ChatID:    job.ChatID,
+					MessageID: int64(job.MessageID),
+					UserID:    job.UserID,
+					Type:      job.MsgType,
+					Timestamp: job.Timestamp,
+					Modality:  "image",
+					MediaType: "video",
+					Loc:       frame.at,
+					LocEnd:    frame.at,
 					Text:      truncate(text, 500),
 					Vectors:   map[string]any{e.cfg.Enrich.Embedder.MediaName: vector},
 				})
@@ -596,6 +698,7 @@ func (e *Engine) processData(ctx context.Context, job *database.EnrichJob, doc *
 						Type:      job.MsgType,
 						Timestamp: job.Timestamp,
 						Modality:  "audio",
+						MediaType: mediaType,
 						Loc:       window.start,
 						LocEnd:    window.end,
 						Text:      truncate(text, 500),
@@ -621,6 +724,7 @@ func (e *Engine) processData(ctx context.Context, job *database.EnrichJob, doc *
 					Type:      job.MsgType,
 					Timestamp: job.Timestamp,
 					Modality:  "text",
+					MediaType: mediaType,
 					Text:      truncate(text, 500),
 					Vectors:   map[string]any{e.cfg.Enrich.Embedder.MediaName: vector},
 				})
@@ -657,14 +761,14 @@ const maxMediaFetch = 1000
 // searchMediaHits returns at least need unique messages when the media index
 // holds them. One message can produce several media documents (image, text and
 // audio windows), so a raw hit window can deduplicate to fewer messages.
-func (e *Engine) searchMediaHits(ctx context.Context, req types.SearchRequest, vector []float32, need int64, modality string) ([]types.SearchHit, int64, error) {
+func (e *Engine) searchMediaHits(ctx context.Context, req types.SearchRequest, vector []float32, need int64, target, queryKind string) ([]types.SearchHit, int64, error) {
 	if need <= 0 {
 		need = types.PerSearchLimit
 	}
 	fetch := need
 	var total int64
 	for {
-		raw, mediaTotal, err := e.media.search(ctx, req, vector, fetch, modality)
+		raw, mediaTotal, err := e.media.search(ctx, req, vector, fetch, target, queryKind)
 		if err != nil {
 			return nil, 0, err
 		}

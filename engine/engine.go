@@ -24,6 +24,7 @@ type Searcher interface {
 	DeleteDocuments(ctx context.Context, chatID int64, messageIds []int) error
 	Search(ctx context.Context, req types.SearchRequest) (*types.SearchResponse, error)
 	SearchImage(ctx context.Context, req types.SearchRequest, data []byte) (*types.SearchResponse, error)
+	SearchAudio(ctx context.Context, req types.SearchRequest, data []byte) (*types.SearchResponse, error)
 	GetDocuments(ctx context.Context, chatID int64, messageIds []int) ([]*types.MessageDocument, error)
 	Capabilities() types.Capabilities
 	// Enrichment returns the media enrichment pipeline, or nil when disabled.
