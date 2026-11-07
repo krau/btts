@@ -6,6 +6,7 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/duke-git/lancet/v2/slice"
 	"github.com/gotd/td/tg"
+	"github.com/gotd/td/tgerr"
 	"github.com/krau/btts/config"
 	"github.com/krau/btts/utils"
 
@@ -115,7 +116,12 @@ func (b *Bot) RegisterHandlers(ctx context.Context) {
 			},
 			Commands: botCmds,
 		}); err != nil {
-			log.FromContext(ctx).Error("Failed to set bot commands", "error", err)
+			logger := log.FromContext(ctx)
+			if tgerr.Is(err, "NEED_MEMBER_INVALID") {
+				logger.Info("Skipped owner-scoped bot commands: bot has no private dialog with the owner yet")
+			} else {
+				logger.Error("Failed to set bot commands", "error", err)
+			}
 		}
 	}
 }
