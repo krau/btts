@@ -59,6 +59,38 @@ func hitIDs(resp *types.SearchResponse) []int64 {
 	return ids
 }
 
+func TestIntegrationGetDocumentsBatch(t *testing.T) {
+	client := integrationClient(t)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	index := fmt.Sprintf("btts_it_batch_%d", time.Now().UnixNano())
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cleanupCancel()
+		_, _ = client.DeleteIndexWithContext(cleanupCtx, index)
+	})
+	m := &Meilisearch{Client: client, Index: index, WaitTasks: true}
+	if err := m.CreateIndex(ctx, 0); err != nil {
+		t.Fatalf("create index: %v", err)
+	}
+	docs := make([]*types.MessageDocument, 0, 25)
+	ids := make([]int, 0, 25)
+	for i := 1; i <= 25; i++ {
+		docs = append(docs, &types.MessageDocument{
+			ID: int64(i), Type: int(types.MessageTypeText), Message: fmt.Sprintf("message %d", i),
+			UserID: int64(i), Timestamp: int64(i),
+		})
+		ids = append(ids, i)
+	}
+	if err := m.AddDocuments(ctx, 1, docs); err != nil {
+		t.Fatalf("add documents: %v", err)
+	}
+	waitFor(t, 10*time.Second, "25 documents indexed", func() bool {
+		got, err := m.GetDocuments(ctx, 1, ids)
+		return err == nil && len(got) == 25
+	})
+}
+
 func TestIntegrationDocumentLifecycle(t *testing.T) {
 	client := integrationClient(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)

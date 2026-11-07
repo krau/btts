@@ -390,13 +390,18 @@ func (m *Meilisearch) DeleteIndex(ctx context.Context, chatID int64) error {
 
 // GetDocuments implements engine.Searcher.
 func (m *Meilisearch) GetDocuments(ctx context.Context, chatID int64, messageIds []int) ([]*types.MessageDocument, error) {
+	if len(messageIds) == 0 {
+		return nil, nil
+	}
 	docIds := make([]string, 0, len(messageIds))
 	for _, id := range messageIds {
 		docIds = append(docIds, fmt.Sprintf("%d_%d", chatID, id))
 	}
 	var resp meilisearch.DocumentsResult
+	// Meilisearch defaults to 20 documents; hydration can request up to 1000.
 	err := m.Client.Index(m.Index).GetDocumentsWithContext(ctx, &meilisearch.DocumentsQuery{
-		Ids: docIds,
+		Ids:   docIds,
+		Limit: int64(len(docIds)),
 	}, &resp)
 	if err != nil {
 		return nil, err
