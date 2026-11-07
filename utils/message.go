@@ -288,11 +288,12 @@ func BuildResultStyling(ctx context.Context, resp *types.SearchResponse, botUser
 	for _, hit := range resp.Hits {
 
 		chatDisplay := hit.Formatted.ChatID
-		chat, err := database.GetIndexChat(ctx, hit.ChatID)
-		if err == nil {
+		isChannelChat := false
+		if chat, err := database.GetIndexChat(ctx, hit.ChatID); err == nil && chat != nil {
 			if chat.Title != "" {
 				chatDisplay = chat.Title
 			}
+			isChannelChat = chat.Type == int(database.ChatTypeChannel)
 		}
 		senderInfo := func() string {
 			if hit.UserID == hit.ChatID {
@@ -320,25 +321,48 @@ func BuildResultStyling(ctx context.Context, resp *types.SearchResponse, botUser
 
 		timeStr := time.Unix(hit.Timestamp, 0).Format("06-01-02 15:04:05")
 		resultStyling = append(resultStyling, styling.Plain(fmt.Sprintf(" [%s]\n", timeStr)))
-		if len(hit.Tags) > 0 {
-			tags := hit.Tags
-			if len(tags) > 6 {
-				tags = tags[:6]
-			}
-			resultStyling = append(resultStyling, styling.Plain(" 🏷 "+strings.Join(tags, ", ")+"\n"))
+
+		tags := hit.Tags
+		if len(tags) > 6 {
+			tags = tags[:6]
 		}
+		tagsText := strings.Join(tags, ", ")
 
 		msgLink := func() string {
-			if chat.Type == int(database.ChatTypeChannel) || botUsername == nil {
+			if isChannelChat || botUsername == nil {
 				return hit.MessageLink()
 			}
 			return fmt.Sprintf("https://t.me/%s/?start=fav_%d_%d", botUsername[0], hit.ChatID, hit.ID)
 		}()
-		hitFormattedMsg := types.MessageTypeToEmoji[types.MessageType(hit.Type)] + " " + strings.ReplaceAll(hit.FullFormattedText(), "\n", " ")
-		resultStyling = append(resultStyling, styling.TextURL(hitFormattedMsg, msgLink))
+		preview := truncateResultPreview(hit.FullFormattedText(), 100)
+		emoji := types.MessageTypeToEmoji[types.MessageType(hit.Type)]
+		switch {
+		case preview != "":
+			if tagsText != "" {
+				resultStyling = append(resultStyling, styling.Plain(" 🏷 "+tagsText+"\n"))
+			}
+			resultStyling = append(resultStyling, styling.TextURL(emoji+" "+preview, msgLink))
+		case tagsText != "":
+			resultStyling = append(resultStyling, styling.TextURL(emoji+"🏷 "+tagsText, msgLink))
+		default:
+			// Never leave an emoji as the only clickable text.
+			resultStyling = append(resultStyling, styling.TextURL(emoji+" "+msgLink, msgLink))
+		}
 	}
 
 	return resultStyling
+}
+
+func truncateResultPreview(text string, limit int) string {
+	text = strings.Join(strings.Fields(text), " ")
+	if text == "" {
+		return ""
+	}
+	runes := []rune(text)
+	if len(runes) <= limit {
+		return text
+	}
+	return string(runes[:limit]) + "…"
 }
 
 func GetChatDBFromUpdateArgs(ctx *ext.Context, update *ext.Update) (*database.IndexChat, error) {
