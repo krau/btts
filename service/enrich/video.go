@@ -43,6 +43,9 @@ func videoFrames(ctx context.Context, data []byte, count int) ([]videoFrame, err
 		"-hide_banner", "-loglevel", "error", "-i", path, "-an",
 		"-vf", fmt.Sprintf("fps=1/%d,scale=%d:-2", videoFrameIntervalSec, videoFrameWidth),
 		"-frames:v", strconv.Itoa(count),
+		// Some phone videos carry non-standard YUV ranges; MJPEG rejects
+		// them unless ffmpeg's strictness is relaxed.
+		"-strict", "unofficial",
 		"-f", "image2pipe", "-vcodec", "mjpeg", "pipe:1",
 	}
 	cmd := exec.CommandContext(ctx, ffmpeg, args...)

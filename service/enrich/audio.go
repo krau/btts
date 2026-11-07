@@ -71,7 +71,12 @@ func audioWindows(ctx context.Context, data []byte, video bool) ([]audioWindow, 
 	}
 	raw, err := cmd.Output()
 	if err != nil {
-		return nil, fmt.Errorf("ffmpeg decode: %w: %s", err, strings.TrimSpace(stderr.String()))
+		stderrText := strings.TrimSpace(stderr.String())
+		if strings.Contains(stderrText, "does not contain any stream") ||
+			strings.Contains(stderrText, "matches no streams") {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("ffmpeg decode: %w: %s", err, stderrText)
 	}
 	if len(raw) < 2 {
 		return nil, nil
