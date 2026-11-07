@@ -74,7 +74,7 @@ media_enable = true                      # 图片/音频/视频向量
 media_min_score = 0.8                    # 媒体语义结果的最低相关度，按语料调整
 audio_enable = false                     # 音频窗口向量，需要 ffmpeg
 video_enable = true                      # 视频关键帧向量，需要支持 vision 的模型与 ffmpeg
-video_frames = 3                         # 最多提取的关键帧数（每 10 秒一帧）
+video_frames = 3                         # 最多提取的关键帧数（全片均匀采样，优先关键帧）
 warmup = true
 num_ctx = 8192
 
@@ -100,7 +100,7 @@ max_chars = 12000
 - 只有含媒体/文档的消息才会：
   - 图片：图像向量（caption/OCR/标签作为图像 embedding 的文本上下文，不生成独立文本向量）；
   - 音频/语音：音频窗口向量；
-  - 视频：关键帧图像向量（每 10 秒一帧，`video_frames` 限制数量）+ 音轨窗口向量；
+  - 视频：关键帧图像向量（全片均匀采样并优先吸附关键帧，`video_frames` 限制数量）+ 音轨窗口向量；
   - PDF：提取文本并生成文本向量（同时写入主文档的 `extracted` 供关键词检索）。
 - **caption/OCR 只进入主索引关键词字段，不做独立文本向量化**；`modality=text` 只对应 PDF/文档正文的文本向量。
 - 向量写入独立的 `<index>_media_<media_name>_<dimensions>` 索引；图片/音频/视频字节不会进入 Meilisearch，只在这里存向量。
@@ -116,7 +116,7 @@ max_chars = 12000
   - 文本查询 + `modality=video`：文本搜视频（关键帧/音轨/caption 任一向量命中）。
   - `image` 与 `audio` 互斥；音频查询不接受 `q`；`mode=media` 以文本查询时必须提供 `q`，图片/音频查询不需要；标签只存在于主索引，未开启 enrich 时 `tags` 返回 400。
   - 当前查询输入支持文本、图片、音频；视频可以作为检索目标（`modality=video`），但暂不支持把视频文件本身作为查询。
-- 音频窗口按 30 秒编码，默认最多 4 个窗口；视频关键帧按 10 秒间隔提取，默认最多 3 帧。
+- 音频窗口按 30 秒编码，默认最多 4 个窗口；视频关键帧在全片均匀采样，优先使用附近 2 秒内的关键帧，默认最多 3 帧，并记录实际时间戳。
 - PDF 目前提取全文并写入 `extracted` 字段，不做页级定位。
 - 更换 embedding 模型或维度时，修改 `media_name` 或 `dimensions` 会生成新的媒体索引；旧索引可手动删除。
 - `enrich.embedder.enable = true` 但 Ollama/模型不可用时会启动失败并给出明确错误，避免入库任务被静默破坏。开启 `video_enable` 需要模型声明 `vision` capability。

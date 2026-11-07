@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"image/jpeg"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -43,8 +44,12 @@ func TestVideoFramesWithFFmpeg(t *testing.T) {
 		if cfg.Width != videoFrameWidth {
 			t.Fatalf("frame %d width = %d, want %d", i, cfg.Width, videoFrameWidth)
 		}
-		if frame.at != float64(i*videoFrameIntervalSec) {
-			t.Fatalf("frame %d timestamp = %v", i, frame.at)
+		wantAt := 25 * (float64(i) + 0.5) / 3
+		if math.Abs(frame.at-wantAt) > videoKeyframeSnapSec {
+			t.Fatalf("frame %d timestamp = %v, want near %v", i, frame.at, wantAt)
+		}
+		if i > 0 && frame.at <= frames[i-1].at {
+			t.Fatalf("frame timestamps are not increasing: %v then %v", frames[i-1].at, frame.at)
 		}
 	}
 }
