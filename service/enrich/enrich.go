@@ -32,6 +32,7 @@ type embedder interface {
 	Dimensions() int
 	EmbedText(ctx context.Context, text string) ([]float32, error)
 	EmbedImageWithText(ctx context.Context, text string, data []byte) ([]float32, error)
+	EmbedImagesWithText(ctx context.Context, text string, data [][]byte) ([][]float32, error)
 	EmbedAudio(ctx context.Context, data []byte) ([]float32, error)
 }
 
@@ -701,26 +702,34 @@ func (e *Engine) processData(ctx context.Context, job *database.EnrichJob, doc *
 			if err != nil {
 				enrichErrs = append(enrichErrs, fmt.Errorf("decode video frames: %w", err))
 			}
-			for i, frame := range frames {
-				vector, err := e.embedder.EmbedImageWithText(ctx, text, frame.data)
-				if err != nil {
-					enrichErrs = append(enrichErrs, fmt.Errorf("embed video frame %d: %w", i, err))
-					continue
+			if len(frames) > 0 {
+				frameData := make([][]byte, len(frames))
+				for i := range frames {
+					frameData[i] = frames[i].data
 				}
-				mediaDocs = append(mediaDocs, &mediaDocument{
-					ID:        fmt.Sprintf("%d_%d_video_%d", job.ChatID, job.MessageID, i),
-					ChatID:    job.ChatID,
-					MessageID: int64(job.MessageID),
-					UserID:    job.UserID,
-					Type:      job.MsgType,
-					Timestamp: job.Timestamp,
-					Modality:  "image",
-					MediaType: "video",
-					Loc:       frame.at,
-					LocEnd:    frame.at,
-					Text:      truncate(text, 500),
-					Vectors:   map[string]any{e.cfg.Enrich.Embedder.MediaName: vector},
-				})
+				vectors, err := e.embedder.EmbedImagesWithText(ctx, text, frameData)
+				if err != nil {
+					enrichErrs = append(enrichErrs, fmt.Errorf("embed video frames: %w", err))
+				} else if len(vectors) != len(frames) {
+					enrichErrs = append(enrichErrs, fmt.Errorf("embed video frames: got %d vectors for %d frames", len(vectors), len(frames)))
+				} else {
+					for i, frame := range frames {
+						mediaDocs = append(mediaDocs, &mediaDocument{
+							ID:        fmt.Sprintf("%d_%d_video_%d", job.ChatID, job.MessageID, i),
+							ChatID:    job.ChatID,
+							MessageID: int64(job.MessageID),
+							UserID:    job.UserID,
+							Type:      job.MsgType,
+							Timestamp: job.Timestamp,
+							Modality:  "image",
+							MediaType: "video",
+							Loc:       frame.at,
+							LocEnd:    frame.at,
+							Text:      truncate(text, 500),
+							Vectors:   map[string]any{e.cfg.Enrich.Embedder.MediaName: vectors[i]},
+						})
+					}
+				}
 			}
 		}
 		if isAudio || isVideo {

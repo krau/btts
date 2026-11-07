@@ -127,6 +127,30 @@ func (c *ollamaClient) EmbedImageWithText(ctx context.Context, text string, data
 	return c.embed(ctx, input)
 }
 
+// EmbedImagesWithText embeds frames in one Ollama batch request. Each input
+// item still produces its own vector in the returned slice.
+func (c *ollamaClient) EmbedImagesWithText(ctx context.Context, text string, data [][]byte) ([][]float32, error) {
+	if len(data) == 0 {
+		return nil, nil
+	}
+	inputs := make([]map[string]any, len(data))
+	for i, frame := range data {
+		item := map[string]any{"image": base64.StdEncoding.EncodeToString(frame)}
+		if text != "" {
+			item["text"] = text
+		}
+		inputs[i] = item
+	}
+	embeddings, err := c.embedBatch(ctx, inputs)
+	if err != nil {
+		return nil, err
+	}
+	if len(embeddings) != len(data) {
+		return nil, fmt.Errorf("ollama embed returned %d embeddings for %d inputs", len(embeddings), len(data))
+	}
+	return embeddings, nil
+}
+
 func (c *ollamaClient) EmbedAudio(ctx context.Context, data []byte) ([]float32, error) {
 	return c.embed(ctx, map[string]any{"audio": base64.StdEncoding.EncodeToString(data)})
 }
@@ -135,7 +159,22 @@ func (c *ollamaClient) embed(ctx context.Context, input any) ([]float32, error) 
 	return c.embedWith(ctx, input, c.client)
 }
 
+func (c *ollamaClient) embedBatch(ctx context.Context, input any) ([][]float32, error) {
+	return c.embedBatchWith(ctx, input, c.client)
+}
+
 func (c *ollamaClient) embedWith(ctx context.Context, input any, client *http.Client) ([]float32, error) {
+	embeddings, err := c.embedBatchWith(ctx, input, client)
+	if err != nil {
+		return nil, err
+	}
+	if len(embeddings) == 0 || len(embeddings[0]) == 0 {
+		return nil, fmt.Errorf("ollama embed returned no embeddings")
+	}
+	return embeddings[0], nil
+}
+
+func (c *ollamaClient) embedBatchWith(ctx context.Context, input any, client *http.Client) ([][]float32, error) {
 	body := map[string]any{
 		"model":    c.model,
 		"input":    input,
@@ -175,8 +214,13 @@ func (c *ollamaClient) embedWith(ctx context.Context, input any, client *http.Cl
 	if out.Error != "" {
 		return nil, fmt.Errorf("ollama embed: %s", out.Error)
 	}
-	if len(out.Embeddings) == 0 || len(out.Embeddings[0]) == 0 {
+	if len(out.Embeddings) == 0 {
 		return nil, fmt.Errorf("ollama embed returned no embeddings")
 	}
-	return out.Embeddings[0], nil
+	for i, embedding := range out.Embeddings {
+		if len(embedding) == 0 {
+			return nil, fmt.Errorf("ollama embed returned empty embedding %d", i)
+		}
+	}
+	return out.Embeddings, nil
 }

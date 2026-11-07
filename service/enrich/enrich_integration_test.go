@@ -43,6 +43,14 @@ func (f fakeEmbedder) EmbedImageWithText(_ context.Context, _ string, data []byt
 	return fakeVector("image:"+fmt.Sprintf("%x", sha256.Sum256(data)), f.dims), nil
 }
 
+func (f fakeEmbedder) EmbedImagesWithText(_ context.Context, _ string, data [][]byte) ([][]float32, error) {
+	out := make([][]float32, len(data))
+	for i, frame := range data {
+		out[i] = fakeVector("image:"+fmt.Sprintf("%x", sha256.Sum256(frame)), f.dims)
+	}
+	return out, nil
+}
+
 func (f fakeEmbedder) EmbedAudio(_ context.Context, data []byte) ([]float32, error) {
 	return fakeVector("audio:"+fmt.Sprintf("%x", sha256.Sum256(data)), f.dims), nil
 }
