@@ -96,11 +96,14 @@ max_chars = 12000
 
 - **纯文本消息不生成向量**，只参与关键词检索；不会因为开启该功能而为每条消息调用 embedding。
 - 只有受支持的媒体/文档才会下载和增强；不支持的格式在下载前直接跳过，避免浪费 Telegram 流量和增强算力。当前支持的图片格式为 JPEG/PNG；音频/视频需能被 ffmpeg 解码；PDF 需要开启文档提取。
+- 可通过 `/unenrichable <chat_id>` 单独关闭某个聊天的媒体增强；该聊天的后续消息仍走关键词索引，但不再调用 tagger/embedder，已有向量保留。`/enrichable` 重新开启。
 - 超过 `enrich.max_download_mb` 的媒体按预期跳过：已知大小时不下载，大小未知时下载到上限即停止；该任务标记完成，不按失败重试、不进入 dead letter。
 - 只有含媒体/文档的消息才会：
   - 图片：图像向量（caption/OCR/标签作为图像 embedding 的文本上下文，不生成独立文本向量）；
   - 音频/语音：音频窗口向量；
   - 视频：关键帧图像向量（全片均匀采样并优先吸附关键帧，`video_frames` 限制数量）+ 音轨窗口向量；
+  - GIF/动画：按视频处理，抽关键帧；
+  - sticker / custom emoji：无论静态还是动画都跳过，不生成媒体向量；
   - PDF：提取文本并生成文本向量（同时写入主文档的 `extracted` 供关键词检索）。
 - **caption/OCR 只进入主索引关键词字段，不做独立文本向量化**；`modality=text` 只对应 PDF/文档正文的文本向量。
 - 向量写入独立的 `<index>_media_<media_name>_<dimensions>` 索引；图片/音频/视频字节不会进入 Meilisearch，只在这里存向量。
@@ -150,13 +153,18 @@ btts import-tdesktop /path/to/export
 # 指定 result.json；--no-media 只索引文本
 btts import-tdesktop /path/to/export/result.json --no-media
 
-# 导入后把这些聊天标记为监听
-btts import-tdesktop /path/to/export --watch
+# 默认会把这些聊天标记为监听；--nowatch 保留现有监听状态（新聊天不监听）
+btts import-tdesktop /path/to/export --nowatch
+
+# 并发处理本地媒体批次，默认 1；单批图片数默认 4
+btts import-tdesktop /path/to/export --media-workers 4 --media-batch-size 8
 ```
 
 - 支持单聊导出和全量导出（`chats.list`；暂不导入 `left_chats`）；
 - 媒体路径相对于导出目录解析，只访问导出目录内的文件；
 - 开启 enrich 时，会在本地对图片/音视频/PDF 调用 `EnrichNow`，不经过 Telegram 下载；
+- 图片默认每批 4 张调用 konatagger `/predict/batch` 和 Ollama image batch，可用 `--media-batch-size` 调整（最多 16）；视频关键帧也走 Ollama batch；
+- `--media-workers` 控制本地媒体 batch 的并发数，默认 1；过大可能反而争抢 tagger/Ollama/CPU；
 - 超过 `enrich.max_download_mb` 的本地媒体会跳过；
 - 已存在的聊天会更新元数据并 upsert 消息，可重复执行；
 - `--no-media` 会跳过本地媒体和 enrich，仅保留文本/关键词索引。
@@ -234,6 +242,8 @@ key = "qwqowo" # api 密钥, 访问时需要提供
 
 /add - 添加一个聊天进行索引, 会自动监听聊天的新消息
 
+/add <chat> [takeout] [noenrich] - `noenrich` 表示该聊天只做关键词索引，不启用媒体增强
+
 /del - 删除聊天及其索引数据，并取消索引监听；不会退出该聊天或禁用用户账号插件
 
 可自定义是否监听以及是否监听消息删除事件
@@ -241,6 +251,12 @@ key = "qwqowo" # api 密钥, 访问时需要提供
 /unwatch - 停止索引该聊天的新消息，但保留已有索引数据；用户账号插件不受影响
 
 /watch - 监听一个聊天
+
+/addtakeout <chat> [noenrich] - 使用 Takeout API 导入，可选关闭媒体增强
+
+/enrichable - 开启一个聊天的媒体增强
+
+/unenrichable - 关闭一个聊天的媒体增强；只影响后续消息和媒体处理，不删除已有向量
 
 /unwatchdel - 不监听一个聊天的消息删除事件
 
