@@ -61,6 +61,8 @@ media_fetch_per_second = 1     # 普通媒体下载限速；Takeout 页内也按
 media_fetch_concurrency = 1
 media_fetch_retries = 3
 flood_wait_extra = "5s"
+media_enrich_per_second = 1    # 实时媒体增强任务启动限速；0 表示不限速
+media_enrich_concurrency = 1   # 同时进入 tagger/Ollama 的增强任务数；0 会按 1 处理
 
 [enrich.embedder]
 enable = true
@@ -97,6 +99,7 @@ max_chars = 12000
 - **纯文本消息不生成向量**，只参与关键词检索；不会因为开启该功能而为每条消息调用 embedding。
 - 只有受支持的媒体/文档才会下载和增强；不支持的格式在下载前直接跳过，避免浪费 Telegram 流量和增强算力。当前支持的图片格式为 JPEG/PNG；音频/视频需能被 ffmpeg 解码；PDF 需要开启文档提取。
 - 可通过 `/unenrichable <chat_id>` 单独关闭某个聊天的媒体增强；该聊天的后续消息仍走关键词索引，但不再调用 tagger/embedder，已有向量保留。`/enrichable` 重新开启。
+- 实时媒体增强任务统一受 `media_enrich_concurrency` 和 `media_enrich_per_second` 限制，批量媒体消息不会同时压满 tagger/Ollama；离线导入使用自己的 `--media-workers`/`--media-batch-size`，不受这两个值限制。
 - 超过 `enrich.max_download_mb` 的媒体按预期跳过：已知大小时不下载，大小未知时下载到上限即停止；该任务标记完成，不按失败重试、不进入 dead letter。
 - 只有含媒体/文档的消息才会：
   - 图片：图像向量（caption/OCR/标签作为图像 embedding 的文本上下文，不生成独立文本向量）；

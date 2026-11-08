@@ -44,6 +44,7 @@ type Engine struct {
 	embedder     embedder
 	tagger       *taggerClient
 	media        *mediaIndex
+	mediaGate    *mediaGate
 	pdf          *pdfExtractor
 	maxAttempts  int
 	retryBackoff time.Duration
@@ -176,14 +177,16 @@ func wrap(ctx context.Context, inner engine.Searcher, fetcher MediaFetcher, star
 				counts[database.EnrichJobPending], counts[database.EnrichJobRunning],
 				counts[database.EnrichJobDone], counts[database.EnrichJobDead])
 		}
+		enrichEngine.mediaGate = newMediaGate(cfg.Enrich.MediaEnrichPerSec, cfg.Enrich.MediaEnrichConcurrency)
 		workers = cfg.Enrich.Workers
 		for range workers {
 			go enrichEngine.worker(ctx)
 		}
 	}
-	logger.Infof("Enrichment enabled (embedder=%t tagger=%t media=%t pdf=%t video=%t workers=%d)",
+	logger.Infof("Enrichment enabled (embedder=%t tagger=%t media=%t pdf=%t video=%t workers=%d media_rate=%g/s media_concurrency=%d)",
 		enrichEngine.embedder != nil, enrichEngine.tagger != nil, enrichEngine.media != nil,
-		enrichEngine.pdf != nil, enrichEngine.cfg.Enrich.Embedder.VideoEnable, workers)
+		enrichEngine.pdf != nil, enrichEngine.cfg.Enrich.Embedder.VideoEnable, workers,
+		enrichEngine.cfg.Enrich.MediaEnrichPerSec, enrichEngine.cfg.Enrich.MediaEnrichConcurrency)
 	return enrichEngine, nil
 }
 
@@ -614,6 +617,11 @@ func (e *Engine) process(ctx context.Context, job *database.EnrichJob) error {
 	if err != nil {
 		return fmt.Errorf("fetch media: %w", err)
 	}
+	release, err := e.mediaGate.acquire(ctx)
+	if err != nil {
+		return err
+	}
+	defer release()
 	return e.processData(ctx, job, doc, data, mime)
 }
 
@@ -627,6 +635,11 @@ func (e *Engine) EnrichNow(ctx context.Context, chatID int64, doc *types.Message
 	if !e.jobNeedsWork(job) {
 		return nil
 	}
+	release, err := e.mediaGate.acquire(ctx)
+	if err != nil {
+		return err
+	}
+	defer release()
 	return e.processData(ctx, job, doc, data, mime)
 }
 
@@ -642,6 +655,11 @@ func (e *Engine) EnrichImagesNow(ctx context.Context, chatID int64, docs []*type
 	if len(docs) != len(images) {
 		return fmt.Errorf("got %d documents for %d images", len(docs), len(images))
 	}
+	release, err := e.mediaGate.acquire(ctx)
+	if err != nil {
+		return err
+	}
+	defer release()
 	logger := log.FromContext(ctx)
 	tagLists := make([][]string, len(docs))
 	if e.tagger != nil {

@@ -58,17 +58,19 @@ type AppConfig struct {
 		Background bool          `toml:"background" mapstructure:"background"`
 	} `toml:"import" mapstructure:"import"`
 	Enrich struct {
-		Enable                bool          `toml:"enable" mapstructure:"enable"`
-		Workers               int           `toml:"workers" mapstructure:"workers"`
-		MaxDownloadMB         int           `toml:"max_download_mb" mapstructure:"max_download_mb"`
-		MaxAttempts           int           `toml:"max_attempts" mapstructure:"max_attempts"`
-		RetryBackoff          time.Duration `toml:"retry_backoff" mapstructure:"retry_backoff"`
-		WaitIndexTasks        bool          `toml:"wait_index_tasks" mapstructure:"wait_index_tasks"`
-		MediaFetchPerSec      float64       `toml:"media_fetch_per_second" mapstructure:"media_fetch_per_second"`
-		MediaFetchConcurrency int           `toml:"media_fetch_concurrency" mapstructure:"media_fetch_concurrency"`
-		MediaFetchRetries     int           `toml:"media_fetch_retries" mapstructure:"media_fetch_retries"`
-		FloodWaitExtra        time.Duration `toml:"flood_wait_extra" mapstructure:"flood_wait_extra"`
-		Embedder              struct {
+		Enable                 bool          `toml:"enable" mapstructure:"enable"`
+		Workers                int           `toml:"workers" mapstructure:"workers"`
+		MaxDownloadMB          int           `toml:"max_download_mb" mapstructure:"max_download_mb"`
+		MaxAttempts            int           `toml:"max_attempts" mapstructure:"max_attempts"`
+		RetryBackoff           time.Duration `toml:"retry_backoff" mapstructure:"retry_backoff"`
+		WaitIndexTasks         bool          `toml:"wait_index_tasks" mapstructure:"wait_index_tasks"`
+		MediaFetchPerSec       float64       `toml:"media_fetch_per_second" mapstructure:"media_fetch_per_second"`
+		MediaFetchConcurrency  int           `toml:"media_fetch_concurrency" mapstructure:"media_fetch_concurrency"`
+		MediaEnrichPerSec      float64       `toml:"media_enrich_per_second" mapstructure:"media_enrich_per_second"`
+		MediaEnrichConcurrency int           `toml:"media_enrich_concurrency" mapstructure:"media_enrich_concurrency"`
+		MediaFetchRetries      int           `toml:"media_fetch_retries" mapstructure:"media_fetch_retries"`
+		FloodWaitExtra         time.Duration `toml:"flood_wait_extra" mapstructure:"flood_wait_extra"`
+		Embedder               struct {
 			Enable        bool          `toml:"enable" mapstructure:"enable"`
 			MediaName     string        `toml:"media_name" mapstructure:"media_name"`
 			URL           string        `toml:"url" mapstructure:"url"`
@@ -132,6 +134,8 @@ func Init() {
 	viper.SetDefault("enrich.wait_index_tasks", true)
 	viper.SetDefault("enrich.media_fetch_per_second", 1.0)
 	viper.SetDefault("enrich.media_fetch_concurrency", 1)
+	viper.SetDefault("enrich.media_enrich_per_second", 1.0)
+	viper.SetDefault("enrich.media_enrich_concurrency", 1)
 	viper.SetDefault("enrich.media_fetch_retries", 3)
 	viper.SetDefault("enrich.flood_wait_extra", "5s")
 	viper.SetDefault("enrich.embedder.media_name", "btts_media")
@@ -188,6 +192,12 @@ func normalize() {
 	}
 	if enrich.MediaFetchConcurrency <= 0 {
 		enrich.MediaFetchConcurrency = 1
+	}
+	if enrich.MediaEnrichConcurrency <= 0 {
+		enrich.MediaEnrichConcurrency = 1
+	}
+	if enrich.MediaEnrichPerSec < 0 {
+		enrich.MediaEnrichPerSec = 0
 	}
 	if enrich.MediaFetchRetries <= 0 {
 		enrich.MediaFetchRetries = 3
