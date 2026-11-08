@@ -340,9 +340,7 @@ func importTDesktopChat(ctx context.Context, logger *log.Logger, searcher engine
 		jobs := make(chan mediaTask)
 		var wg sync.WaitGroup
 		for range workerCount {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 				for task := range jobs {
 					if task.batch {
 						processImages(task.items)
@@ -352,7 +350,7 @@ func importTDesktopChat(ctx context.Context, logger *log.Logger, searcher engine
 					processed.Add(int64(len(task.items)))
 					logProgress()
 				}
-			}()
+			})
 		}
 		for _, task := range tasks {
 			select {

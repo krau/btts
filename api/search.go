@@ -170,7 +170,7 @@ func SearchOnChatByGet(c fiber.Ctx) error {
 		EnableAIGenerated: enableAIGenerated,
 	}
 	if tags := c.Query("tags"); tags != "" {
-		for _, tag := range strings.Split(tags, ",") {
+		for tag := range strings.SplitSeq(tags, ",") {
 			if tag = strings.TrimSpace(tag); tag != "" {
 				req.Tags = append(req.Tags, tag)
 			}

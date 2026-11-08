@@ -117,10 +117,7 @@ func buildListPage(chats []*database.IndexChat, page int, hasPermission bool) ([
 		page = totalPages
 	}
 	start := (page - 1) * listPageSize
-	end := start + listPageSize
-	if end > len(chats) {
-		end = len(chats)
-	}
+	end := min(start+listPageSize, len(chats))
 	pageChats := chats[start:end]
 
 	chatsStyling := make([]styling.StyledTextOption, 0)

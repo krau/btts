@@ -1075,10 +1075,7 @@ func paginate(hits []types.SearchHit, offset, limit int64) []types.SearchHit {
 		offset = 0
 	}
 	start := int(min(offset, int64(len(hits))))
-	end := int(min(int64(start)+limit, int64(len(hits))))
-	if end < start {
-		end = start
-	}
+	end := max(int(min(int64(start)+limit, int64(len(hits)))), start)
 	return hits[start:end]
 }
 
