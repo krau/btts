@@ -43,6 +43,7 @@ type IndexChat struct {
 	Watching bool   `gorm:"default:true" json:"watching"`
 	NoDelete bool   `json:"no_delete"`
 	NoOcr    bool   `json:"no_ocr"`
+	NoEnrich bool   `json:"no_enrich"`
 	Public   bool   `gorm:"default:false" json:"public"`
 
 	Members []UserInfo `gorm:"many2many:index_chat_members;constraint:OnDelete:CASCADE;joinForeignKey:IndexChatID;joinReferences:UserChatID" json:"members"`
@@ -166,6 +167,13 @@ func updateIndexChatCaches(ic *IndexChat) {
 	if ic.ChatID == 0 {
 		return
 	}
+	enrichDisabledMu.Lock()
+	if ic.NoEnrich {
+		enrichDisabledChats[ic.ChatID] = struct{}{}
+	} else {
+		delete(enrichDisabledChats, ic.ChatID)
+	}
+	enrichDisabledMu.Unlock()
 	watchedChatsIDMu.Lock()
 	if ic.Watching {
 		watchedChatsID[ic.ChatID] = struct{}{}
@@ -185,13 +193,23 @@ func (ic *IndexChat) BeforeDelete(tx *gorm.DB) error {
 		log.FromContext(tx.Statement.Context).Warnf("BeforeDelete IndexChat: chat_id is 0")
 		return nil
 	}
+	removeIndexChatCaches(ic.ChatID)
+	return nil
+}
+
+func removeIndexChatCaches(chatID int64) {
+	if chatID == 0 {
+		return
+	}
+	enrichDisabledMu.Lock()
+	delete(enrichDisabledChats, chatID)
+	enrichDisabledMu.Unlock()
 	watchedChatsIDMu.Lock()
-	defer watchedChatsIDMu.Unlock()
-	delete(watchedChatsID, ic.ChatID)
+	delete(watchedChatsID, chatID)
+	watchedChatsIDMu.Unlock()
 	allChatIDsMu.Lock()
-	defer allChatIDsMu.Unlock()
-	if idx := slices.Index(allChatIDs, ic.ChatID); idx != -1 {
+	if idx := slices.Index(allChatIDs, chatID); idx != -1 {
 		allChatIDs = slices.Delete(allChatIDs, idx, idx+1)
 	}
-	return nil
+	allChatIDsMu.Unlock()
 }

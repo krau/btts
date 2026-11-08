@@ -131,17 +131,29 @@ func ExtractMessageMediaText(ctx context.Context, client *ext.Context, media tg.
 		if !ok {
 			return result
 		}
+		attributes := doc.GetAttributes()
+		if types.IsStickerDocument(attributes) {
+			return result
+		}
 		result.Type = types.MessageTypeDocument
-		for _, attr := range doc.GetAttributes() {
+		animated := false
+		filename := ""
+		for _, attr := range attributes {
+			if _, ok := attr.(*tg.DocumentAttributeAnimated); ok {
+				animated = true
+				result.Type = types.MessageTypeVideo
+			}
+		}
+		for _, attr := range attributes {
 			switch attr := attr.(type) {
-			case *tg.DocumentAttributeAnimated, *tg.DocumentAttributeSticker:
-				return result
 			case *tg.DocumentAttributeFilename:
-				filename := attr.GetFileName()
-				if slice.Contain(types.StickerFileNames, filename) {
+				filename = attr.GetFileName()
+				if !animated && slice.Contain(types.StickerFileNames, filename) {
 					return result
 				}
-				messageSB.WriteString(filename + " ")
+				if !animated {
+					messageSB.WriteString(filename + " ")
+				}
 			case *tg.DocumentAttributeAudio:
 				title, ok := attr.GetTitle()
 				if ok {
@@ -155,6 +167,11 @@ func ExtractMessageMediaText(ctx context.Context, client *ext.Context, media tg.
 			case *tg.DocumentAttributeVideo:
 				result.Type = types.MessageTypeVideo
 			}
+		}
+		// GIF documents are decoded as short videos so animated GIFs are not
+		// mistaken for a still JPEG/PNG image.
+		if animated || types.EffectiveMIME(doc.GetMimeType(), filename) == "image/gif" {
+			result.Type = types.MessageTypeVideo
 		}
 
 	case *tg.MessageMediaPoll:

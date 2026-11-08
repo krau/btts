@@ -91,5 +91,5 @@ func IsSupportedImage(mime, name string) bool {
 // ffmpeg can decode.
 func IsSupportedAV(mime, name string) bool {
 	mime = EffectiveMIME(mime, name)
-	return strings.HasPrefix(mime, "audio/") || strings.HasPrefix(mime, "video/")
+	return strings.HasPrefix(mime, "audio/") || strings.HasPrefix(mime, "video/") || mime == "image/gif"
 }

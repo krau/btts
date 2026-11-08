@@ -33,6 +33,7 @@ type embedder interface {
 	EmbedText(ctx context.Context, text string) ([]float32, error)
 	EmbedImageWithText(ctx context.Context, text string, data []byte) ([]float32, error)
 	EmbedImagesWithText(ctx context.Context, text string, data [][]byte) ([][]float32, error)
+	EmbedImagesWithTexts(ctx context.Context, texts []string, data [][]byte) ([][]float32, error)
 	EmbedAudio(ctx context.Context, data []byte) ([]float32, error)
 }
 
@@ -249,6 +250,9 @@ func (e *Engine) DeleteIndex(ctx context.Context, chatID int64) error {
 func (e *Engine) AddDocuments(ctx context.Context, chatID int64, docs []*types.MessageDocument) error {
 	if err := e.inner.AddDocuments(ctx, chatID, docs); err != nil {
 		return err
+	}
+	if database.IsEnrichDisabled(chatID) {
+		return nil
 	}
 	if e.embedder == nil && e.tagger == nil && e.pdf == nil {
 		return nil
@@ -548,15 +552,25 @@ func (e *Engine) EnrichableMedia(mime, name string, messageType types.MessageTyp
 	})
 }
 
+// EnrichableMediaForChat applies the per-chat NoEnrich switch before checking
+// the media pipeline.
+func (e *Engine) EnrichableMediaForChat(chatID int64, mime, name string, messageType types.MessageType) bool {
+	if database.IsEnrichDisabled(chatID) {
+		return false
+	}
+	return e.EnrichableMedia(mime, name, messageType)
+}
+
 func (e *Engine) jobNeedsWork(job *database.EnrichJob) bool {
 	mime := types.MessageMIME(job.MIME, job.Name, types.MessageType(job.MsgType))
 	isPDF := types.IsPDF(mime, job.Name)
-	isImage := strings.HasPrefix(mime, "image/")
+	isGIF := mime == "image/gif"
+	isImage := strings.HasPrefix(mime, "image/") && !isGIF
 	isAudio := strings.HasPrefix(mime, "audio/") ||
 		types.MessageType(job.MsgType) == types.MessageTypeVoice ||
 		types.MessageType(job.MsgType) == types.MessageTypeAudio
 	isVideo := strings.HasPrefix(mime, "video/") ||
-		types.MessageType(job.MsgType) == types.MessageTypeVideo
+		types.MessageType(job.MsgType) == types.MessageTypeVideo || isGIF
 	mediaVectors := e.embedder != nil && e.media != nil && e.cfg.Enrich.Embedder.MediaEnable
 	switch {
 	case isPDF:
@@ -586,7 +600,7 @@ func (e *Engine) getDocument(ctx context.Context, chatID int64, messageID int) *
 }
 
 func (e *Engine) process(ctx context.Context, job *database.EnrichJob) error {
-	if !e.jobNeedsWork(job) {
+	if database.IsEnrichDisabled(job.ChatID) || !e.jobNeedsWork(job) {
 		return nil
 	}
 	if e.fetcher == nil {
@@ -606,6 +620,9 @@ func (e *Engine) process(ctx context.Context, job *database.EnrichJob) error {
 // EnrichNow processes media bytes that were downloaded by another transport,
 // e.g. the takeout file downloader. It bypasses the durable queue.
 func (e *Engine) EnrichNow(ctx context.Context, chatID int64, doc *types.MessageDocument, data []byte, mime string) error {
+	if database.IsEnrichDisabled(chatID) {
+		return nil
+	}
 	job := jobFromDocument(chatID, doc, e.version)
 	if !e.jobNeedsWork(job) {
 		return nil
@@ -613,14 +630,111 @@ func (e *Engine) EnrichNow(ctx context.Context, chatID int64, doc *types.Message
 	return e.processData(ctx, job, doc, data, mime)
 }
 
+// EnrichImagesNow processes local image bytes in batches. It is used by
+// offline importers; live queue workers continue to process one job at a time.
+func (e *Engine) EnrichImagesNow(ctx context.Context, chatID int64, docs []*types.MessageDocument, images [][]byte) error {
+	if database.IsEnrichDisabled(chatID) {
+		return nil
+	}
+	if len(docs) == 0 {
+		return nil
+	}
+	if len(docs) != len(images) {
+		return fmt.Errorf("got %d documents for %d images", len(docs), len(images))
+	}
+	logger := log.FromContext(ctx)
+	tagLists := make([][]string, len(docs))
+	if e.tagger != nil {
+		batched, err := e.tagger.TagImages(ctx, images)
+		if err != nil {
+			logger.Warnf("Batch image tagging failed, falling back to single requests: %v", err)
+			for i := range images {
+				if ctx.Err() != nil {
+					return ctx.Err()
+				}
+				tags, tagErr := e.tagger.TagImage(ctx, images[i])
+				if tagErr != nil {
+					logger.Warnf("Tag image %d: %v", i, tagErr)
+					continue
+				}
+				tagLists[i] = tags
+			}
+		} else {
+			tagLists = batched
+		}
+	}
+
+	texts := make([]string, len(docs))
+	updates := make([]*types.MessageDocument, 0, len(docs))
+	for i, doc := range docs {
+		text := strings.TrimSpace(doc.Message + " " + doc.Ocred)
+		if tags := tagLists[i]; len(tags) > 0 {
+			doc.Tags = tags
+			text = strings.TrimSpace(text + " " + strings.Join(tags, " "))
+			updates = append(updates, doc)
+		}
+		texts[i] = text
+	}
+	if len(updates) > 0 {
+		if err := e.inner.UpdateDocuments(ctx, chatID, updates); err != nil {
+			return fmt.Errorf("update image tags: %w", err)
+		}
+	}
+	if e.embedder == nil || e.media == nil || !e.cfg.Enrich.Embedder.MediaEnable {
+		return nil
+	}
+
+	vectors, err := e.embedder.EmbedImagesWithTexts(ctx, texts, images)
+	if err != nil {
+		logger.Warnf("Batch image embedding failed, falling back to single requests: %v", err)
+		vectors = make([][]float32, len(images))
+		for i := range images {
+			vector, embedErr := e.embedder.EmbedImageWithText(ctx, texts[i], images[i])
+			if embedErr != nil {
+				return fmt.Errorf("embed image %d: %w", i, embedErr)
+			}
+			vectors[i] = vector
+		}
+	}
+	if len(vectors) != len(docs) {
+		return fmt.Errorf("got %d vectors for %d images", len(vectors), len(docs))
+	}
+
+	mediaDocs := make([]*mediaDocument, 0, len(docs))
+	for i, doc := range docs {
+		mediaDocs = append(mediaDocs, &mediaDocument{
+			ID:        fmt.Sprintf("%d_%d_img", chatID, doc.ID),
+			ChatID:    chatID,
+			MessageID: doc.ID,
+			UserID:    doc.UserID,
+			Type:      doc.Type,
+			Timestamp: doc.Timestamp,
+			Modality:  "image",
+			MediaType: "image",
+			Text:      truncate(texts[i], 500),
+			Vectors:   map[string]any{e.cfg.Enrich.Embedder.MediaName: vectors[i]},
+		})
+	}
+	if err := e.media.add(ctx, mediaDocs); err != nil {
+		return fmt.Errorf("add image vectors: %w", err)
+	}
+	return nil
+}
+
 // NeedsEnrichment reports whether a document would do any media work.
 func (e *Engine) NeedsEnrichment(chatID int64, doc *types.MessageDocument) bool {
+	if database.IsEnrichDisabled(chatID) {
+		return false
+	}
 	return e.jobNeedsWork(jobFromDocument(chatID, doc, e.version))
 }
 
 // EnqueueDocument puts a document into the durable queue, used as a fallback
 // when takeout media download fails.
 func (e *Engine) EnqueueDocument(ctx context.Context, chatID int64, doc *types.MessageDocument) error {
+	if database.IsEnrichDisabled(chatID) {
+		return nil
+	}
 	job := jobFromDocument(chatID, doc, e.version)
 	if !e.jobNeedsWork(job) {
 		return nil
@@ -636,12 +750,13 @@ func (e *Engine) processData(ctx context.Context, job *database.EnrichJob, doc *
 	mime = types.MessageMIME(mime, job.Name, types.MessageType(job.MsgType))
 	messageText, ocred := doc.Message, doc.Ocred
 
-	isImage := strings.HasPrefix(mime, "image/")
+	isGIF := mime == "image/gif"
+	isImage := strings.HasPrefix(mime, "image/") && !isGIF
 	isAudio := strings.HasPrefix(mime, "audio/") ||
 		types.MessageType(job.MsgType) == types.MessageTypeVoice ||
 		types.MessageType(job.MsgType) == types.MessageTypeAudio
 	isVideo := strings.HasPrefix(mime, "video/") ||
-		types.MessageType(job.MsgType) == types.MessageTypeVideo
+		types.MessageType(job.MsgType) == types.MessageTypeVideo || isGIF
 	isPDF := e.pdf != nil && types.IsPDF(mime, job.Name)
 	mediaType := "document"
 	switch {

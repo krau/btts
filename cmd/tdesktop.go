@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/charmbracelet/log"
@@ -23,8 +25,10 @@ import (
 )
 
 type tdesktopOptions struct {
-	watch   bool
-	noMedia bool
+	noWatch        bool
+	noMedia        bool
+	mediaWorkers   int
+	mediaBatchSize int
 }
 
 func RegisterTDesktopCmd(root *cobra.Command) {
@@ -35,14 +39,17 @@ func RegisterTDesktopCmd(root *cobra.Command) {
 		Long: `Import a Telegram Desktop JSON export without talking to Telegram.
 The path may point to result.json or to the export directory. Both single-chat
 and full-account exports are supported. Local media files are enriched inline
-when enrichment is enabled; use --no-media to index text only.`,
+when enrichment is enabled; use --no-media to index text only. Imported chats
+are watched by default; use --nowatch to keep their existing watch state.`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runTDesktopImport(cmd.Context(), args[0], opts)
 		},
 	}
-	cmd.Flags().BoolVar(&opts.watch, "watch", false, "Mark imported chats as watching")
+	cmd.Flags().BoolVar(&opts.noWatch, "nowatch", false, "Do not enable watching for imported chats")
 	cmd.Flags().BoolVar(&opts.noMedia, "no-media", false, "Index messages only; do not read or enrich local media")
+	cmd.Flags().IntVar(&opts.mediaWorkers, "media-workers", 1, "Concurrent offline media workers")
+	cmd.Flags().IntVar(&opts.mediaBatchSize, "media-batch-size", 4, "Images per batch (max 16)")
 	root.AddCommand(cmd)
 }
 
@@ -54,6 +61,18 @@ func runTDesktopImport(parent context.Context, exportPath string, opts tdesktopO
 	})
 	ctx := log.WithContext(parent, logger)
 	config.Init()
+	if opts.mediaWorkers <= 0 {
+		opts.mediaWorkers = 1
+	}
+	if opts.mediaWorkers > 16 {
+		opts.mediaWorkers = 16
+	}
+	if opts.mediaBatchSize <= 0 {
+		opts.mediaBatchSize = 4
+	}
+	if opts.mediaBatchSize > 16 {
+		opts.mediaBatchSize = 16
+	}
 	if err := os.MkdirAll("data", os.ModePerm); err != nil {
 		return fmt.Errorf("create data directory: %w", err)
 	}
@@ -70,6 +89,9 @@ func runTDesktopImport(parent context.Context, exportPath string, opts tdesktopO
 		messageCount += len(chat.Messages)
 	}
 	logger.Infof("Loaded %d chats with %d messages", len(chats), messageCount)
+	if !opts.noMedia {
+		logger.Infof("Offline media workers: %d, batch size: %d", opts.mediaWorkers, opts.mediaBatchSize)
+	}
 	rootDir := filepath.Dir(exportPath)
 	if info, err := os.Stat(exportPath); err == nil && info.IsDir() {
 		rootDir = exportPath
@@ -117,13 +139,14 @@ func importTDesktopChat(ctx context.Context, logger *log.Logger, searcher engine
 		return 0, 0, err
 	}
 	isNew := indexChat == nil
+	watching := !opts.noWatch
 	if isNew {
-		indexChat = &database.IndexChat{ChatID: chatID, Watching: opts.watch}
+		indexChat = &database.IndexChat{ChatID: chatID, Watching: watching}
 	}
 	indexChat.Title = chat.NameForDisplay()
 	indexChat.Type = chatType
 	indexChat.Public = public
-	if opts.watch {
+	if !opts.noWatch {
 		indexChat.Watching = true
 	}
 	if err := searcher.CreateIndex(ctx, chatID); err != nil {
@@ -149,7 +172,7 @@ func importTDesktopChat(ctx context.Context, logger *log.Logger, searcher engine
 		mediaPath, mimeType, mediaName, msgType, hasMedia := msg.Media()
 		resolvedPath := ""
 		enrichable := false
-		if hasMedia && enricher != nil && mimeType != "" {
+		if hasMedia && enricher != nil && mimeType != "" && !database.IsEnrichDisabled(chatID) {
 			if resolvedPath, err = resolveTDesktopMedia(rootDir, mediaPath); err != nil {
 				logger.Debugf("Skip media %s: %v", mediaPath, err)
 			} else {
@@ -220,23 +243,131 @@ func importTDesktopChat(ctx context.Context, logger *log.Logger, searcher engine
 		}
 	}
 
-	enriched := 0
+	type mediaTask struct {
+		items []pendingMedia
+		batch bool
+	}
 	maxBytes := int64(config.C.Enrich.MaxDownloadMB) << 20
-	for i, item := range pending {
+	imageItems := make([]pendingMedia, 0)
+	otherItems := make([]pendingMedia, 0)
+	batchEnricher, canBatch := enricher.(types.ImageBatchEnricher)
+	for _, item := range pending {
+		if canBatch && item.doc.Type == int(types.MessageTypePhoto) && types.IsSupportedImage(item.mime, item.doc.MediaName) {
+			imageItems = append(imageItems, item)
+		} else {
+			otherItems = append(otherItems, item)
+		}
+	}
+
+	const imageBatchSize = 4
+	tasks := make([]mediaTask, 0, len(otherItems)+len(imageItems)/imageBatchSize+1)
+	for start := 0; start < len(imageItems); start += imageBatchSize {
+		end := min(start+imageBatchSize, len(imageItems))
+		tasks = append(tasks, mediaTask{items: imageItems[start:end], batch: true})
+	}
+	for _, item := range otherItems {
+		tasks = append(tasks, mediaTask{items: []pendingMedia{item}})
+	}
+
+	var processed atomic.Int64
+	var enriched atomic.Int64
+	var progressMu sync.Mutex
+	lastProgress := 0
+	logProgress := func() {
+		if len(pending) < 10 {
+			return
+		}
+		progressMu.Lock()
+		defer progressMu.Unlock()
+		current := int(processed.Load())
+		if current == len(pending) || current-lastProgress >= 10 {
+			logger.Infof("  enriched media %d/%d (success=%d)", current, len(pending), enriched.Load())
+			lastProgress = current
+		}
+	}
+
+	processImages := func(items []pendingMedia) {
+		docs := make([]*types.MessageDocument, 0, len(items))
+		images := make([][]byte, 0, len(items))
+		for _, item := range items {
+			data, err := readTDesktopMedia(item.path, maxBytes)
+			if err != nil {
+				logger.Debugf("Skip media %s: %v", item.path, err)
+				continue
+			}
+			docs = append(docs, item.doc)
+			images = append(images, data)
+		}
+		if len(docs) > 0 {
+			if err := batchEnricher.EnrichImagesNow(ctx, chatID, docs, images); err != nil {
+				logger.Warnf("Batch image enrichment failed, falling back to single requests: %v", err)
+				for i, doc := range docs {
+					if err := enricher.EnrichNow(ctx, chatID, doc, images[i], doc.MediaMIME); err != nil {
+						logger.Warnf("Enrich image %s: %v", doc.MediaName, err)
+						continue
+					}
+					enriched.Add(1)
+				}
+			} else {
+				enriched.Add(int64(len(docs)))
+			}
+		}
+	}
+
+	processOne := func(item pendingMedia) {
 		data, err := readTDesktopMedia(item.path, maxBytes)
 		if err != nil {
 			logger.Debugf("Skip media %s: %v", item.path, err)
-		} else if err := enricher.EnrichNow(ctx, chatID, item.doc, data, item.mime); err != nil {
+			return
+		}
+		if err := enricher.EnrichNow(ctx, chatID, item.doc, data, item.mime); err != nil {
 			logger.Warnf("Enrich media %s: %v", item.path, err)
-		} else {
-			enriched++
+			return
 		}
-		if len(pending) >= 10 && ((i+1)%10 == 0 || i+1 == len(pending)) {
-			logger.Infof("  enriched media %d/%d (success=%d)", i+1, len(pending), enriched)
-		}
+		enriched.Add(1)
 	}
-	logger.Infof("Imported %s: chat_id=%d messages=%d media=%d", chat.NameForDisplay(), chatID, len(docs), enriched)
-	return len(docs), enriched, nil
+
+	workerCount := opts.mediaWorkers
+	if workerCount > len(tasks) {
+		workerCount = len(tasks)
+	}
+	if workerCount < 1 && len(tasks) > 0 {
+		workerCount = 1
+	}
+	if len(tasks) > 0 {
+		logger.Infof("  enriching %d media files in %d tasks with %d workers", len(pending), len(tasks), workerCount)
+		jobs := make(chan mediaTask)
+		var wg sync.WaitGroup
+		for range workerCount {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				for task := range jobs {
+					if task.batch {
+						processImages(task.items)
+					} else {
+						processOne(task.items[0])
+					}
+					processed.Add(int64(len(task.items)))
+					logProgress()
+				}
+			}()
+		}
+		for _, task := range tasks {
+			select {
+			case jobs <- task:
+			case <-ctx.Done():
+				close(jobs)
+				wg.Wait()
+				return 0, 0, ctx.Err()
+			}
+		}
+		close(jobs)
+		wg.Wait()
+	}
+	mediaCount := int(enriched.Load())
+	logger.Infof("Imported %s: chat_id=%d messages=%d media=%d", chat.NameForDisplay(), chatID, len(docs), mediaCount)
+	return len(docs), mediaCount, nil
 }
 
 func resolveTDesktopMedia(rootDir, relative string) (string, error) {

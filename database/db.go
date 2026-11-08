@@ -41,6 +41,9 @@ func InitDatabase(ctx context.Context) error {
 		if chat.Watching {
 			watchedChatsID[chat.ChatID] = struct{}{}
 		}
+		if chat.NoEnrich {
+			enrichDisabledChats[chat.ChatID] = struct{}{}
+		}
 		allChatIDs = append(allChatIDs, chat.ChatID)
 	}
 	return nil

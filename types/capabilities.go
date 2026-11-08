@@ -32,3 +32,16 @@ type MediaEnricher interface {
 	// AddDocumentsOnly writes main documents without enqueueing media jobs.
 	AddDocumentsOnly(ctx context.Context, chatID int64, docs []*MessageDocument) error
 }
+
+// ImageBatchEnricher is an optional extension for pipelines that can tag and
+// embed multiple local images in batches. Offline importers use it when
+// processing large local exports.
+type ImageBatchEnricher interface {
+	EnrichImagesNow(ctx context.Context, chatID int64, docs []*MessageDocument, images [][]byte) error
+}
+
+// PerChatMediaEnricher optionally reports whether media enrichment is enabled
+// for one chat. Importers and document builders use it when available.
+type PerChatMediaEnricher interface {
+	EnrichableMediaForChat(chatID int64, mime, name string, messageType MessageType) bool
+}

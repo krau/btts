@@ -158,7 +158,7 @@ func DocumentsFromMessages(ctx context.Context,
 			mediaMIME, mediaName = MediaMeta(media)
 		}
 		hasMedia := mediaMIME != "" && enricher != nil &&
-			enricher.EnrichableMedia(mediaMIME, mediaName, messageType)
+			enrichableMediaForChat(enricher, chatID, mediaMIME, mediaName, messageType)
 		msb.WriteString(message.GetMessage())
 		messageText := msb.String()
 		if messageText == "" && ocred == "" && !hasMedia {
@@ -178,6 +178,13 @@ func DocumentsFromMessages(ctx context.Context,
 		})
 	}
 	return docs
+}
+
+func enrichableMediaForChat(enricher types.MediaEnricher, chatID int64, mime, name string, messageType types.MessageType) bool {
+	if perChat, ok := enricher.(types.PerChatMediaEnricher); ok {
+		return perChat.EnrichableMediaForChat(chatID, mime, name, messageType)
+	}
+	return enricher.EnrichableMedia(mime, name, messageType)
 }
 
 // MarkImported marks documents from a cold-history import as background work.
@@ -252,11 +259,12 @@ func MediaMeta(media tg.MessageMediaClass) (mime, name string) {
 		if !ok {
 			return "", ""
 		}
+		if types.IsStickerDocument(doc.GetAttributes()) {
+			return "", ""
+		}
 		mime = doc.GetMimeType()
 		for _, attr := range doc.GetAttributes() {
 			switch a := attr.(type) {
-			case *tg.DocumentAttributeAnimated, *tg.DocumentAttributeSticker:
-				return "", ""
 			case *tg.DocumentAttributeFilename:
 				name = a.GetFileName()
 			case *tg.DocumentAttributeAudio:

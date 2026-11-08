@@ -127,17 +127,30 @@ func (c *ollamaClient) EmbedImageWithText(ctx context.Context, text string, data
 	return c.embed(ctx, input)
 }
 
-// EmbedImagesWithText embeds frames in one Ollama batch request. Each input
-// item still produces its own vector in the returned slice.
+// EmbedImagesWithText embeds images in one Ollama batch request with a shared
+// text context. Each input item still produces its own vector.
 func (c *ollamaClient) EmbedImagesWithText(ctx context.Context, text string, data [][]byte) ([][]float32, error) {
+	texts := make([]string, len(data))
+	for i := range texts {
+		texts[i] = text
+	}
+	return c.EmbedImagesWithTexts(ctx, texts, data)
+}
+
+// EmbedImagesWithTexts embeds images with a per-image text context in one
+// Ollama batch request.
+func (c *ollamaClient) EmbedImagesWithTexts(ctx context.Context, texts []string, data [][]byte) ([][]float32, error) {
 	if len(data) == 0 {
 		return nil, nil
 	}
+	if len(texts) != len(data) {
+		return nil, fmt.Errorf("got %d texts for %d images", len(texts), len(data))
+	}
 	inputs := make([]map[string]any, len(data))
-	for i, frame := range data {
-		item := map[string]any{"image": base64.StdEncoding.EncodeToString(frame)}
-		if text != "" {
-			item["text"] = text
+	for i, image := range data {
+		item := map[string]any{"image": base64.StdEncoding.EncodeToString(image)}
+		if texts[i] != "" {
+			item["text"] = texts[i]
 		}
 		inputs[i] = item
 	}

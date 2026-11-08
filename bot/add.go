@@ -33,23 +33,31 @@ const importLease = time.Hour
 var importSlots = make(chan struct{}, 1)
 
 func AddHandler(ctx *ext.Context, update *ext.Update) error {
-	args := update.Args()
-	useTakeout := len(args) > 2 && strings.EqualFold(args[2], "takeout")
-	return addHandler(ctx, update, useTakeout)
+	return addHandler(ctx, update, false)
 }
 
 func AddTakeoutHandler(ctx *ext.Context, update *ext.Update) error {
 	return addHandler(ctx, update, true)
 }
 
-func addHandler(ctx *ext.Context, update *ext.Update, useTakeout bool) error {
+func addHandler(ctx *ext.Context, update *ext.Update, forceTakeout bool) error {
 	if !CheckPermission(ctx, update) {
 		return dispatcher.EndGroups
 	}
 	args := update.Args()
 	if len(args) < 2 {
-		ctx.Reply(update, ext.ReplyTextString("Usage: /add <chat>"), nil)
+		ctx.Reply(update, ext.ReplyTextString("Usage: /add <chat> [takeout] [noenrich]"), nil)
 		return dispatcher.EndGroups
+	}
+	useTakeout := forceTakeout
+	noEnrich := false
+	for _, arg := range args[2:] {
+		switch strings.ToLower(strings.TrimSpace(arg)) {
+		case "takeout":
+			useTakeout = true
+		case "noenrich", "no-enrich":
+			noEnrich = true
+		}
 	}
 	logger := log.FromContext(ctx)
 
@@ -131,7 +139,7 @@ func addHandler(ctx *ext.Context, update *ext.Update, useTakeout bool) error {
 		ctx.Reply(update, ext.ReplyTextString("Failed to create index: "+err.Error()), nil)
 		return dispatcher.EndGroups
 	}
-	if err := ensureIndexChat(ctx, chatID, inputPeer); err != nil {
+	if err := ensureIndexChat(ctx, chatID, inputPeer, noEnrich); err != nil {
 		if delErr := bi.Engine.DeleteIndex(ctx, chatID); delErr != nil {
 			logger.Errorf("Rollback index for %d: %v", chatID, delErr)
 		}
@@ -240,13 +248,13 @@ func inputPeerID(peer tg.InputPeerClass) int64 {
 	}
 }
 
-func ensureIndexChat(ctx context.Context, chatID int64, inputPeer tg.InputPeerClass) error {
+func ensureIndexChat(ctx context.Context, chatID int64, inputPeer tg.InputPeerClass, noEnrich bool) error {
 	if _, err := database.GetIndexChat(ctx, chatID); err == nil {
 		return nil
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return err
 	}
-	indexChat := &database.IndexChat{ChatID: chatID, Watching: true}
+	indexChat := &database.IndexChat{ChatID: chatID, Watching: true, NoEnrich: noEnrich}
 	switch inputPeer.(type) {
 	case *tg.InputPeerChannel:
 		indexChat.Type = int(database.ChatTypeChannel)

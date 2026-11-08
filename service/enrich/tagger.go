@@ -72,11 +72,63 @@ func (t *taggerClient) TagImage(ctx context.Context, data []byte) ([]string, err
 	if err := writer.Close(); err != nil {
 		return nil, err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, t.url+"/predict", &body)
+	raw, err := t.post(ctx, "/predict", writer.FormDataContentType(), &body)
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Content-Type", writer.FormDataContentType())
+	var out taggerResponse
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return nil, fmt.Errorf("decode tagger response: %w", err)
+	}
+	return t.filterTags(out), nil
+}
+
+// TagImages calls konatagger's batch endpoint. The server accepts at most its
+// configured max_batch_size (normally 16), so callers should chunk larger sets.
+func (t *taggerClient) TagImages(ctx context.Context, data [][]byte) ([][]string, error) {
+	if len(data) == 0 {
+		return nil, nil
+	}
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	for i, image := range data {
+		part, err := writer.CreateFormFile("file", fmt.Sprintf("image_%d", i))
+		if err != nil {
+			return nil, err
+		}
+		if _, err := part.Write(image); err != nil {
+			return nil, err
+		}
+	}
+	if err := writer.Close(); err != nil {
+		return nil, err
+	}
+	raw, err := t.post(ctx, "/predict/batch", writer.FormDataContentType(), &body)
+	if err != nil {
+		return nil, err
+	}
+	var out struct {
+		Results []taggerResponse `json:"results"`
+	}
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return nil, fmt.Errorf("decode tagger batch response: %w", err)
+	}
+	if len(out.Results) != len(data) {
+		return nil, fmt.Errorf("tagger batch returned %d results for %d images", len(out.Results), len(data))
+	}
+	results := make([][]string, len(out.Results))
+	for i := range out.Results {
+		results[i] = t.filterTags(out.Results[i])
+	}
+	return results, nil
+}
+
+func (t *taggerClient) post(ctx context.Context, path, contentType string, body io.Reader) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, t.url+path, body)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", contentType)
 	if t.token != "" {
 		req.Header.Set("Authorization", "Bearer "+t.token)
 	}
@@ -85,17 +137,17 @@ func (t *taggerClient) TagImage(ctx context.Context, data []byte) ([]string, err
 		return nil, err
 	}
 	defer resp.Body.Close()
-	raw, err := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
 	if err != nil {
 		return nil, err
 	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("tagger: %s: %s", resp.Status, strings.TrimSpace(string(raw)))
 	}
-	var out taggerResponse
-	if err := json.Unmarshal(raw, &out); err != nil {
-		return nil, fmt.Errorf("decode tagger response: %w", err)
-	}
+	return raw, nil
+}
+
+func (t *taggerClient) filterTags(out taggerResponse) []string {
 	type scored struct {
 		tag   string
 		score float64
@@ -128,7 +180,7 @@ func (t *taggerClient) TagImage(ctx context.Context, data []byte) ([]string, err
 	for i, tag := range tags {
 		result[i] = tag.tag
 	}
-	return result, nil
+	return result
 }
 
 func normalizeTag(tag string) string {

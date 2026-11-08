@@ -36,12 +36,16 @@ func GetIndexChat(ctx context.Context, chatID int64) (*IndexChat, error) {
 }
 
 func DeleteIndexChat(ctx context.Context, chatID int64) error {
-	return db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	if err := db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Where("chat_id = ?", chatID).Delete(&IndexImport{ChatID: chatID}).Error; err != nil {
 			return err
 		}
 		return tx.Where("chat_id = ?", chatID).Delete(&IndexChat{ChatID: chatID}).Error
-	})
+	}); err != nil {
+		return err
+	}
+	removeIndexChatCaches(chatID)
+	return nil
 }
 
 func GetAllIndexChats(ctx context.Context) ([]*IndexChat, error) {

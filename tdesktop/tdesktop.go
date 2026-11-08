@@ -229,6 +229,9 @@ func (m Message) Media() (path, mimeType, name string, msgType types.MessageType
 	}
 	mimeType = strings.TrimSpace(strings.Split(mimeType, ";")[0])
 	switch {
+	case mimeType == "image/gif":
+		// GIF animations are decoded as short videos, not still images.
+		msgType = types.MessageTypeVideo
 	case strings.HasPrefix(mimeType, "image/"):
 		msgType = types.MessageTypePhoto
 	case strings.HasPrefix(mimeType, "video/"):
