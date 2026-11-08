@@ -2,6 +2,7 @@ package bot
 
 import (
 	"bytes"
+	"errors"
 	"strconv"
 	"strings"
 
@@ -63,7 +64,7 @@ func searchByPhoto(ctx *ext.Context, update *ext.Update, photo *tg.MessageMediaP
 		ctx.Reply(update, ext.ReplyTextString("No results found"), nil)
 		return true
 	}
-	if err := replySearchResults(ctx, update, req, resp); err != nil {
+	if err := replySearchResults(ctx, update, req, resp); err != nil && !errors.Is(err, dispatcher.EndGroups) {
 		log.FromContext(ctx).Errorf("Reply image search results: %v", err)
 	}
 	return true
