@@ -186,7 +186,8 @@ func (m takeoutProgressModel) View() string {
 		stageText = "Completing export"
 	}
 
-	s.WriteString(m.spinner.View() + " ")
+	s.WriteString(m.spinner.View())
+	s.WriteString(" ")
 	s.WriteString(stageStyle.Render(stageText))
 	s.WriteString("\n\n")
 

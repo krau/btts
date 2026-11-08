@@ -22,6 +22,9 @@ func InlineQueryHandler(ctx *ext.Context, update *ext.Update) error {
 			Query:    query,
 			Limit:    48,
 			AllChats: true,
+			// Inline queries fire on every keystroke; avoid an embedding call
+			// per keystroke and keep latency predictable.
+			Mode: "keyword",
 		})
 	if err != nil {
 		return err

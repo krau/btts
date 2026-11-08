@@ -117,10 +117,7 @@ func buildListPage(chats []*database.IndexChat, page int, hasPermission bool) ([
 		page = totalPages
 	}
 	start := (page - 1) * listPageSize
-	end := start + listPageSize
-	if end > len(chats) {
-		end = len(chats)
-	}
+	end := min(start+listPageSize, len(chats))
 	pageChats := chats[start:end]
 
 	chatsStyling := make([]styling.StyledTextOption, 0)
@@ -129,7 +126,7 @@ func buildListPage(chats []*database.IndexChat, page int, hasPermission bool) ([
 		chatsStyling = append(chatsStyling, styling.Code(fmt.Sprintf("%d", chat.ChatID)))
 		chatsStyling = append(chatsStyling, styling.Plain(fmt.Sprintf(" - %s\n", chat.Title)))
 		if hasPermission {
-			chatsStyling = append(chatsStyling, styling.Plain(fmt.Sprintf("Watching: %t , Public: %t , WatchDelete: %t , OCR: %t\n", chat.Watching, chat.Public, !chat.NoDelete, !chat.NoOcr)))
+			chatsStyling = append(chatsStyling, styling.Plain(fmt.Sprintf("Watching: %t , Public: %t , WatchDelete: %t , OCR: %t , Enrich: %t\n", chat.Watching, chat.Public, !chat.NoDelete, !chat.NoOcr, !chat.NoEnrich)))
 		}
 	}
 	chatsStyling = append(chatsStyling, styling.Plain("\n点击按钮选择一个聊天进行搜索"))

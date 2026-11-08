@@ -6,6 +6,7 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/duke-git/lancet/v2/slice"
 	"github.com/gotd/td/tg"
+	"github.com/gotd/td/tgerr"
 	"github.com/krau/btts/config"
 	"github.com/krau/btts/utils"
 
@@ -39,7 +40,8 @@ var commandHandlers = []commandHandler{
 	{StartHandler, "start", "开始使用"},
 	{SearchHandler, "search", "搜索消息"},
 	{ListHandler, "ls", "列出已索引聊天"},
-	{AddHandler, "add", "添加聊天到索引"},
+	{AddHandler, "add", "添加聊天到索引，可选 noenrich"},
+	{AddTakeoutHandler, "addtakeout", "用 Takeout API 添加大频道，可选 noenrich"},
 	{DelHandler, "del", "删除聊天索引"},
 	{PubHandler, "pub", "将一个聊天设为公开"},
 	{UnPubHandler, "unpub", "将一个聊天设为私有"},
@@ -58,6 +60,9 @@ var commandHandlers = []commandHandler{
 	{DelApiKeyHandler, "delapikey", "删除子 api key"},
 	{ListApiKeyHandler, "lsapikey", "列出子 api key"},
 	{SetApiKeyHandler, "setapikey", "设置子 api key 作用域"},
+	{EnrichStatusHandler, "enrich", "查看/重试媒体增强队列"},
+	{EnrichDisableHandler, "unenrichable", "关闭一个聊天的媒体增强"},
+	{EnrichEnableHandler, "enrichable", "开启一个聊天的媒体增强"},
 	{StartHandler, "help", "帮助"},
 }
 
@@ -113,7 +118,12 @@ func (b *Bot) RegisterHandlers(ctx context.Context) {
 			},
 			Commands: botCmds,
 		}); err != nil {
-			log.FromContext(ctx).Error("Failed to set bot commands", "error", err)
+			logger := log.FromContext(ctx)
+			if tgerr.Is(err, "NEED_MEMBER_INVALID") {
+				logger.Info("Skipped owner-scoped bot commands: bot has no private dialog with the owner yet")
+			} else {
+				logger.Error("Failed to set bot commands", "error", err)
+			}
 		}
 	}
 }

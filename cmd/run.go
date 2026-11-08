@@ -14,6 +14,7 @@ import (
 	"github.com/krau/btts/config"
 	"github.com/krau/btts/database"
 	"github.com/krau/btts/engine"
+	"github.com/krau/btts/service/enrich"
 	"github.com/krau/btts/userclient"
 )
 
@@ -36,6 +37,11 @@ func run() error {
 	if err := database.InitDatabase(ctx); err != nil {
 		return fmt.Errorf("initialize database: %w", err)
 	}
+	// Only the serving process may clear import leases; the offline takeout
+	// command must not disturb an import running in the bot process.
+	if err := database.ResetIncompleteImports(ctx); err != nil {
+		logger.Warn("Failed to reset incomplete import leases", "error", err)
+	}
 
 	userClient, err := userclient.NewUserClient(ctx)
 	if err != nil {
@@ -47,12 +53,19 @@ func run() error {
 		}
 	}()
 
-	engine, err := engine.NewEngine(ctx)
+	searcher, err := engine.NewEngine(ctx)
 	if err != nil {
 		return fmt.Errorf("create engine: %w", err)
 	}
 
-	bot, err := bot.NewBot(ctx, userClient, engine)
+	fetcher := newTelegramMediaFetcher(userClient, config.C)
+	searcher, err = enrich.Wrap(ctx, searcher, fetcher)
+	if err != nil {
+		return fmt.Errorf("initialize enrichment: %w", err)
+	}
+	engine.SetEngine(searcher)
+
+	bot, err := bot.NewBot(ctx, userClient, searcher)
 	if err != nil {
 		return fmt.Errorf("create bot: %w", err)
 	}

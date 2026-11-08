@@ -1,6 +1,10 @@
 package database
 
-import "context"
+import (
+	"context"
+
+	"gorm.io/gorm"
+)
 
 func UpsertUserInfo(ctx context.Context, userInfo *UserInfo) error {
 	if err := db.WithContext(ctx).Save(userInfo).Error; err != nil {
@@ -17,11 +21,10 @@ func GetUserInfo(ctx context.Context, chatID int64) (*UserInfo, error) {
 	return &userInfo, nil
 }
 
-func UpsertIndexChat(ctx context.Context, IndexChat *IndexChat) error {
-	if err := db.WithContext(ctx).Save(IndexChat).Error; err != nil {
-		return err
-	}
-	return nil
+// UpsertIndexChat saves chat metadata. Import progress lives in IndexImport,
+// so a full-row Save cannot roll back an in-flight import.
+func UpsertIndexChat(ctx context.Context, indexChat *IndexChat) error {
+	return db.WithContext(ctx).Save(indexChat).Error
 }
 
 func GetIndexChat(ctx context.Context, chatID int64) (*IndexChat, error) {
@@ -33,12 +36,15 @@ func GetIndexChat(ctx context.Context, chatID int64) (*IndexChat, error) {
 }
 
 func DeleteIndexChat(ctx context.Context, chatID int64) error {
-	if err := db.WithContext(ctx).Where("chat_id = ?", chatID).
-		Delete(&IndexChat{ChatID: chatID}).Error; err != nil {
-		// https://github.com/go-gorm/gorm/issues/5663
-		watchedChatsID[chatID] = struct{}{} // rollback
+	if err := db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("chat_id = ?", chatID).Delete(&IndexImport{ChatID: chatID}).Error; err != nil {
+			return err
+		}
+		return tx.Where("chat_id = ?", chatID).Delete(&IndexChat{ChatID: chatID}).Error
+	}); err != nil {
 		return err
 	}
+	removeIndexChatCaches(chatID)
 	return nil
 }
 

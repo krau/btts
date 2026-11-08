@@ -17,7 +17,7 @@ func StartHandler(ctx *ext.Context, update *ext.Update) error {
 	}
 	log.FromContext(ctx).Debugf("StartHandler: %v", update.Args())
 	payload := update.Args()[1]
-	action := strings.Split(payload, "_")[0]
+	action, _, _ := strings.Cut(payload, "_")
 	args := strings.Split(payload, "_")[1:]
 	if !CheckPermission(ctx, update) {
 		ctx.Reply(update, ext.ReplyTextString("Yet Another Bot For Telegram Search..."), nil)

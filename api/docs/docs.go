@@ -630,6 +630,37 @@ const docTemplate = `{
                         "description": "消息类型列表，逗号分隔",
                         "name": "types",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "标签列表，逗号分隔",
+                        "name": "tags",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "any (默认) 或 all",
+                        "name": "tag_match",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "hybrid (默认), keyword, media",
+                        "name": "mode",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "all",
+                            "text",
+                            "image",
+                            "audio",
+                            "video"
+                        ],
+                        "type": "string",
+                        "description": "目标模态: all (默认), text, image, audio, video",
+                        "name": "modality",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -918,6 +949,13 @@ const docTemplate = `{
                     "description": "The title of the chat, if available",
                     "type": "string"
                 },
+                "extracted": {
+                    "description": "Text extracted from a document",
+                    "type": "string"
+                },
+                "full_formatted_text": {
+                    "type": "string"
+                },
                 "full_text": {
                     "type": "string"
                 },
@@ -932,6 +970,13 @@ const docTemplate = `{
                 "ocred": {
                     "description": "The OCRed text of the message",
                     "type": "string"
+                },
+                "tags": {
+                    "description": "Image tags",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "timestamp": {
                     "type": "integer"
@@ -952,6 +997,10 @@ const docTemplate = `{
         "api.SearchOnChatByPostRequest": {
             "type": "object",
             "properties": {
+                "audio": {
+                    "description": "base64 音频，用于以音频搜索",
+                    "type": "string"
+                },
                 "disable_ocred": {
                     "description": "是否禁用OCR文本",
                     "type": "boolean",
@@ -962,11 +1011,25 @@ const docTemplate = `{
                     "type": "boolean",
                     "example": false
                 },
+                "image": {
+                    "description": "base64 图片，用于以图搜图",
+                    "type": "string"
+                },
                 "limit": {
                     "description": "限制数量，用于分页",
                     "type": "integer",
                     "default": 10,
                     "example": 10
+                },
+                "modality": {
+                    "description": "目标模态: all,text,image,audio,video",
+                    "type": "string",
+                    "example": "image"
+                },
+                "mode": {
+                    "description": "hybrid (默认), keyword, media",
+                    "type": "string",
+                    "example": "hybrid"
                 },
                 "offset": {
                     "description": "偏移量，用于分页",
@@ -978,6 +1041,22 @@ const docTemplate = `{
                     "description": "搜索查询字符串",
                     "type": "string",
                     "example": "search text"
+                },
+                "tag_match": {
+                    "description": "any (默认) 或 all",
+                    "type": "string",
+                    "example": "any"
+                },
+                "tags": {
+                    "description": "标签过滤",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "cat",
+                        "sunset"
+                    ]
                 },
                 "types": {
                     "description": "消息类型过滤列表，可选值：text,photo,video,document,voice,audio,poll,story",
@@ -1011,6 +1090,10 @@ const docTemplate = `{
                     "type": "boolean",
                     "example": false
                 },
+                "audio": {
+                    "description": "base64 音频，用于以音频搜索",
+                    "type": "string"
+                },
                 "chat_ids": {
                     "description": "聊天ID列表",
                     "type": "array",
@@ -1032,11 +1115,25 @@ const docTemplate = `{
                     "type": "boolean",
                     "example": false
                 },
+                "image": {
+                    "description": "base64 图片，用于以图搜图",
+                    "type": "string"
+                },
                 "limit": {
                     "description": "限制数量，用于分页",
                     "type": "integer",
                     "default": 10,
                     "example": 10
+                },
+                "modality": {
+                    "description": "目标模态: all,text,image,audio,video",
+                    "type": "string",
+                    "example": "image"
+                },
+                "mode": {
+                    "description": "hybrid (默认), keyword, media",
+                    "type": "string",
+                    "example": "hybrid"
                 },
                 "offset": {
                     "description": "偏移量，用于分页",
@@ -1048,6 +1145,22 @@ const docTemplate = `{
                     "description": "搜索查询字符串",
                     "type": "string",
                     "example": "search text"
+                },
+                "tag_match": {
+                    "description": "any (默认) 或 all",
+                    "type": "string",
+                    "example": "any"
+                },
+                "tags": {
+                    "description": "标签过滤",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "cat",
+                        "sunset"
+                    ]
                 },
                 "types": {
                     "description": "消息类型过滤列表，可选值：text,photo,video,document,voice,audio,poll,story",
@@ -1114,6 +1227,9 @@ const docTemplate = `{
                 "no_delete": {
                     "type": "boolean"
                 },
+                "no_ocr": {
+                    "type": "boolean"
+                },
                 "public": {
                     "type": "boolean"
                 },
@@ -1161,11 +1277,15 @@ const docTemplate = `{
                     "$ref": "#/definitions/types.SearchHitFormatted"
                 },
                 "aigenerated": {
-                    "description": "[TODO] The AI generated text of the message(summarization, caption, tagging, etc.)",
+                    "description": "The AI generated text of the message(summarization, caption, tagging, etc.)",
                     "type": "string"
                 },
                 "chat_id": {
                     "type": "integer"
+                },
+                "extracted": {
+                    "description": "Text extracted from an attached document (PDF, etc.)",
+                    "type": "string"
                 },
                 "id": {
                     "description": "Telegram message ID",
@@ -1178,6 +1298,13 @@ const docTemplate = `{
                 "ocred": {
                     "description": "The OCRed text of the message",
                     "type": "string"
+                },
+                "tags": {
+                    "description": "Image tags generated by an optional tagger. The array is both searchable\nand filterable in Meilisearch.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "timestamp": {
                     "type": "integer"
@@ -1198,6 +1325,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "chat_id": {
+                    "type": "string"
+                },
+                "extracted": {
                     "type": "string"
                 },
                 "id": {

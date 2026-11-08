@@ -131,17 +131,29 @@ func ExtractMessageMediaText(ctx context.Context, client *ext.Context, media tg.
 		if !ok {
 			return result
 		}
+		attributes := doc.GetAttributes()
+		if types.IsStickerDocument(attributes) {
+			return result
+		}
 		result.Type = types.MessageTypeDocument
-		for _, attr := range doc.GetAttributes() {
+		animated := false
+		filename := ""
+		for _, attr := range attributes {
+			if _, ok := attr.(*tg.DocumentAttributeAnimated); ok {
+				animated = true
+				result.Type = types.MessageTypeVideo
+			}
+		}
+		for _, attr := range attributes {
 			switch attr := attr.(type) {
-			case *tg.DocumentAttributeAnimated, *tg.DocumentAttributeSticker:
-				return result
 			case *tg.DocumentAttributeFilename:
-				filename := attr.GetFileName()
-				if slice.Contain(types.StickerFileNames, filename) {
+				filename = attr.GetFileName()
+				if !animated && slice.Contain(types.StickerFileNames, filename) {
 					return result
 				}
-				messageSB.WriteString(filename + " ")
+				if !animated {
+					messageSB.WriteString(filename + " ")
+				}
 			case *tg.DocumentAttributeAudio:
 				title, ok := attr.GetTitle()
 				if ok {
@@ -155,6 +167,11 @@ func ExtractMessageMediaText(ctx context.Context, client *ext.Context, media tg.
 			case *tg.DocumentAttributeVideo:
 				result.Type = types.MessageTypeVideo
 			}
+		}
+		// GIF documents are decoded as short videos so animated GIFs are not
+		// mistaken for a still JPEG/PNG image.
+		if animated || types.EffectiveMIME(doc.GetMimeType(), filename) == "image/gif" {
+			result.Type = types.MessageTypeVideo
 		}
 
 	case *tg.MessageMediaPoll:
@@ -288,11 +305,12 @@ func BuildResultStyling(ctx context.Context, resp *types.SearchResponse, botUser
 	for _, hit := range resp.Hits {
 
 		chatDisplay := hit.Formatted.ChatID
-		chat, err := database.GetIndexChat(ctx, hit.ChatID)
-		if err == nil {
+		isChannelChat := false
+		if chat, err := database.GetIndexChat(ctx, hit.ChatID); err == nil && chat != nil {
 			if chat.Title != "" {
 				chatDisplay = chat.Title
 			}
+			isChannelChat = chat.Type == int(database.ChatTypeChannel)
 		}
 		senderInfo := func() string {
 			if hit.UserID == hit.ChatID {
@@ -321,17 +339,47 @@ func BuildResultStyling(ctx context.Context, resp *types.SearchResponse, botUser
 		timeStr := time.Unix(hit.Timestamp, 0).Format("06-01-02 15:04:05")
 		resultStyling = append(resultStyling, styling.Plain(fmt.Sprintf(" [%s]\n", timeStr)))
 
+		tags := hit.Tags
+		if len(tags) > 6 {
+			tags = tags[:6]
+		}
+		tagsText := strings.Join(tags, ", ")
+
 		msgLink := func() string {
-			if chat.Type == int(database.ChatTypeChannel) || botUsername == nil {
+			if isChannelChat || botUsername == nil {
 				return hit.MessageLink()
 			}
 			return fmt.Sprintf("https://t.me/%s/?start=fav_%d_%d", botUsername[0], hit.ChatID, hit.ID)
 		}()
-		hitFormattedMsg := types.MessageTypeToEmoji[types.MessageType(hit.Type)] + " " + strings.ReplaceAll(hit.FullFormattedText(), "\n", " ")
-		resultStyling = append(resultStyling, styling.TextURL(hitFormattedMsg, msgLink))
+		preview := truncateResultPreview(hit.FullFormattedText(), 100)
+		emoji := types.MessageTypeToEmoji[types.MessageType(hit.Type)]
+		switch {
+		case preview != "":
+			if tagsText != "" {
+				resultStyling = append(resultStyling, styling.Plain(" 🏷 "+tagsText+"\n"))
+			}
+			resultStyling = append(resultStyling, styling.TextURL(emoji+" "+preview, msgLink))
+		case tagsText != "":
+			resultStyling = append(resultStyling, styling.TextURL(emoji+"🏷 "+tagsText, msgLink))
+		default:
+			// Never leave an emoji as the only clickable text.
+			resultStyling = append(resultStyling, styling.TextURL(emoji+" "+msgLink, msgLink))
+		}
 	}
 
 	return resultStyling
+}
+
+func truncateResultPreview(text string, limit int) string {
+	text = strings.Join(strings.Fields(text), " ")
+	if text == "" {
+		return ""
+	}
+	runes := []rune(text)
+	if len(runes) <= limit {
+		return text
+	}
+	return string(runes[:limit]) + "…"
 }
 
 func GetChatDBFromUpdateArgs(ctx *ext.Context, update *ext.Update) (*database.IndexChat, error) {

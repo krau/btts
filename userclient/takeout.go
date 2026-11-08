@@ -554,7 +554,8 @@ func (u *UserClient) exportChatHistory(ctx context.Context, client *takeout.Clie
 			ectx := u.GetContext()
 
 			// 转换为文档并批量索引
-			docs := engine.DocumentsFromMessages(ctx, messages, chatID, ectx.Self.ID, ectx, false)
+			docs := engine.DocumentsFromMessages(ctx, messages, chatID, ectx.Self.ID, ectx, false, eng.Enrichment())
+			engine.MarkImported(docs)
 			if len(docs) > 0 {
 				if err := eng.AddDocuments(ctx, chatID, docs); err != nil {
 					logger.Error("Failed to add documents", "chat_id", chatID, "error", err)
@@ -647,7 +648,8 @@ func (u *UserClient) exportChatHistoryWithoutRanges(ctx context.Context, client 
 		}
 
 		ectx := u.GetContext()
-		docs := engine.DocumentsFromMessages(ctx, messages, chatID, ectx.Self.ID, ectx, false)
+		docs := engine.DocumentsFromMessages(ctx, messages, chatID, ectx.Self.ID, ectx, false, eng.Enrichment())
+		engine.MarkImported(docs)
 		if len(docs) > 0 {
 			if err := eng.AddDocuments(ctx, chatID, docs); err != nil {
 				logger.Error("Failed to add documents", "chat_id", chatID, "error", err)

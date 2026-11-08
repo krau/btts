@@ -1,9 +1,11 @@
 package meili
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"sort"
 	"sync"
 	"time"
@@ -26,7 +28,9 @@ type MeilisearchMessageDocument struct {
 	// The OCRed text of the message
 	Ocred string `json:"ocred"`
 	// The AI generated text of the message(summarization, caption, tagging, etc.)
-	AIGenerated string `json:"aigenerated"`
+	AIGenerated string   `json:"aigenerated"`
+	Tags        []string `json:"tags,omitempty"`
+	Extracted   string   `json:"extracted,omitempty"`
 	// The ID of the user who sent the message
 	UserID int64 `json:"user_id"`
 	ChatID int64 `json:"chat_id"`
@@ -38,14 +42,16 @@ type MeilisearchMessageDocument struct {
 type MeiliSearchHit struct {
 	MeilisearchMessageDocument
 	Formatted struct {
-		ID        string `json:"id"`
-		Type      string `json:"type"`
-		Message   string `json:"message"`
-		Ocred     string `json:"ocred"`
-		UserID    string `json:"user_id"`
-		MessageID string `json:"message_id"`
-		ChatID    string `json:"chat_id"`
-		Timestamp string `json:"timestamp"`
+		ID          string `json:"id"`
+		Type        string `json:"type"`
+		Message     string `json:"message"`
+		Ocred       string `json:"ocred"`
+		AIGenerated string `json:"aigenerated"`
+		Extracted   string `json:"extracted"`
+		UserID      string `json:"user_id"`
+		MessageID   string `json:"message_id"`
+		ChatID      string `json:"chat_id"`
+		Timestamp   string `json:"timestamp"`
 	} `json:"_formatted"`
 }
 
@@ -57,18 +63,22 @@ func (h *MeiliSearchHit) ToSearchHit() types.SearchHit {
 			Message:     h.Message,
 			Ocred:       h.Ocred,
 			AIGenerated: h.AIGenerated,
+			Tags:        h.Tags,
+			Extracted:   h.Extracted,
 			UserID:      h.UserID,
 			ChatID:      h.ChatID,
 			Timestamp:   h.Timestamp,
 		},
 		Formatted: types.SearchHitFormatted{
-			ID:        h.Formatted.MessageID,
-			Type:      h.Formatted.Type,
-			Message:   h.Formatted.Message,
-			Ocred:     h.Formatted.Ocred,
-			UserID:    h.Formatted.UserID,
-			ChatID:    h.Formatted.ChatID,
-			Timestamp: h.Formatted.Timestamp,
+			ID:          h.Formatted.MessageID,
+			Type:        h.Formatted.Type,
+			Message:     h.Formatted.Message,
+			Ocred:       h.Formatted.Ocred,
+			AIGenerated: h.Formatted.AIGenerated,
+			Extracted:   h.Formatted.Extracted,
+			UserID:      h.Formatted.UserID,
+			ChatID:      h.Formatted.ChatID,
+			Timestamp:   h.Formatted.Timestamp,
 		},
 	}
 }
@@ -82,6 +92,8 @@ func docsFromMessages(docs []*types.MessageDocument) []*MeilisearchMessageDocume
 			Message:     doc.Message,
 			Ocred:       doc.Ocred,
 			AIGenerated: doc.AIGenerated,
+			Tags:        doc.Tags,
+			Extracted:   doc.Extracted,
 			UserID:      doc.UserID,
 			ChatID:      doc.ChatID,
 			MessageID:   doc.ID,
@@ -100,6 +112,8 @@ func docsToMessages(docs []*MeilisearchMessageDocument) []*types.MessageDocument
 			Message:     doc.Message,
 			Ocred:       doc.Ocred,
 			AIGenerated: doc.AIGenerated,
+			Tags:        doc.Tags,
+			Extracted:   doc.Extracted,
 			UserID:      doc.UserID,
 			ChatID:      doc.ChatID,
 			Timestamp:   doc.Timestamp,
@@ -120,12 +134,52 @@ func hitsToSearchHits(hits []*MeiliSearchHit) []types.SearchHit {
 type Meilisearch struct {
 	Client meilisearch.ServiceManager
 	Index  string
-	mu     sync.Mutex
+	// WaitTasks blocks CreateIndex until the settings task is applied. Document
+	// writes never wait; readers that need read-after-write retry instead.
+	WaitTasks bool
+	// Extra fields are configured by the enrichment wrapper at startup, before
+	// any request is served.
+	extraFilterable []string
+	extraSearchable []string
+	mu              sync.Mutex
 }
 
-// AddDocuments implements engine.Searcher.
+// SetExtraFields extends the index schema with optional enrichment fields.
+func (m *Meilisearch) SetExtraFields(filterable, searchable []string) {
+	m.extraFilterable = append([]string(nil), filterable...)
+	m.extraSearchable = append([]string(nil), searchable...)
+}
+
+func (m *Meilisearch) tagsEnabled() bool {
+	return slices.Contains(m.extraFilterable, "tags")
+}
+
+// Capabilities implements engine.Searcher.
+func (m *Meilisearch) Capabilities() types.Capabilities {
+	return types.Capabilities{TagFilters: m.tagsEnabled()}
+}
+
+// Enrichment implements engine.Searcher.
+func (m *Meilisearch) Enrichment() types.MediaEnricher { return nil }
+
+// SearchImage implements engine.Searcher.
+func (m *Meilisearch) SearchImage(context.Context, types.SearchRequest, []byte) (*types.SearchResponse, error) {
+	return nil, fmt.Errorf("image search is not supported by the keyword engine")
+}
+
+// SearchAudio implements engine.Searcher.
+func (m *Meilisearch) SearchAudio(context.Context, types.SearchRequest, []byte) (*types.SearchResponse, error) {
+	return nil, fmt.Errorf("audio search is not supported by the keyword engine")
+}
+
+// AddDocuments implements engine.Searcher. It uses the partial update
+// endpoint so a re-add preserves enrichment fields (tags/extracted) that are
+// omitted from the incoming message document.
 func (m *Meilisearch) AddDocuments(ctx context.Context, chatID int64, docs []*types.MessageDocument) error {
 	docs = slice.Compact(docs)
+	if len(docs) == 0 {
+		return nil
+	}
 	for i := range docs {
 		docs[i].ChatID = chatID
 	}
@@ -134,12 +188,67 @@ func (m *Meilisearch) AddDocuments(ctx context.Context, chatID int64, docs []*ty
 		return err
 	}
 	retry.Retry(func() error {
-		_, err = m.Client.Index(m.Index).AddDocumentsWithContext(ctx, jsonData, &meilisearch.DocumentOptions{
+		_, err = m.Client.Index(m.Index).UpdateDocumentsWithContext(ctx, jsonData, &meilisearch.DocumentOptions{
 			PrimaryKey: new("id"),
 		})
 		return err
 	}, retry.Context(ctx), retry.RetryTimes(10), retry.RetryWithExponentialWithJitterBackoff(time.Second*3, 2, time.Second*2))
 	return err
+}
+
+type meiliUpdateDocument struct {
+	ID        string   `json:"id"`
+	Tags      []string `json:"tags,omitempty"`
+	Extracted string   `json:"extracted,omitempty"`
+}
+
+// UpdateDocuments implements engine.Searcher. It performs a partial update of
+// enrichment fields and never recreates a document deleted in the meantime.
+func (m *Meilisearch) UpdateDocuments(ctx context.Context, chatID int64, docs []*types.MessageDocument) error {
+	docs = slice.Compact(docs)
+	updates := make([]*meiliUpdateDocument, 0, len(docs))
+	for _, doc := range docs {
+		if doc == nil {
+			continue
+		}
+		update := &meiliUpdateDocument{
+			ID:        fmt.Sprintf("%d_%d", chatID, doc.ID),
+			Tags:      doc.Tags,
+			Extracted: doc.Extracted,
+		}
+		updates = append(updates, update)
+	}
+	if len(updates) == 0 {
+		return nil
+	}
+	jsonData, err := json.Marshal(updates)
+	if err != nil {
+		return err
+	}
+	retry.Retry(func() error {
+		_, err = m.Client.Index(m.Index).UpdateDocumentsWithContext(ctx, jsonData, &meilisearch.DocumentOptions{
+			PrimaryKey:   new("id"),
+			SkipCreation: true,
+		})
+		return err
+	}, retry.Context(ctx), retry.RetryTimes(10), retry.RetryWithExponentialWithJitterBackoff(time.Second*3, 2, time.Second*2))
+	return err
+}
+
+func (m *Meilisearch) waitTask(ctx context.Context, info *meilisearch.TaskInfo) error {
+	if info == nil || !m.WaitTasks {
+		return nil
+	}
+	waitCtx, cancel := context.WithTimeout(ctx, 10*time.Minute)
+	defer cancel()
+	task, err := m.Client.WaitForTaskWithContext(waitCtx, info.TaskUID, 500*time.Millisecond)
+	if err != nil {
+		return fmt.Errorf("wait meilisearch task %d: %w", info.TaskUID, err)
+	}
+	if task.Status != meilisearch.TaskStatusSucceeded {
+		return fmt.Errorf("meilisearch task %d ended with status %s", info.TaskUID, task.Status)
+	}
+	return nil
 }
 
 // CreateIndex implements engine.Searcher. 对于 Meilisearch 实现，这里创建/配置的是共享索引 m.Index，chatID 参数不会被使用。
@@ -154,11 +263,14 @@ func (m *Meilisearch) CreateIndex(ctx context.Context, _ int64) error {
 		if err != nil {
 			return err
 		}
-		expectedSettings := meiliExpectedSettings()
+		expectedSettings := m.meiliExpectedSettings()
 		if !meiliSettingsEqual(currentSettings, expectedSettings) {
 			log.FromContext(ctx).Info("Updating index settings to match expected configuration")
-			_, err = index.UpdateSettingsWithContext(ctx, expectedSettings)
-			return err
+			task, err := index.UpdateSettingsWithContext(ctx, expectedSettings)
+			if err != nil {
+				return err
+			}
+			return m.waitTask(ctx, task)
 		}
 		return nil
 	}
@@ -170,37 +282,67 @@ func (m *Meilisearch) CreateIndex(ctx context.Context, _ int64) error {
 	if err != nil {
 		return err
 	}
-	_, err = index.UpdateSettingsWithContext(ctx, meiliExpectedSettings())
-	return err
+	task, err := index.UpdateSettingsWithContext(ctx, m.meiliExpectedSettings())
+	if err != nil {
+		return err
+	}
+	return m.waitTask(ctx, task)
 }
 
-func meiliExpectedSettings() *meilisearch.Settings {
-	return &meilisearch.Settings{
-		FilterableAttributes: []string{
-			"user_id",
-			"chat_id",
-			"type",
-			"timestamp",
-		},
+func (m *Meilisearch) meiliExpectedSettings() *meilisearch.Settings {
+	filterable := append([]string{
+		"user_id",
+		"chat_id",
+		"type",
+		"timestamp",
+	}, m.extraFilterable...)
+	searchable := append([]string{
+		"message", "ocred", "aigenerated",
+	}, m.extraSearchable...)
+	settings := &meilisearch.Settings{
+		FilterableAttributes: filterable,
 		SortableAttributes: []string{
 			"timestamp",
 			"id",
 			"chat_id",
 			"message_id",
 		},
-		SearchableAttributes: []string{
-			"message", "ocred", "aigenerated",
-		},
+		SearchableAttributes: searchable,
 	}
+	return settings
 }
 
 func meiliSettingsEqual(current *meilisearch.Settings, expected *meilisearch.Settings) bool {
 	if current == nil || expected == nil {
 		return false
 	}
-	return sameStringSet(current.FilterableAttributes, expected.FilterableAttributes) &&
-		sameStringSet(current.SortableAttributes, expected.SortableAttributes) &&
-		sameStringSet(current.SearchableAttributes, expected.SearchableAttributes)
+	if !sameStringSet(current.FilterableAttributes, expected.FilterableAttributes) ||
+		!sameStringSet(current.SortableAttributes, expected.SortableAttributes) ||
+		!sameStringSet(current.SearchableAttributes, expected.SearchableAttributes) {
+		return false
+	}
+	if len(current.Embedders) != len(expected.Embedders) {
+		return false
+	}
+	for name, expectedEmbedder := range expected.Embedders {
+		currentEmbedder, ok := current.Embedders[name]
+		if !ok || !sameEmbedder(currentEmbedder, expectedEmbedder) {
+			return false
+		}
+	}
+	return true
+}
+
+func sameEmbedder(a, b meilisearch.Embedder) bool {
+	left, err := json.Marshal(a)
+	if err != nil {
+		return false
+	}
+	right, err := json.Marshal(b)
+	if err != nil {
+		return false
+	}
+	return bytes.Equal(left, right)
 }
 
 func sameStringSet(a []string, b []string) bool {
@@ -242,13 +384,18 @@ func (m *Meilisearch) DeleteIndex(ctx context.Context, chatID int64) error {
 
 // GetDocuments implements engine.Searcher.
 func (m *Meilisearch) GetDocuments(ctx context.Context, chatID int64, messageIds []int) ([]*types.MessageDocument, error) {
+	if len(messageIds) == 0 {
+		return nil, nil
+	}
 	docIds := make([]string, 0, len(messageIds))
 	for _, id := range messageIds {
 		docIds = append(docIds, fmt.Sprintf("%d_%d", chatID, id))
 	}
 	var resp meilisearch.DocumentsResult
+	// Meilisearch defaults to 20 documents; hydration can request up to 1000.
 	err := m.Client.Index(m.Index).GetDocumentsWithContext(ctx, &meilisearch.DocumentsQuery{
-		Ids: docIds,
+		Ids:   docIds,
+		Limit: int64(len(docIds)),
 	}, &resp)
 	if err != nil {
 		return nil, err
@@ -275,9 +422,10 @@ func (m *Meilisearch) Search(ctx context.Context, req types.SearchRequest) (*typ
 	if offset == 0 {
 		offset = 0
 	}
-	searchOnAttrs := []string{
-		"message",
+	if len(req.Tags) > 0 && !m.tagsEnabled() {
+		return nil, fmt.Errorf("tag filters require enrichment to be enabled")
 	}
+	searchOnAttrs := append([]string{"message"}, m.extraSearchable...)
 	if !req.DisableOcred {
 		searchOnAttrs = append(searchOnAttrs, "ocred")
 	}
@@ -289,6 +437,7 @@ func (m *Meilisearch) Search(ctx context.Context, req types.SearchRequest) (*typ
 		Limit:                limit,
 		AttributesToSearchOn: searchOnAttrs,
 		AttributesToCrop:     searchOnAttrs,
+		ShowRankingScore:     true,
 	}
 	if expr, err := req.FilterExpression(); err != nil {
 		return nil, err
@@ -382,40 +531,4 @@ func (m *Meilisearch) Search(ctx context.Context, req types.SearchRequest) (*typ
 // 		Offset:             resp.Offset,
 // 		Limit:              resp.Limit,
 // 	}, nil
-// }
-
-// [TODO] Embedder support
-// if config.C.Engine.Embedder.Name != "" {
-// 	embedSettings := config.C.Engine.Embedder
-// 	embedder := meilisearch.Embedder{
-// 		Source:           meilisearch.EmbedderSource(embedSettings.Source),
-// 		APIKey:           embedSettings.ApiKey,
-// 		Dimensions:       embedSettings.Dimensions,
-// 		DocumentTemplate: embedSettings.DocumentTemplate,
-// 		URL:              embedSettings.URL,
-// 	}
-// 	if embedSettings.Source == "rest" {
-// 		embedder.Request = map[string]any{
-// 			"input": []any{
-// 				"{{text}}", "{{..}}",
-// 			},
-// 			"model": embedSettings.Model,
-// 		}
-// 		embedder.Response = map[string]any{
-// 			"data": []any{
-// 				map[string]any{
-// 					"embedding": "{{embedding}}",
-// 				},
-// 				"{{..}}",
-// 			},
-// 		}
-// 		embedder.Headers = map[string]string{
-// 			"Content-Type": "application/json",
-// 		}
-// 	} else {
-// 		embedder.Model = embedSettings.Model
-// 	}
-// 	_, err = index.UpdateEmbeddersWithContext(ctx, map[string]meilisearch.Embedder{
-// 		config.C.Engine.Embedder.Name: embedder,
-// 	})
 // }

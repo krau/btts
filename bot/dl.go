@@ -107,7 +107,8 @@ func DownloadHandler(ctx *ext.Context, update *ext.Update) error {
 		if len(messageBatch) > 0 {
 			processed += len(messageBatch)
 			log.FromContext(ctx).Debugf("Adding batch of messages %d/%d", processed, total)
-			docs := engine.DocumentsFromMessages(ctx, messageBatch, chatID, bi.UserClient.TClient.Self.ID, bi.UserClient.GetContext(), false)
+			docs := engine.DocumentsFromMessages(ctx, messageBatch, chatID, bi.UserClient.TClient.Self.ID, bi.UserClient.GetContext(), false, bi.Engine.Enrichment())
+			engine.MarkImported(docs)
 			if err := bi.Engine.AddDocuments(ctx, chatID, docs); err != nil {
 				log.FromContext(ctx).Errorf("Failed to add documents: %v", err)
 			}

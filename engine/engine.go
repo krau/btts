@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/charmbracelet/log"
 	"github.com/gotd/td/tg"
@@ -19,28 +20,49 @@ type Searcher interface {
 	CreateIndex(ctx context.Context, chatID int64) error
 	DeleteIndex(ctx context.Context, chatID int64) error
 	AddDocuments(ctx context.Context, chatID int64, docs []*types.MessageDocument) error
+	UpdateDocuments(ctx context.Context, chatID int64, docs []*types.MessageDocument) error
 	DeleteDocuments(ctx context.Context, chatID int64, messageIds []int) error
 	Search(ctx context.Context, req types.SearchRequest) (*types.SearchResponse, error)
+	SearchImage(ctx context.Context, req types.SearchRequest, data []byte) (*types.SearchResponse, error)
+	SearchAudio(ctx context.Context, req types.SearchRequest, data []byte) (*types.SearchResponse, error)
 	GetDocuments(ctx context.Context, chatID int64, messageIds []int) ([]*types.MessageDocument, error)
+	Capabilities() types.Capabilities
+	// Enrichment returns the media enrichment pipeline, or nil when disabled.
+	Enrichment() types.MediaEnricher
 }
 
 var _ Searcher = (*meili.Meilisearch)(nil)
 
 // var _ Searcher = (*bleve.BleveSearcher)(nil)
 
-var instance Searcher
+var (
+	instanceMu sync.RWMutex
+	instance   Searcher
+)
 
 func GetEngine() Searcher {
+	instanceMu.RLock()
+	defer instanceMu.RUnlock()
 	if instance == nil {
 		panic("Engine not initialized, call NewEngine first")
 	}
 	return instance
 }
 
+// SetEngine replaces the global engine, e.g. with an enrichment wrapper.
+func SetEngine(searcher Searcher) {
+	instanceMu.Lock()
+	defer instanceMu.Unlock()
+	instance = searcher
+}
+
 // selfID is the userclient's telegram id
 func NewEngine(ctx context.Context) (Searcher, error) {
-	if instance != nil {
-		return instance, nil
+	instanceMu.RLock()
+	current := instance
+	instanceMu.RUnlock()
+	if current != nil {
+		return current, nil
 	}
 	log.FromContext(ctx).Debug("Initializing searcher", "engine_type", config.C.Engine.Type)
 
@@ -57,35 +79,34 @@ func NewEngine(ctx context.Context) (Searcher, error) {
 		if err != nil {
 			return nil, fmt.Errorf("meilisearch health check failed: %w", err)
 		}
-		instance = &meili.Meilisearch{
-			Client: sm,
-			Index:  config.C.Engine.Index,
+		searcher := &meili.Meilisearch{
+			Client:    sm,
+			Index:     config.C.Engine.Index,
+			WaitTasks: config.C.Enrich.WaitIndexTasks,
 		}
+		SetEngine(searcher)
 		log.FromContext(ctx).Info("Meilisearch engine initialized")
 
 	case "bleve":
-		// indexPath := config.C.Engine.Path
-		// if indexPath == "" {
-		// 	indexPath = "data/bleve_indexes" // 默认路径
-		// }
-		// instance, err = bleve.NewBleveSearcher(indexPath)
-		// if err != nil {
-		// 	return nil, fmt.Errorf("failed to initialize bleve: %w", err)
-		// }
-		// log.FromContext(ctx).Info("Bleve engine initialized", "index_path", indexPath)
 		panic("not impl")
 	default:
 		return nil, fmt.Errorf("unsupported engine type: %s (supported: meilisearch, bleve)", config.C.Engine.Type)
 	}
 
+	instanceMu.RLock()
+	defer instanceMu.RUnlock()
 	return instance, nil
 }
 
+// DocumentsFromMessages converts Telegram messages into index documents.
+// Media-only messages are kept only when enricher reports that their media
+// will be enriched; otherwise they would be unsearchable noise.
 func DocumentsFromMessages(ctx context.Context,
 	messages []*tg.Message,
 	chatID, self int64,
 	ectx *ext.Context,
-	enableOcr bool) []*types.MessageDocument {
+	enableOcr bool,
+	enricher types.MediaEnricher) []*types.MessageDocument {
 	docs := make([]*types.MessageDocument, 0, len(messages))
 	for _, message := range messages {
 		var userID int64
@@ -125,6 +146,7 @@ func DocumentsFromMessages(ctx context.Context,
 		var msb strings.Builder
 		var messageType types.MessageType
 		var ocred string
+		var mediaMIME, mediaName string
 		media, ok := message.GetMedia()
 		if ok {
 			result := utils.ExtractMessageMediaText(ctx, ectx, media, enableOcr)
@@ -133,10 +155,13 @@ func DocumentsFromMessages(ctx context.Context,
 				ocred = result.Ocred
 				messageType = result.Type
 			}
+			mediaMIME, mediaName = MediaMeta(media)
 		}
+		hasMedia := mediaMIME != "" && enricher != nil &&
+			enrichableMediaForChat(enricher, chatID, mediaMIME, mediaName, messageType)
 		msb.WriteString(message.GetMessage())
 		messageText := msb.String()
-		if messageText == "" && ocred == "" {
+		if messageText == "" && ocred == "" && !hasMedia {
 			continue
 		}
 		docs = append(docs, &types.MessageDocument{
@@ -147,7 +172,108 @@ func DocumentsFromMessages(ctx context.Context,
 			UserID:    userID,
 			ChatID:    chatID,
 			Timestamp: int64(message.GetDate()),
+			HasMedia:  hasMedia,
+			MediaMIME: mediaMIME,
+			MediaName: mediaName,
 		})
 	}
 	return docs
+}
+
+func enrichableMediaForChat(enricher types.MediaEnricher, chatID int64, mime, name string, messageType types.MessageType) bool {
+	if perChat, ok := enricher.(types.PerChatMediaEnricher); ok {
+		return perChat.EnrichableMediaForChat(chatID, mime, name, messageType)
+	}
+	return enricher.EnrichableMedia(mime, name, messageType)
+}
+
+// MarkImported marks documents from a cold-history import as background work.
+func MarkImported(docs []*types.MessageDocument) {
+	for _, doc := range docs {
+		if doc != nil {
+			doc.Priority = 1
+		}
+	}
+}
+
+// MediaSize returns the largest known file size of a message's media, or 0
+// when Telegram does not expose it.
+func MediaSize(media tg.MessageMediaClass) int64 {
+	switch m := media.(type) {
+	case *tg.MessageMediaDocument:
+		docClass, ok := m.GetDocument()
+		if !ok {
+			return 0
+		}
+		doc, ok := docClass.AsNotEmpty()
+		if !ok {
+			return 0
+		}
+		return doc.Size
+	case *tg.MessageMediaPhoto:
+		photoClass, ok := m.GetPhoto()
+		if !ok {
+			return 0
+		}
+		photo, ok := photoClass.AsNotEmpty()
+		if !ok {
+			return 0
+		}
+		var size int64
+		for _, class := range photo.Sizes {
+			var current int64
+			switch s := class.(type) {
+			case *tg.PhotoSize:
+				current = int64(s.Size)
+			case *tg.PhotoCachedSize:
+				current = int64(len(s.Bytes))
+			case *tg.PhotoStrippedSize:
+				current = int64(len(s.Bytes))
+			case *tg.PhotoSizeProgressive:
+				if len(s.Sizes) > 0 {
+					current = int64(s.Sizes[len(s.Sizes)-1])
+				}
+			}
+			if current > size {
+				size = current
+			}
+		}
+		return size
+	default:
+		return 0
+	}
+}
+
+// MediaMeta returns the MIME type and original file name of a message's media.
+// Stickers and animations return empty values so they are never downloaded.
+func MediaMeta(media tg.MessageMediaClass) (mime, name string) {
+	switch m := media.(type) {
+	case *tg.MessageMediaPhoto:
+		return "image/jpeg", ""
+	case *tg.MessageMediaDocument:
+		docClass, ok := m.GetDocument()
+		if !ok {
+			return "", ""
+		}
+		doc, ok := docClass.AsNotEmpty()
+		if !ok {
+			return "", ""
+		}
+		if types.IsStickerDocument(doc.GetAttributes()) {
+			return "", ""
+		}
+		mime = doc.GetMimeType()
+		for _, attr := range doc.GetAttributes() {
+			switch a := attr.(type) {
+			case *tg.DocumentAttributeFilename:
+				name = a.GetFileName()
+			case *tg.DocumentAttributeAudio:
+				if a.GetVoice() && mime == "" {
+					mime = "audio/ogg"
+				}
+			}
+		}
+		return types.EffectiveMIME(mime, name), name
+	}
+	return "", ""
 }

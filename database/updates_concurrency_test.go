@@ -117,11 +117,9 @@ func TestInitDatabaseSerializesRecoveryCursorTransactions(t *testing.T) {
 		workers.Wait()
 	})
 	accountDone := make(chan error, 1)
-	workers.Add(1)
-	go func() {
-		defer workers.Done()
+	workers.Go(func() {
 		accountDone <- storage.SetState(ctx, 100, advanced)
-	}()
+	})
 	select {
 	case <-read:
 	case err := <-accountDone:
@@ -131,11 +129,9 @@ func TestInitDatabaseSerializesRecoveryCursorTransactions(t *testing.T) {
 	}
 	waits := sqlDB.Stats().WaitCount
 	channelDone := make(chan error, 1)
-	workers.Add(1)
-	go func() {
-		defer workers.Done()
+	workers.Go(func() {
 		channelDone <- storage.SetChannelPts(ctx, 100, 10, 9)
-	}()
+	})
 	// With multiple connections the channel write owns SQLite's reserved lock;
 	// with one connection it queues before entering its transaction.
 barrier:
@@ -201,11 +197,9 @@ func TestInitDatabaseQueuedRecoveryWritesCanBeCanceled(t *testing.T) {
 		workers.Wait()
 	})
 	accountDone := make(chan error, 1)
-	workers.Add(1)
-	go func() {
-		defer workers.Done()
+	workers.Go(func() {
 		accountDone <- storage.SetState(ctx, 100, advanced)
-	}()
+	})
 	select {
 	case <-read:
 	case err := <-accountDone:
