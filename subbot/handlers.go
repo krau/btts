@@ -60,7 +60,7 @@ func StartHandler(ctx *ext.Context, update *ext.Update) error {
 		return dispatcher.EndGroups
 	}
 	helpTextStyling := make([]styling.StyledTextOption, 0)
-	helpTextStyling = append(helpTextStyling, styling.Bold("发送任意搜索词以搜索以下聊天的消息:\n"))
+	helpTextStyling = append(helpTextStyling, styling.Bold("发送任意搜索词或图片以搜索以下聊天的消息:\n"))
 	for _, chat := range myChats {
 		if chat.Username != "" {
 			helpTextStyling = append(helpTextStyling, styling.TextURL(chat.Title, "https://t.me/"+chat.Username))
@@ -75,8 +75,10 @@ func StartHandler(ctx *ext.Context, update *ext.Update) error {
 
 func SearchHandler(ctx *ext.Context, update *ext.Update) error {
 	query := strings.TrimPrefix(strings.TrimPrefix(update.EffectiveMessage.GetMessage(), "/search"), "@"+ctx.Self.Username)
-	if query == "" {
-		ctx.Reply(update, ext.ReplyTextString("Usage: Send query in PM, or use /search <query> in group"), nil)
+	photo, hasCurrentPhoto := currentPhoto(update)
+	_, hasReplyPhoto := replyPhoto(update)
+	if query == "" && !hasCurrentPhoto && !hasReplyPhoto {
+		ctx.Reply(update, ext.ReplyTextString("Usage: Send a query or photo in PM, use /search <query> in a group, or reply to a photo with /search"), nil)
 		return dispatcher.EndGroups
 	}
 	sbModel, err := database.GetSubBot(ctx, ctx.Self.ID)
@@ -144,7 +146,17 @@ func SearchHandler(ctx *ext.Context, update *ext.Update) error {
 		ChatIDs: chatIDs,
 		Query:   query,
 	}
-	resp, err := engine.GetEngine().Search(ctx, req)
+	if hasCurrentPhoto {
+		if searchByPhoto(ctx, update, photo, req) {
+			return dispatcher.EndGroups
+		}
+	}
+	if query == "" {
+		if searchByReplyPhoto(ctx, update, req) {
+			return dispatcher.EndGroups
+		}
+	}
+	resp, err := executeSearch(ctx, req)
 	if err != nil {
 		log.FromContext(ctx).Errorf("Failed to search: %v", err)
 		ctx.Reply(update, ext.ReplyTextString("Failed to search"), nil)
@@ -224,7 +236,7 @@ func SearchCallbackHandler(ctx *ext.Context, update *ext.Update) error {
 	}
 	offset := (page - 1) * types.PerSearchLimit
 	data.Offset = offset
-	resp, err := engine.GetEngine().Search(ctx, data)
+	resp, err := executeSearch(ctx, data)
 	if err != nil {
 		log.FromContext(ctx).Errorf("Failed to search: %v", err)
 		ctx.AnswerCallback(&tg.MessagesSetBotCallbackAnswerRequest{
@@ -351,7 +363,7 @@ func FilterCallbackHandler(ctx *ext.Context, update *ext.Update) error {
 	data.TypeFilters = newFilter
 	// 重新触发搜索, 从第一页开始
 	data.Offset = 0
-	resp, err := engine.GetEngine().Search(ctx, data)
+	resp, err := executeSearch(ctx, data)
 	if err != nil {
 		log.FromContext(ctx).Errorf("Failed to search: %v", err)
 		ctx.AnswerCallback(&tg.MessagesSetBotCallbackAnswerRequest{

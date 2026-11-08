@@ -118,7 +118,7 @@ func NewSubBot(ctx context.Context, token string, chats []int64) (*SubBot, error
 		tclient.API().BotsSetBotCommands(ctx, &tg.BotsSetBotCommandsRequest{
 			Scope: &tg.BotCommandScopeDefault{},
 			Commands: []tg.BotCommand{
-				{Command: "search", Description: "搜索消息"},
+				{Command: "search", Description: "搜索消息或图片"},
 				{Command: "start", Description: "开始使用"},
 				{Command: "help", Description: "帮助"},
 			},
