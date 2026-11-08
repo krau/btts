@@ -259,7 +259,10 @@ func importTDesktopChat(ctx context.Context, logger *log.Logger, searcher engine
 		}
 	}
 
-	const imageBatchSize = 4
+	imageBatchSize := opts.mediaBatchSize
+	if imageBatchSize <= 0 {
+		imageBatchSize = 4
+	}
 	tasks := make([]mediaTask, 0, len(otherItems)+len(imageItems)/imageBatchSize+1)
 	for start := 0; start < len(imageItems); start += imageBatchSize {
 		end := min(start+imageBatchSize, len(imageItems))
@@ -327,10 +330,7 @@ func importTDesktopChat(ctx context.Context, logger *log.Logger, searcher engine
 		enriched.Add(1)
 	}
 
-	workerCount := opts.mediaWorkers
-	if workerCount > len(tasks) {
-		workerCount = len(tasks)
-	}
+	workerCount := min(opts.mediaWorkers, len(tasks))
 	if workerCount < 1 && len(tasks) > 0 {
 		workerCount = 1
 	}
