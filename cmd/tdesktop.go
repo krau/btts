@@ -266,7 +266,8 @@ func importTDesktopChat(ctx context.Context, logger *log.Logger, searcher engine
 	tasks := make([]mediaTask, 0, len(otherItems)+len(imageItems)/imageBatchSize+1)
 	for start := 0; start < len(imageItems); start += imageBatchSize {
 		end := min(start+imageBatchSize, len(imageItems))
-		tasks = append(tasks, mediaTask{items: imageItems[start:end], batch: true})
+		items := imageItems[start:end]
+		tasks = append(tasks, mediaTask{items: items, batch: len(items) > 1})
 	}
 	for _, item := range otherItems {
 		tasks = append(tasks, mediaTask{items: []pendingMedia{item}})

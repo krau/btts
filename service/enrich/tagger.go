@@ -89,6 +89,13 @@ func (t *taggerClient) TagImages(ctx context.Context, data [][]byte) ([][]string
 	if len(data) == 0 {
 		return nil, nil
 	}
+	if len(data) == 1 {
+		tags, err := t.TagImage(ctx, data[0])
+		if err != nil {
+			return nil, err
+		}
+		return [][]string{tags}, nil
+	}
 	var body bytes.Buffer
 	writer := multipart.NewWriter(&body)
 	for i, image := range data {

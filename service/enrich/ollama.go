@@ -146,6 +146,13 @@ func (c *ollamaClient) EmbedImagesWithTexts(ctx context.Context, texts []string,
 	if len(texts) != len(data) {
 		return nil, fmt.Errorf("got %d texts for %d images", len(texts), len(data))
 	}
+	if len(data) == 1 {
+		vector, err := c.EmbedImageWithText(ctx, texts[0], data[0])
+		if err != nil {
+			return nil, err
+		}
+		return [][]float32{vector}, nil
+	}
 	inputs := make([]map[string]any, len(data))
 	for i, image := range data {
 		item := map[string]any{"image": base64.StdEncoding.EncodeToString(image)}
