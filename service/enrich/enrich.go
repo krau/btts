@@ -45,6 +45,7 @@ type Engine struct {
 	tagger       *taggerClient
 	media        *mediaIndex
 	mediaGate    *mediaGate
+	queryGate    *mediaGate
 	pdf          *pdfExtractor
 	maxAttempts  int
 	retryBackoff time.Duration
@@ -178,15 +179,17 @@ func wrap(ctx context.Context, inner engine.Searcher, fetcher MediaFetcher, star
 				counts[database.EnrichJobDone], counts[database.EnrichJobDead])
 		}
 		enrichEngine.mediaGate = newMediaGate(cfg.Enrich.MediaEnrichPerSec, cfg.Enrich.MediaEnrichConcurrency)
+		enrichEngine.queryGate = newMediaGate(cfg.Enrich.MediaQueryPerSec, cfg.Enrich.MediaQueryConcurrency)
 		workers = cfg.Enrich.Workers
 		for range workers {
 			go enrichEngine.worker(ctx)
 		}
 	}
-	logger.Infof("Enrichment enabled (embedder=%t tagger=%t media=%t pdf=%t video=%t workers=%d media_rate=%g/s media_concurrency=%d)",
+	logger.Infof("Enrichment enabled (embedder=%t tagger=%t media=%t pdf=%t video=%t workers=%d enrich_rate=%g/s enrich_concurrency=%d query_rate=%g/s query_concurrency=%d)",
 		enrichEngine.embedder != nil, enrichEngine.tagger != nil, enrichEngine.media != nil,
 		enrichEngine.pdf != nil, enrichEngine.cfg.Enrich.Embedder.VideoEnable, workers,
-		enrichEngine.cfg.Enrich.MediaEnrichPerSec, enrichEngine.cfg.Enrich.MediaEnrichConcurrency)
+		enrichEngine.cfg.Enrich.MediaEnrichPerSec, enrichEngine.cfg.Enrich.MediaEnrichConcurrency,
+		enrichEngine.cfg.Enrich.MediaQueryPerSec, enrichEngine.cfg.Enrich.MediaQueryConcurrency)
 	return enrichEngine, nil
 }
 
@@ -445,6 +448,11 @@ func (e *Engine) searchMediaVector(ctx context.Context, req types.SearchRequest,
 		return nil, fmt.Errorf("unsupported media query kind %q", queryKind)
 	}
 	vector, err := e.cachedQueryVector(ctx, queryKind, req.Query, data, func() ([]float32, error) {
+		release, err := e.queryGate.acquire(ctx)
+		if err != nil {
+			return nil, err
+		}
+		defer release()
 		switch queryKind {
 		case "image":
 			return e.embedder.EmbedImageWithText(ctx, req.Query, data)

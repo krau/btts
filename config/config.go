@@ -68,6 +68,8 @@ type AppConfig struct {
 		MediaFetchConcurrency  int           `toml:"media_fetch_concurrency" mapstructure:"media_fetch_concurrency"`
 		MediaEnrichPerSec      float64       `toml:"media_enrich_per_second" mapstructure:"media_enrich_per_second"`
 		MediaEnrichConcurrency int           `toml:"media_enrich_concurrency" mapstructure:"media_enrich_concurrency"`
+		MediaQueryPerSec       float64       `toml:"media_query_per_second" mapstructure:"media_query_per_second"`
+		MediaQueryConcurrency  int           `toml:"media_query_concurrency" mapstructure:"media_query_concurrency"`
 		MediaFetchRetries      int           `toml:"media_fetch_retries" mapstructure:"media_fetch_retries"`
 		FloodWaitExtra         time.Duration `toml:"flood_wait_extra" mapstructure:"flood_wait_extra"`
 		Embedder               struct {
@@ -136,6 +138,8 @@ func Init() {
 	viper.SetDefault("enrich.media_fetch_concurrency", 1)
 	viper.SetDefault("enrich.media_enrich_per_second", 1.0)
 	viper.SetDefault("enrich.media_enrich_concurrency", 1)
+	viper.SetDefault("enrich.media_query_per_second", 1.0)
+	viper.SetDefault("enrich.media_query_concurrency", 1)
 	viper.SetDefault("enrich.media_fetch_retries", 3)
 	viper.SetDefault("enrich.flood_wait_extra", "5s")
 	viper.SetDefault("enrich.embedder.media_name", "btts_media")
@@ -198,6 +202,12 @@ func normalize() {
 	}
 	if enrich.MediaEnrichPerSec < 0 {
 		enrich.MediaEnrichPerSec = 0
+	}
+	if enrich.MediaQueryConcurrency <= 0 {
+		enrich.MediaQueryConcurrency = 1
+	}
+	if enrich.MediaQueryPerSec < 0 {
+		enrich.MediaQueryPerSec = 0
 	}
 	if enrich.MediaFetchRetries <= 0 {
 		enrich.MediaFetchRetries = 3

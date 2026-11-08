@@ -42,27 +42,97 @@ func currentPhoto(update *ext.Update) (*tg.MessageMediaPhoto, bool) {
 	return photo, ok
 }
 
+func imageSearchWait(ctx *ext.Context, update *ext.Update) int {
+	msg, err := ctx.Reply(update, ext.ReplyTextString("🔎 正在以图搜图，请稍候..."), nil)
+	if err != nil {
+		log.FromContext(ctx).Debugf("Send image search wait message: %v", err)
+		return 0
+	}
+	if msg == nil {
+		return 0
+	}
+	return msg.ID
+}
+
+func editImageSearchText(ctx *ext.Context, update *ext.Update, messageID int, text string) bool {
+	if messageID == 0 {
+		return false
+	}
+	_, err := ctx.EditMessage(update.EffectiveChat().GetID(), &tg.MessagesEditMessageRequest{
+		ID:      messageID,
+		Message: text,
+	})
+	if err != nil {
+		log.FromContext(ctx).Debugf("Edit image search wait message: %v", err)
+		return false
+	}
+	return true
+}
+
+func editImageSearchResults(ctx *ext.Context, update *ext.Update, messageID int, req types.SearchRequest, resp *types.SearchResponse) bool {
+	if messageID == 0 {
+		return false
+	}
+	markup, err := utils.BuildSearchReplyMarkup(ctx, 1, req)
+	if err != nil {
+		log.FromContext(ctx).Errorf("Failed to build reply markup: %v", err)
+		return false
+	}
+	eb := entity.Builder{}
+	if err := styling.Perform(&eb, utils.BuildResultStyling(ctx, resp, bi.GetUsername())...); err != nil {
+		log.FromContext(ctx).Errorf("Failed to build image search results: %v", err)
+		return false
+	}
+	text, entities := eb.Complete()
+	editReq := &tg.MessagesEditMessageRequest{ID: messageID}
+	editReq.SetMessage(text)
+	editReq.SetEntities(entities)
+	editReq.SetReplyMarkup(markup)
+	if _, err := ctx.EditMessage(update.EffectiveChat().GetID(), editReq); err != nil {
+		log.FromContext(ctx).Errorf("Edit image search results: %v", err)
+		return false
+	}
+	return true
+}
+
+func replyImageSearchText(ctx *ext.Context, update *ext.Update, messageID int, text string) {
+	if editImageSearchText(ctx, update, messageID, text) {
+		return
+	}
+	if messageID != 0 {
+		_ = ctx.DeleteMessages(update.EffectiveChat().GetID(), []int{messageID})
+	}
+	ctx.Reply(update, ext.ReplyTextString(text), nil)
+}
+
 func searchByPhoto(ctx *ext.Context, update *ext.Update, photo *tg.MessageMediaPhoto, req types.SearchRequest) bool {
 	if !bi.Engine.Capabilities().ImageSearch {
 		ctx.Reply(update, ext.ReplyTextString("Image search is not enabled"), nil)
 		return true
 	}
+	waitMessageID := imageSearchWait(ctx, update)
 	var buf bytes.Buffer
 	if _, err := ctx.DownloadMedia(photo, ext.DownloadOutputStream{Writer: &buf}, nil); err != nil {
 		log.FromContext(ctx).Errorf("Failed to download query photo: %v", err)
-		ctx.Reply(update, ext.ReplyTextString("Failed to read the query photo"), nil)
+		replyImageSearchText(ctx, update, waitMessageID, "Failed to read the query photo")
 		return true
 	}
 	req.ImageData = buf.Bytes()
 	resp, err := bi.Engine.SearchImage(ctx, req, req.ImageData)
 	if err != nil {
 		log.FromContext(ctx).Errorf("Image search failed: %v", err)
-		ctx.Reply(update, ext.ReplyTextString("Image search is not available: "+err.Error()), nil)
+		replyImageSearchText(ctx, update, waitMessageID, "Image search is not available: "+err.Error())
 		return true
 	}
-	if len(resp.Hits) == 0 {
-		ctx.Reply(update, ext.ReplyTextString("No results found"), nil)
+	if resp == nil || len(resp.Hits) == 0 {
+		replyImageSearchText(ctx, update, waitMessageID, "No results found")
 		return true
+	}
+	if editImageSearchResults(ctx, update, waitMessageID, req, resp) {
+		return true
+	}
+	if waitMessageID != 0 {
+		_ = ctx.DeleteMessages(update.EffectiveChat().GetID(), []int{waitMessageID})
 	}
 	if err := replySearchResults(ctx, update, req, resp); err != nil && !errors.Is(err, dispatcher.EndGroups) {
 		log.FromContext(ctx).Errorf("Reply image search results: %v", err)
