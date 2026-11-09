@@ -58,6 +58,11 @@ func (u *UserClient) GetContext() *ext.Context {
 
 func (u *UserClient) StartWatch(ctx context.Context) {
 	disp := u.TClient.Dispatcher
+	if config.C.Plugin.Enable {
+		if err := plugin.LoadJSPlugins(); err != nil {
+			log.FromContext(ctx).Error("Failed to load JS plugins", "error", err)
+		}
+	}
 	disp.AddHandlerToGroup(handlers.NewAnyUpdate(func(ctx *ext.Context, u *ext.Update) error {
 		switch update := u.UpdateClass.(type) {
 		case *tg.UpdateDeleteChannelMessages:
