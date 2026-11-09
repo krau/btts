@@ -14,6 +14,7 @@ import (
 	"github.com/krau/btts/config"
 	"github.com/krau/btts/database"
 	"github.com/krau/btts/engine"
+	"github.com/krau/btts/service/agent"
 	"github.com/krau/btts/service/enrich"
 	"github.com/krau/btts/userclient"
 )
@@ -64,6 +65,15 @@ func run() error {
 		return fmt.Errorf("initialize enrichment: %w", err)
 	}
 	engine.SetEngine(searcher)
+
+	agentService, err := agent.New(ctx, searcher)
+	if err != nil {
+		return fmt.Errorf("initialize search agent: %w", err)
+	}
+	if agentService != nil {
+		agentService.SetMediaLoader(agentMediaLoader{})
+	}
+	agent.SetDefault(agentService)
 
 	bot, err := bot.NewBot(ctx, userClient, searcher)
 	if err != nil {

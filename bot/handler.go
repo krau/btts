@@ -39,6 +39,7 @@ type commandHandler struct {
 var commandHandlers = []commandHandler{
 	{StartHandler, "start", "开始使用"},
 	{SearchHandler, "search", "搜索消息"},
+	{AskHandler, "ask", "用 Agent 搜索并回答"},
 	{ListHandler, "ls", "列出已索引聊天"},
 	{AddHandler, "add", "添加聊天到索引，可选 noenrich"},
 	{AddTakeoutHandler, "addtakeout", "用 Takeout API 添加大频道，可选 noenrich"},
@@ -96,6 +97,7 @@ func (b *Bot) RegisterHandlers(ctx context.Context) {
 		Scope: &tg.BotCommandScopeDefault{},
 		Commands: []tg.BotCommand{
 			{Command: "search", Description: "搜索消息"},
+			{Command: "ask", Description: "用 Agent 搜索并回答"},
 			{Command: "ls", Description: "列出已索引聊天"},
 			{Command: "start", Description: "开始使用"},
 			{Command: "help", Description: "帮助"},

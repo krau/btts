@@ -103,6 +103,21 @@ type AppConfig struct {
 			MaxChars  int    `toml:"max_chars" mapstructure:"max_chars"`
 		} `toml:"documents" mapstructure:"documents"`
 	} `toml:"enrich" mapstructure:"enrich"`
+	Agent struct {
+		Enable          bool          `toml:"enable" mapstructure:"enable"`
+		Provider        string        `toml:"provider" mapstructure:"provider"` // gemini, openai, or ollama
+		Model           string        `toml:"model" mapstructure:"model"`
+		APIKey          string        `toml:"api_key" mapstructure:"api_key"`
+		BaseURL         string        `toml:"base_url" mapstructure:"base_url"`
+		API             string        `toml:"api" mapstructure:"api"` // responses or chat_completions
+		MaxLLMCalls     int           `toml:"max_llm_calls" mapstructure:"max_llm_calls"`
+		MaxResults      int           `toml:"max_results" mapstructure:"max_results"`
+		MaxConcurrency  int           `toml:"max_concurrency" mapstructure:"max_concurrency"`
+		MaxOutputTokens int           `toml:"max_output_tokens" mapstructure:"max_output_tokens"`
+		MaxAnswerChars  int           `toml:"max_answer_chars" mapstructure:"max_answer_chars"`
+		ReasoningLevel  string        `toml:"reasoning_level" mapstructure:"reasoning_level"`
+		Timeout         time.Duration `toml:"timeout" mapstructure:"timeout"`
+	} `toml:"agent" mapstructure:"agent"`
 }
 
 var C AppConfig
@@ -160,6 +175,16 @@ func Init() {
 	viper.SetDefault("enrich.documents.pdftotext", "pdftotext")
 	viper.SetDefault("enrich.documents.max_size_mb", 20)
 	viper.SetDefault("enrich.documents.max_chars", 12000)
+	viper.SetDefault("agent.enable", false)
+	viper.SetDefault("agent.provider", "gemini")
+	viper.SetDefault("agent.model", "gemini-flash-latest")
+	viper.SetDefault("agent.max_llm_calls", 8)
+	viper.SetDefault("agent.max_results", 8)
+	viper.SetDefault("agent.max_concurrency", 2)
+	viper.SetDefault("agent.max_output_tokens", 2048)
+	viper.SetDefault("agent.max_answer_chars", 4000)
+	viper.SetDefault("agent.reasoning_level", "low")
+	viper.SetDefault("agent.timeout", "90s")
 
 	if err := viper.ReadInConfig(); err != nil {
 		log.Fatalf("Error reading config file, %s", err)
@@ -244,6 +269,48 @@ func normalize() {
 	}
 	if enrich.Documents.MaxChars <= 0 {
 		enrich.Documents.MaxChars = 12000
+	}
+	agent := &C.Agent
+	if agent.Provider == "" {
+		agent.Provider = "gemini"
+	}
+	if agent.Model == "" {
+		if strings.EqualFold(agent.Provider, "gemini") {
+			agent.Model = "gemini-flash-latest"
+		}
+	}
+	if agent.API == "" {
+		agent.API = "responses"
+	}
+	if agent.MaxLLMCalls <= 0 {
+		agent.MaxLLMCalls = 8
+	}
+	if agent.MaxResults <= 0 {
+		agent.MaxResults = 8
+	}
+	if agent.MaxResults > 50 {
+		agent.MaxResults = 50
+	}
+	if agent.MaxConcurrency <= 0 {
+		agent.MaxConcurrency = 1
+	}
+	if agent.MaxOutputTokens <= 0 {
+		agent.MaxOutputTokens = 2048
+	}
+	if agent.MaxAnswerChars <= 0 {
+		agent.MaxAnswerChars = 4000
+	}
+	if agent.ReasoningLevel == "" {
+		agent.ReasoningLevel = "low"
+	}
+	if agent.Timeout <= 0 {
+		agent.Timeout = 90 * time.Second
+	}
+	if agent.Enable && agent.Model == "" {
+		log.Fatal("agent.model is required when agent is enabled")
+	}
+	if agent.Enable && agent.Provider == "" {
+		log.Fatal("agent.provider is required when agent is enabled")
 	}
 	if C.Enrich.Enable && C.Enrich.Embedder.Enable {
 		if C.Enrich.Embedder.URL == "" {

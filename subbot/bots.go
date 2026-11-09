@@ -33,6 +33,7 @@ func (s *SubBot) Start() {
 	disp.AddHandler(handlers.NewCommand("start", StartHandler))
 	disp.AddHandler(handlers.NewCommand("help", StartHandler))
 	disp.AddHandler(handlers.NewCommand("search", SearchHandler))
+	disp.AddHandler(handlers.NewCommand("ask", AskHandler))
 	disp.AddHandler(handlers.NewCallbackQuery(filters.CallbackQuery.Prefix("search"), SearchCallbackHandler))
 	disp.AddHandler(handlers.NewCallbackQuery(filters.CallbackQuery.Prefix("filter"), FilterCallbackHandler))
 	disp.AddHandler(handlers.NewMessage(filters.Message.ChatType(filters.ChatTypeUser), SearchHandler))
@@ -119,6 +120,7 @@ func NewSubBot(ctx context.Context, token string, chats []int64) (*SubBot, error
 			Scope: &tg.BotCommandScopeDefault{},
 			Commands: []tg.BotCommand{
 				{Command: "search", Description: "搜索消息或图片"},
+				{Command: "ask", Description: "用 Agent 搜索并回答"},
 				{Command: "start", Description: "开始使用"},
 				{Command: "help", Description: "帮助"},
 			},

@@ -94,6 +94,22 @@ enable = false
 pdftotext = "pdftotext"
 max_size_mb = 20
 max_chars = 12000
+
+# ReAct 搜索 Agent（默认关闭）
+[agent]
+enable = false
+provider = "gemini"                 # gemini、openai 或 ollama
+model = "gemini-flash-latest"       # Ollama 示例：qwen3:8b（必须支持 tools）
+api_key = ""                        # Gemini/OpenAI key；Ollama 可留空
+base_url = ""                       # OpenAI 兼容端点；Ollama 示例：http://127.0.0.1:11434/v1
+api = "responses"                   # responses 或 chat_completions；Ollama 固定使用 chat_completions
+max_llm_calls = 8                   # 单次 Agent 运行最多模型调用次数
+max_results = 8                     # 单次工具搜索最多返回条数（工具输出还会截断）
+max_concurrency = 2                 # 同时运行的 Agent 查询数
+max_output_tokens = 2048            # 单次模型调用输出预算，含 reasoning
+max_answer_chars = 4000             # 最终回答长度上限
+reasoning_level = "low"             # local gateway/Gemini 的 reasoning 级别
+timeout = "90s"
 ```
 
 行为说明：
@@ -245,6 +261,8 @@ key = "qwqowo" # api 密钥, 访问时需要提供
 第一次启动时, 会要求输入手机号登录账号.
 
 启动时会恢复离线期间的更新；恢复初始化失败会停止程序并报告错误，不会继续显示启动成功。请排除错误后重新启动。
+
+/ask <自然语言请求> - 使用 ReAct Agent 分析搜索意图、拆解过滤条件、调用内部搜索工具并基于结果回答
 
 /add - 添加一个聊天进行索引, 会自动监听聊天的新消息
 
