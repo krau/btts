@@ -444,7 +444,9 @@ func (m *Meilisearch) Search(ctx context.Context, req types.SearchRequest) (*typ
 	} else {
 		request.Filter = expr
 	}
-	if req.Query == "" {
+	if len(req.Sort) > 0 {
+		request.Sort = req.Sort
+	} else if req.Query == "" {
 		// 按时间排序
 		request.Sort = []string{"timestamp:desc"}
 	}

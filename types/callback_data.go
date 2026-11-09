@@ -17,6 +17,8 @@ type SearchRequest struct {
 	Tags        []string      `json:"tags,omitempty"`
 	TagMatch    string        `json:"tag_match,omitempty"` // "any" (default) or "all"
 	Mode        string        `json:"mode,omitempty"`      // ""/hybrid, "keyword", "media"
+	// Sort is forwarded to Meilisearch, e.g. ["timestamp:desc"].
+	Sort []string `json:"sort,omitempty"`
 	// Modality restricts media vectors to a target: "", "all", "text", "image", "audio", "video".
 	Modality          string `json:"modality,omitempty"`
 	DisableOcred      bool   `json:"disable_ocred"`      // 不搜索 OCR 文字
