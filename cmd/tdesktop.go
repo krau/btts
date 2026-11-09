@@ -29,6 +29,7 @@ type tdesktopOptions struct {
 	noMedia        bool
 	mediaWorkers   int
 	mediaBatchSize int
+	keepExisting   bool
 }
 
 func RegisterTDesktopCmd(root *cobra.Command) {
@@ -40,7 +41,8 @@ func RegisterTDesktopCmd(root *cobra.Command) {
 The path may point to result.json or to the export directory. Both single-chat
 and full-account exports are supported. Local media files are enriched inline
 when enrichment is enabled; use --no-media to index text only. Imported chats
-are watched by default; use --nowatch to keep their existing watch state.`,
+are watched by default; use --nowatch to keep their existing watch state.
+Existing documents for each chat are replaced unless --keep-existing is given.`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runTDesktopImport(cmd.Context(), args[0], opts)
@@ -50,6 +52,7 @@ are watched by default; use --nowatch to keep their existing watch state.`,
 	cmd.Flags().BoolVar(&opts.noMedia, "no-media", false, "Index messages only; do not read or enrich local media")
 	cmd.Flags().IntVar(&opts.mediaWorkers, "media-workers", 1, "Concurrent offline media workers")
 	cmd.Flags().IntVar(&opts.mediaBatchSize, "media-batch-size", 4, "Images per batch (max 16)")
+	cmd.Flags().BoolVar(&opts.keepExisting, "keep-existing", false, "Keep documents already in the index instead of replacing the chat")
 	root.AddCommand(cmd)
 }
 
@@ -151,6 +154,12 @@ func importTDesktopChat(ctx context.Context, logger *log.Logger, searcher engine
 	}
 	if err := searcher.CreateIndex(ctx, chatID); err != nil {
 		return 0, 0, fmt.Errorf("create index: %w", err)
+	}
+	if !opts.keepExisting {
+		if err := searcher.DeleteIndex(ctx, chatID); err != nil {
+			return 0, 0, fmt.Errorf("clear existing documents for chat %d: %w", chatID, err)
+		}
+		logger.Infof("Replacing existing documents for chat %d", chatID)
 	}
 	if err := database.UpsertIndexChat(ctx, indexChat); err != nil {
 		return 0, 0, fmt.Errorf("save chat metadata: %w", err)

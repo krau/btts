@@ -4,12 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 
 	"github.com/charmbracelet/log"
 	"github.com/krau/btts/config"
 	"github.com/krau/btts/database"
 	"github.com/krau/btts/engine/meili"
-	"github.com/krau/btts/types"
 	"github.com/meilisearch/meilisearch-go"
 	"github.com/spf13/cobra"
 )
@@ -92,7 +92,7 @@ func MigrateToV1(ctx context.Context, dropOld bool) error {
 	for _, chatID := range chats {
 		logger.Info("Migrating chat", "chat_id", chatID)
 		oldIndex := client.Index(indexKey(chatID))
-		if err := migrateChat(ctx, oldIndex, newIndex); err != nil {
+		if err := migrateChat(ctx, chatID, oldIndex, newIndex); err != nil {
 			return fmt.Errorf("failed to migrate chat %d: %w", chatID, err)
 		}
 		if dropOld {
@@ -109,7 +109,7 @@ func MigrateToV1(ctx context.Context, dropOld bool) error {
 	return nil
 }
 
-func migrateChat(ctx context.Context, oldIndex, newIndex meilisearch.IndexManager) error {
+func migrateChat(ctx context.Context, chatID int64, oldIndex, newIndex meilisearch.IndexManager) error {
 	logger := log.FromContext(ctx)
 	stats, err := oldIndex.GetStatsWithContext(ctx, &meilisearch.StatsParams{})
 	if err != nil {
@@ -119,8 +119,16 @@ func migrateChat(ctx context.Context, oldIndex, newIndex meilisearch.IndexManage
 	if total == 0 {
 		return nil
 	}
-	logger.Info("Migrating documents", "total", total)
+	// The destination may contain documents from an earlier migration. Replace
+	// the chat instead of merging, otherwise stale primary keys survive.
+	if _, err := newIndex.DeleteDocumentsByFilterWithContext(
+		ctx, fmt.Sprintf("chat_id = %d", chatID), nil,
+	); err != nil {
+		return fmt.Errorf("clear existing documents for chat %d: %w", chatID, err)
+	}
+	logger.Info("Migrating documents", "total", total, "chat_id", chatID)
 	offset, batchSize := int64(0), int64(1000)
+	skipped := 0
 	for {
 		var resp meilisearch.DocumentsResult
 		err := oldIndex.GetDocumentsWithContext(ctx, &meilisearch.DocumentsQuery{
@@ -141,33 +149,73 @@ func migrateChat(ctx context.Context, oldIndex, newIndex meilisearch.IndexManage
 		if err != nil {
 			return fmt.Errorf("failed to marshal documents: %w", err)
 		}
-		hits := make([]*types.MessageDocument, 0, len(resp.Results))
+		hits := make([]*legacyDocument, 0, len(resp.Results))
 		err = json.Unmarshal(hitBytes, &hits)
 		if err != nil {
 			return fmt.Errorf("failed to unmarshal documents: %w", err)
 		}
 		newDocs := make([]*meili.MeilisearchMessageDocument, 0, len(hits))
 		for _, hit := range hits {
-			newID := fmt.Sprintf("%d_%d", hit.ChatID, hit.ID)
+			messageID := hit.telegramMessageID()
+			// The legacy index's primary key was not always the Telegram
+			// message ID (Cantor pairing or an auto-assigned id). Only the
+			// message_id field is trustworthy when it is present.
+			if messageID <= 0 || messageID > math.MaxInt32 {
+				skipped++
+				logger.Warn("Skipping legacy document without a valid message id",
+					"chat_id", chatID, "legacy_id", hit.ID, "message_id", hit.MessageID)
+				continue
+			}
 			newDocs = append(newDocs, &meili.MeilisearchMessageDocument{
-				ID:          newID,
+				ID:          fmt.Sprintf("%d_%d", chatID, messageID),
 				Type:        hit.Type,
 				Message:     hit.Message,
 				Ocred:       hit.Ocred,
 				AIGenerated: hit.AIGenerated,
+				Tags:        hit.Tags,
+				Extracted:   hit.Extracted,
 				UserID:      hit.UserID,
-				ChatID:      hit.ChatID,
+				ChatID:      chatID,
+				MessageID:   messageID,
 				Timestamp:   hit.Timestamp,
-				MessageID:   hit.ID,
 			})
 		}
-		_, err = newIndex.AddDocumentsWithContext(ctx, newDocs, &meilisearch.DocumentOptions{
-			PrimaryKey: new("id"),
-		})
-		if err != nil {
-			return fmt.Errorf("failed to update documents: %w", err)
+		if len(newDocs) > 0 {
+			_, err = newIndex.AddDocumentsWithContext(ctx, newDocs, &meilisearch.DocumentOptions{
+				PrimaryKey: new("id"),
+			})
+			if err != nil {
+				return fmt.Errorf("failed to update documents: %w", err)
+			}
 		}
 		offset += batchSize
 	}
+	if skipped > 0 {
+		logger.Warn("Skipped legacy documents", "chat_id", chatID, "count", skipped)
+	}
 	return nil
+}
+
+type legacyDocument struct {
+	// ID was the primary key of the old per-chat index. It was a message id
+	// before the Cantor-pairing scheme, and a Cantor pair or auto id after it.
+	ID          int64    `json:"id"`
+	Type        int      `json:"type"`
+	Message     string   `json:"message"`
+	Ocred       string   `json:"ocred"`
+	AIGenerated string   `json:"aigenerated"`
+	Tags        []string `json:"tags,omitempty"`
+	Extracted   string   `json:"extracted,omitempty"`
+	UserID      int64    `json:"user_id"`
+	ChatID      int64    `json:"chat_id"`
+	// MessageID is the Telegram message id used by the Cantor-era documents.
+	MessageID int64 `json:"message_id"`
+	Timestamp int64 `json:"timestamp"`
+}
+
+func (d legacyDocument) telegramMessageID() int64 {
+	if d.MessageID > 0 {
+		return d.MessageID
+	}
+	return d.ID
 }
