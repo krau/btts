@@ -43,7 +43,7 @@ func currentPhoto(update *ext.Update) (*tg.MessageMediaPhoto, bool) {
 }
 
 func imageSearchWait(ctx *ext.Context, update *ext.Update) int {
-	msg, err := ctx.Reply(update, ext.ReplyTextString("🔎 正在以图搜图，请稍候..."), nil)
+	msg, err := ctx.Reply(update, ext.ReplyTextString("🔎 正在搜索，请稍候..."), nil)
 	if err != nil {
 		log.FromContext(ctx).Debugf("Send image search wait message: %v", err)
 		return 0
