@@ -340,6 +340,8 @@ max_llm_calls = 8
 max_results = 8
 max_concurrency = 2
 max_output_tokens = 2048
+# 模型最大上下文长度（tokens），按模型实际能力填写
+max_context_tokens = 131072
 max_answer_chars = 4000
 reasoning_level = "high"
 timeout = "90s"

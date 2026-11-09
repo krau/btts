@@ -20,6 +20,7 @@ import (
 
 	"github.com/krau/btts/config"
 	"github.com/krau/btts/engine"
+	"github.com/krau/btts/utils/cache"
 )
 
 const appName = "btts_search_agent"
@@ -30,6 +31,13 @@ type Scope struct {
 	UserID         string
 	AllowedChatIDs []int64
 	CurrentChatID  int64
+	ConversationID string
+}
+
+// Attachment is an inline file supplied by the user with the question.
+type Attachment struct {
+	Data []byte
+	MIME string
 }
 
 // Service runs a ReAct-style search agent with tools backed by the local
@@ -130,6 +138,11 @@ func newModel(ctx context.Context, cfg config.AppConfig) (model.LLM, error) {
 
 // Answer runs one bounded ReAct loop and returns the final assistant text.
 func (s *Service) Answer(ctx context.Context, query string, scope Scope) (string, error) {
+	return s.AnswerWithAttachments(ctx, query, scope, nil)
+}
+
+// AnswerWithAttachments runs the agent with inline user attachments such as images.
+func (s *Service) AnswerWithAttachments(ctx context.Context, query string, scope Scope, attachments []Attachment) (string, error) {
 	if s == nil {
 		return "", errors.New("agent is not enabled")
 	}
@@ -142,6 +155,26 @@ func (s *Service) Answer(ctx context.Context, query string, scope Scope) (string
 	}
 	if scope.UserID == "" {
 		scope.UserID = "anonymous"
+	}
+	conversationID := strings.TrimSpace(scope.ConversationID)
+	if conversationID == "" {
+		conversationID = xid.New().String()
+	}
+	state := loadConversation(conversationID)
+	maxContextTokens := s.cfg.Agent.MaxContextTokens
+	if maxContextTokens <= 0 {
+		maxContextTokens = 131072
+	}
+	reserveTokens := s.cfg.Agent.MaxOutputTokens
+	if reserveTokens < 0 {
+		reserveTokens = 0
+	}
+	contextReset := false
+	if state.ContextTokens > 0 && state.ContextTokens >= maxContextTokens-reserveTokens {
+		log.FromContext(ctx).Infof("Agent conversation %s reached context budget (%d/%d tokens); starting fresh context", conversationID, state.ContextTokens, maxContextTokens)
+		state = conversationState{}
+		contextReset = true
+		_ = cache.Set(conversationCacheKey(conversationID), state, cache.DefaultTTL)
 	}
 
 	select {
@@ -187,17 +220,34 @@ func (s *Service) Answer(ctx context.Context, query string, scope Scope) (string
 	if scope.CurrentChatID != 0 {
 		scopeText += fmt.Sprintf("Current chat ID: %d\n", scope.CurrentChatID)
 	}
-	userContent := genai.NewContentFromParts([]*genai.Part{
-		genai.NewPartFromText(scopeText),
-		genai.NewPartFromText(query),
-	}, genai.RoleUser)
+	parts := []*genai.Part{genai.NewPartFromText(scopeText)}
+	if historyText := formatConversation(state.Turns); historyText != "" {
+		parts = append(parts, genai.NewPartFromText(historyText))
+	}
+	parts = append(parts, genai.NewPartFromText(query))
+	for i, attachment := range attachments {
+		if i >= 2 || len(attachment.Data) == 0 {
+			break
+		}
+		mime := strings.TrimSpace(attachment.MIME)
+		if mime == "" {
+			mime = "image/jpeg"
+		}
+		parts = append(parts, genai.NewPartFromBytes(attachment.Data, mime))
+	}
+	userContent := genai.NewContentFromParts(parts, genai.RoleUser)
 	var answer string
+	contextTokens := 0
 	for event, runErr := range r.Run(ctx, scope.UserID, sessionID, userContent, adkagent.RunConfig{
 		MaxLLMCalls: s.cfg.Agent.MaxLLMCalls,
 	}) {
 		if runErr != nil {
 			if errors.Is(runErr, adkagent.ErrLLMCallsLimitExceeded) {
 				if fallback := toolset.fallbackAnswer(); fallback != "" {
+					if contextReset {
+						fallback = contextResetNotice() + fallback
+					}
+					rememberConversation(conversationID, query, fallback, contextTokens)
 					return fallback, nil
 				}
 			}
@@ -205,6 +255,12 @@ func (s *Service) Answer(ctx context.Context, query string, scope Scope) (string
 		}
 		if event == nil {
 			continue
+		}
+		if usage := event.LLMResponse.UsageMetadata; usage != nil {
+			contextTokens = int(usage.TotalTokenCount)
+			if contextTokens == 0 {
+				contextTokens = int(usage.PromptTokenCount + usage.CandidatesTokenCount + usage.ToolUsePromptTokenCount + usage.ThoughtsTokenCount)
+			}
 		}
 		if event.LLMResponse.ErrorMessage != "" {
 			return "", fmt.Errorf("agent model: %s", event.LLMResponse.ErrorMessage)
@@ -231,7 +287,60 @@ func (s *Service) Answer(ctx context.Context, query string, scope Scope) (string
 		maxAnswerChars = 4000
 	}
 	answer = truncateRunes(answer, maxAnswerChars)
+	if contextReset {
+		answer = contextResetNotice() + answer
+	}
+	rememberConversation(conversationID, query, answer, contextTokens)
 	return answer, nil
+}
+
+func contextResetNotice() string {
+	return "(上下文已达到上限，已开始新的对话上下文。)\n\n"
+}
+
+type conversationTurn struct {
+	Query  string
+	Answer string
+}
+
+type conversationState struct {
+	Turns         []conversationTurn
+	ContextTokens int
+}
+
+func conversationCacheKey(conversationID string) string {
+	return "agent-conversation:" + conversationID
+}
+
+func loadConversation(conversationID string) conversationState {
+	state, ok := cache.Get[conversationState](conversationCacheKey(conversationID))
+	if !ok {
+		return conversationState{}
+	}
+	return state
+}
+
+func rememberConversation(conversationID, query, answer string, contextTokens int) {
+	state := loadConversation(conversationID)
+	state.Turns = append(state.Turns, conversationTurn{Query: query, Answer: answer})
+	state.ContextTokens = contextTokens
+	_ = cache.Set(conversationCacheKey(conversationID), state, cache.DefaultTTL)
+}
+
+func formatConversation(turns []conversationTurn) string {
+	if len(turns) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString("Previous conversation:\n")
+	for _, turn := range turns {
+		b.WriteString("User: ")
+		b.WriteString(turn.Query)
+		b.WriteString("\nAssistant: ")
+		b.WriteString(turn.Answer)
+		b.WriteString("\n")
+	}
+	return b.String()
 }
 
 func thinkingLevel(level string) genai.ThinkingLevel {
@@ -253,6 +362,7 @@ func (s *Service) instruction() string {
 	b.WriteString("Your job is to understand the user's search intent, choose bounded search parameters, call the provided tools, inspect the results (including photos, videos, audio, documents, OCR, tags, and extracted text), and answer from those results.\n\n")
 	b.WriteString("Rules:\n")
 	b.WriteString("- Only use the provided tools. Never invent messages, links, or facts.\n")
+	b.WriteString("- If the user attached an image, use it together with the caption as the question. Still use the tools when searching the indexed chats.\n")
 	b.WriteString("- Search only within the allowed chats. The tools enforce this boundary.\n")
 	b.WriteString("- If the target chat is ambiguous, call list_chats first. If a query is ambiguous, run a few focused searches with different keywords and filters.\n")
 	b.WriteString("- Use mode=keyword for exact terms, hybrid for normal semantic search, and media only for a text-to-media semantic search.\n")

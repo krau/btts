@@ -6,11 +6,12 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/log"
-	"github.com/gotd/td/tg"
 	"github.com/krau/btts/database"
 	"github.com/krau/btts/service/agent"
+	"github.com/krau/btts/utils"
 	"github.com/krau/mygotg/dispatcher"
 	"github.com/krau/mygotg/ext"
+	"github.com/rs/xid"
 )
 
 func agentUserID(update *ext.Update) int64 {
@@ -88,17 +89,36 @@ func agentWait(ctx *ext.Context, update *ext.Update) int {
 	return msg.ID
 }
 
-func replyAgentText(ctx *ext.Context, update *ext.Update, messageID int, text string) {
+func replyAgentText(ctx *ext.Context, update *ext.Update, messageID int, text string) int {
+	chatID := update.EffectiveChat().GetID()
 	if messageID != 0 {
-		if _, err := ctx.EditMessage(update.EffectiveChat().GetID(), &tg.MessagesEditMessageRequest{
-			ID:      messageID,
-			Message: text,
-		}); err == nil {
-			return
+		if err := utils.EditRichMessage(ctx, chatID, messageID, text); err == nil {
+			return messageID
 		}
-		_ = ctx.DeleteMessages(update.EffectiveChat().GetID(), []int{messageID})
+		_ = ctx.DeleteMessages(chatID, []int{messageID})
 	}
-	ctx.Reply(update, ext.ReplyTextString(text), nil)
+	replyTo := 0
+	if update.EffectiveMessage != nil {
+		replyTo = update.EffectiveMessage.ID
+	}
+	if message, err := utils.SendRichMessage(ctx, chatID, replyTo, text); err == nil && message != nil {
+		return message.ID
+	}
+	if message, err := ctx.Reply(update, ext.ReplyTextString(text), nil); err == nil && message != nil {
+		return message.ID
+	}
+	return 0
+}
+
+func agentAttachments(ctx *ext.Context, update *ext.Update) ([]agent.Attachment, error) {
+	data, mime, err := utils.DownloadQuestionPhoto(ctx, update, 20<<20)
+	if err != nil {
+		return nil, err
+	}
+	if len(data) == 0 {
+		return nil, nil
+	}
+	return []agent.Attachment{{Data: data, MIME: mime}}, nil
 }
 
 func truncateAgentAnswer(answer string) string {
@@ -110,12 +130,17 @@ func truncateAgentAnswer(answer string) string {
 	return string(runes[:maxRunes]) + "\n…（回答过长，已截断）"
 }
 
-func AskHandler(ctx *ext.Context, update *ext.Update) error {
-	query := strings.TrimSpace(strings.TrimPrefix(strings.TrimPrefix(update.EffectiveMessage.GetMessage(), "/ask"), "@"+ctx.Self.Username))
-	if query == "" {
-		ctx.Reply(update, ext.ReplyTextString("Usage: /ask <question or search request>"), nil)
-		return dispatcher.EndGroups
+func agentConversationID(ctx *ext.Context, update *ext.Update) string {
+	msg := update.EffectiveMessage
+	if msg != nil && msg.ReplyToMessage != nil {
+		if conversationID, ok := utils.GetAgentConversation(ctx.Self.ID, update.EffectiveChat().GetID(), msg.ReplyToMessage.ID); ok {
+			return conversationID
+		}
 	}
+	return xid.New().String()
+}
+
+func handleAgentQuery(ctx *ext.Context, update *ext.Update, query string) error {
 	svc := agent.Default()
 	if svc == nil {
 		ctx.Reply(update, ext.ReplyTextString("Search agent is not enabled"), nil)
@@ -130,13 +155,49 @@ func AskHandler(ctx *ext.Context, update *ext.Update) error {
 		ctx.Reply(update, ext.ReplyTextString("No indexed chats available for the agent"), nil)
 		return dispatcher.EndGroups
 	}
+	scope.ConversationID = agentConversationID(ctx, update)
+
 	waitID := agentWait(ctx, update)
-	answer, err := svc.Answer(ctx, query, scope)
+	attachments, err := agentAttachments(ctx, update)
+	if err != nil {
+		replyAgentText(ctx, update, waitID, "Failed to read attached image: "+err.Error())
+		return dispatcher.EndGroups
+	}
+	answer, err := svc.AnswerWithAttachments(ctx, query, scope, attachments)
 	if err != nil {
 		log.FromContext(ctx).Errorf("Agent query failed: %v", err)
 		replyAgentText(ctx, update, waitID, "Search agent failed: "+err.Error())
 		return dispatcher.EndGroups
 	}
-	replyAgentText(ctx, update, waitID, truncateAgentAnswer(answer))
+	resultID := replyAgentText(ctx, update, waitID, truncateAgentAnswer(answer))
+	if resultID != 0 {
+		utils.SetAgentConversation(ctx.Self.ID, update.EffectiveChat().GetID(), resultID, scope.ConversationID)
+	}
 	return dispatcher.EndGroups
+}
+
+func AskHandler(ctx *ext.Context, update *ext.Update) error {
+	query := strings.TrimSpace(strings.TrimPrefix(strings.TrimPrefix(update.EffectiveMessage.GetMessage(), "/ask"), "@"+ctx.Self.Username))
+	if query == "" {
+		ctx.Reply(update, ext.ReplyTextString("Usage: /ask <question or search request>"), nil)
+		return dispatcher.EndGroups
+	}
+	return handleAgentQuery(ctx, update, query)
+}
+
+// AgentReplyHandler continues an agent conversation when the user replies to
+// one of the bot's agent result messages.
+func AgentReplyHandler(ctx *ext.Context, update *ext.Update) error {
+	msg := update.EffectiveMessage
+	if msg == nil || msg.ReplyToMessage == nil {
+		return nil
+	}
+	if _, ok := utils.GetAgentConversation(ctx.Self.ID, update.EffectiveChat().GetID(), msg.ReplyToMessage.ID); !ok {
+		return nil
+	}
+	query := strings.TrimSpace(msg.GetMessage())
+	if query == "" || strings.HasPrefix(query, "/") {
+		return nil
+	}
+	return handleAgentQuery(ctx, update, query)
 }

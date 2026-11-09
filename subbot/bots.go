@@ -36,6 +36,13 @@ func (s *SubBot) Start() {
 	disp.AddHandler(handlers.NewCommand("ask", AskHandler))
 	disp.AddHandler(handlers.NewCallbackQuery(filters.CallbackQuery.Prefix("search"), SearchCallbackHandler))
 	disp.AddHandler(handlers.NewCallbackQuery(filters.CallbackQuery.Prefix("filter"), FilterCallbackHandler))
+	disp.AddHandler(handlers.NewMessage(func(m *types.Message) bool {
+		if m == nil || m.ReplyToMessage == nil || m.ReplyToMessage.FromID == nil {
+			return false
+		}
+		peer, ok := m.ReplyToMessage.FromID.(*tg.PeerUser)
+		return ok && peer.GetUserID() == s.Client.Self.ID
+	}, AgentReplyHandler))
 	disp.AddHandler(handlers.NewMessage(filters.Message.ChatType(filters.ChatTypeUser), SearchHandler))
 	disp.AddHandler(handlers.NewMessage(func(m *types.Message) bool {
 		// 处理在群组中回复 bot 消息的情况

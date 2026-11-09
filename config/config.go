@@ -104,19 +104,20 @@ type AppConfig struct {
 		} `toml:"documents" mapstructure:"documents"`
 	} `toml:"enrich" mapstructure:"enrich"`
 	Agent struct {
-		Enable          bool          `toml:"enable" mapstructure:"enable"`
-		Provider        string        `toml:"provider" mapstructure:"provider"` // gemini, openai, or ollama
-		Model           string        `toml:"model" mapstructure:"model"`
-		APIKey          string        `toml:"api_key" mapstructure:"api_key"`
-		BaseURL         string        `toml:"base_url" mapstructure:"base_url"`
-		API             string        `toml:"api" mapstructure:"api"` // responses or chat_completions
-		MaxLLMCalls     int           `toml:"max_llm_calls" mapstructure:"max_llm_calls"`
-		MaxResults      int           `toml:"max_results" mapstructure:"max_results"`
-		MaxConcurrency  int           `toml:"max_concurrency" mapstructure:"max_concurrency"`
-		MaxOutputTokens int           `toml:"max_output_tokens" mapstructure:"max_output_tokens"`
-		MaxAnswerChars  int           `toml:"max_answer_chars" mapstructure:"max_answer_chars"`
-		ReasoningLevel  string        `toml:"reasoning_level" mapstructure:"reasoning_level"`
-		Timeout         time.Duration `toml:"timeout" mapstructure:"timeout"`
+		Enable           bool          `toml:"enable" mapstructure:"enable"`
+		Provider         string        `toml:"provider" mapstructure:"provider"` // gemini, openai, or ollama
+		Model            string        `toml:"model" mapstructure:"model"`
+		APIKey           string        `toml:"api_key" mapstructure:"api_key"`
+		BaseURL          string        `toml:"base_url" mapstructure:"base_url"`
+		API              string        `toml:"api" mapstructure:"api"` // responses or chat_completions
+		MaxLLMCalls      int           `toml:"max_llm_calls" mapstructure:"max_llm_calls"`
+		MaxResults       int           `toml:"max_results" mapstructure:"max_results"`
+		MaxConcurrency   int           `toml:"max_concurrency" mapstructure:"max_concurrency"`
+		MaxOutputTokens  int           `toml:"max_output_tokens" mapstructure:"max_output_tokens"`
+		MaxContextTokens int           `toml:"max_context_tokens" mapstructure:"max_context_tokens"`
+		MaxAnswerChars   int           `toml:"max_answer_chars" mapstructure:"max_answer_chars"`
+		ReasoningLevel   string        `toml:"reasoning_level" mapstructure:"reasoning_level"`
+		Timeout          time.Duration `toml:"timeout" mapstructure:"timeout"`
 	} `toml:"agent" mapstructure:"agent"`
 }
 
@@ -182,6 +183,7 @@ func Init() {
 	viper.SetDefault("agent.max_results", 8)
 	viper.SetDefault("agent.max_concurrency", 2)
 	viper.SetDefault("agent.max_output_tokens", 2048)
+	viper.SetDefault("agent.max_context_tokens", 131072)
 	viper.SetDefault("agent.max_answer_chars", 4000)
 	viper.SetDefault("agent.reasoning_level", "low")
 	viper.SetDefault("agent.timeout", "90s")
@@ -296,6 +298,9 @@ func normalize() {
 	}
 	if agent.MaxOutputTokens <= 0 {
 		agent.MaxOutputTokens = 2048
+	}
+	if agent.MaxContextTokens <= 0 {
+		agent.MaxContextTokens = 131072
 	}
 	if agent.MaxAnswerChars <= 0 {
 		agent.MaxAnswerChars = 4000
