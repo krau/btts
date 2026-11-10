@@ -18,6 +18,7 @@ type AppConfig struct {
 	Plugin         struct {
 		Enable   bool     `toml:"enable" mapstructure:"enable"`
 		Prefixes []string `toml:"prefixes" mapstructure:"prefixes"`
+		Dir      string   `toml:"dir" mapstructure:"dir"` // directory of JavaScript plugins
 	} `toml:"plugin" mapstructure:"plugin"`
 	Engine struct {
 		Type     string `toml:"type" mapstructure:"type"` // "meilisearch" or "bleve"
@@ -141,6 +142,7 @@ func Init() {
 	viper.SetDefault("client_log_level", "info")
 
 	viper.SetDefault("plugin.prefixes", []string{","})
+	viper.SetDefault("plugin.dir", "plugins")
 
 	viper.SetDefault("import.batch_delay", "1s")
 	viper.SetDefault("import.background", true)

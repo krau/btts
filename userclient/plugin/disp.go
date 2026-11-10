@@ -10,7 +10,6 @@ import (
 type PluginFunc func(ctx *Context, u *ext.Update) error
 
 var commandPlugins = map[string]PluginFunc{
-	"re":           RepeatHandler,
 	"clean_member": CleanMemberHandler,
 }
 
@@ -51,6 +50,9 @@ func Dispatcher(ctx *ext.Context, u *ext.Update) error {
 					Cmd:     command,
 				}
 				return pluginFunc(pluginCtx, u)
+			}
+			if jsCmd, ok := lookupJSCommand(command); ok {
+				return jsCmd.call(ctx, u, command, strings.Fields(args))
 			}
 		}
 	}
