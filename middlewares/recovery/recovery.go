@@ -55,6 +55,12 @@ func (r *recovery) shouldRecover(ctx context.Context, err error) bool {
 	default:
 	}
 
+	// gotd reports a request that was acknowledged but lost its response as a
+	// wrapped context cancellation. Resending it may execute the request twice.
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return false
+	}
+
 	// we try recover when encountered any error that is not telegram business error
 	_, ok := tgerr.As(err)
 
