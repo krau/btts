@@ -110,6 +110,7 @@ type AppConfig struct {
 		APIKey           string        `toml:"api_key" mapstructure:"api_key"`
 		BaseURL          string        `toml:"base_url" mapstructure:"base_url"`
 		API              string        `toml:"api" mapstructure:"api"` // responses or chat_completions
+		InputModalities  []string      `toml:"input_modalities" mapstructure:"input_modalities"`
 		MaxLLMCalls      int           `toml:"max_llm_calls" mapstructure:"max_llm_calls"`
 		MaxResults       int           `toml:"max_results" mapstructure:"max_results"`
 		MaxConcurrency   int           `toml:"max_concurrency" mapstructure:"max_concurrency"`
@@ -179,6 +180,7 @@ func Init() {
 	viper.SetDefault("agent.enable", false)
 	viper.SetDefault("agent.provider", "gemini")
 	viper.SetDefault("agent.model", "gemini-flash-latest")
+	viper.SetDefault("agent.input_modalities", []string{})
 	viper.SetDefault("agent.max_llm_calls", 8)
 	viper.SetDefault("agent.max_results", 8)
 	viper.SetDefault("agent.max_concurrency", 2)

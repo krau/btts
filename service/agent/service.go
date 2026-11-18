@@ -40,16 +40,16 @@ type Attachment struct {
 	MIME string
 }
 
-// Service runs a ReAct-style search agent with tools backed by the local
-// btts searcher.
 type MediaLoader interface {
 	LoadMedia(ctx context.Context, chatID int64, messageID int) (data []byte, mime, name string, err error)
 }
 
+// Service runs a ReAct-style search agent with tools backed by the local btts searcher.
 type Service struct {
 	model       model.LLM
 	searcher    engine.Searcher
 	cfg         config.AppConfig
+	mediaInputs mediaInputs
 	mediaLoader MediaLoader
 	sem         chan struct{}
 }
@@ -86,6 +86,10 @@ func New(ctx context.Context, searcher engine.Searcher) (*Service, error) {
 	if searcher == nil {
 		return nil, errors.New("agent requires a search engine")
 	}
+	inputs, err := resolveMediaInputs(cfg.Agent.Provider, cfg.Agent.InputModalities)
+	if err != nil {
+		return nil, err
+	}
 	llm, err := newModel(ctx, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("create agent model: %w", err)
@@ -97,10 +101,11 @@ func New(ctx context.Context, searcher engine.Searcher) (*Service, error) {
 	log.FromContext(ctx).Infof("Agent enabled (provider=%s model=%s max_llm_calls=%d max_results=%d)",
 		cfg.Agent.Provider, cfg.Agent.Model, cfg.Agent.MaxLLMCalls, cfg.Agent.MaxResults)
 	return &Service{
-		model:    llm,
-		searcher: searcher,
-		cfg:      cfg,
-		sem:      make(chan struct{}, maxConcurrency),
+		model:       llm,
+		searcher:    searcher,
+		cfg:         cfg,
+		mediaInputs: inputs,
+		sem:         make(chan struct{}, maxConcurrency),
 	}, nil
 }
 
@@ -225,15 +230,15 @@ func (s *Service) AnswerWithAttachments(ctx context.Context, query string, scope
 		parts = append(parts, genai.NewPartFromText(historyText))
 	}
 	parts = append(parts, genai.NewPartFromText(query))
-	for i, attachment := range attachments {
-		if i >= 2 || len(attachment.Data) == 0 {
-			break
+	for i, attachment := range attachments[:min(len(attachments), 2)] {
+		if len(attachment.Data) == 0 {
+			continue
 		}
-		mime := strings.TrimSpace(attachment.MIME)
-		if mime == "" {
-			mime = "image/jpeg"
+		mediaParts, note := s.mediaInputs.prepare(ctx, attachment.Data, attachment.MIME)
+		if note != "" {
+			parts = append(parts, genai.NewPartFromText(fmt.Sprintf("Attachment %d: %s", i+1, note)))
 		}
-		parts = append(parts, genai.NewPartFromBytes(attachment.Data, mime))
+		parts = append(parts, mediaParts...)
 	}
 	userContent := genai.NewContentFromParts(parts, genai.RoleUser)
 	var answer string
@@ -367,10 +372,11 @@ func (s *Service) instruction() string {
 	b.WriteString("- If the target chat is ambiguous, call list_chats first. If a query is ambiguous, run a few focused searches with different keywords and filters.\n")
 	b.WriteString("- Use mode=keyword for exact terms, hybrid for normal semantic search, and media only for a text-to-media semantic search.\n")
 	b.WriteString("- Use get_messages when a result needs more detail. Do not ask the user for a chat ID if it can be resolved from list_chats.\n")
-	b.WriteString("- If get_messages returns media_artifacts, call load_artifacts with those artifact names before claiming to have inspected the media content.\n")
+	b.WriteString("- For indexed media, call load_artifacts only with names returned in media_artifacts, and only describe media you actually loaded.\n")
+	b.WriteString("- If media_note or an attachment notice says media is unavailable, use available text and metadata instead. If only still frames are available, say so and do not infer audio or motion from them.\n")
 	b.WriteString("- Include the relevant message link(s) in the final answer. Answer in the user's language. Be concise, but explain uncertainty or lack of results.\n")
 	b.WriteString("- For 'latest', 'recent', or 'newest' requests, set sort=newest. To list the newest photos without a keyword filter, call search_messages with query empty, mode keyword, types [\"photo\"], sort newest. For oldest, set sort=oldest. Do not claim a result is the latest without a newest-sorted search.\n")
-	b.WriteString("- Media is only loaded when get_messages is called with include_media=true. Set it only when the user asks about visual or audio content, then call load_artifacts; do not load media for ordinary text searches.\n")
+	b.WriteString("- Set include_media=true in get_messages only when the user asks about visual or audio content, not for ordinary text searches.\n")
 	b.WriteString("- Use at most 3 search_messages calls per request. If the first 1-2 searches return relevant hits, stop and answer; do not search again with minor synonyms.\n")
 	b.WriteString("- Never call search_messages with a one-character query. Empty queries are only for the latest/oldest media listing above. Do not call list_chats when the scope above already identifies the allowed chats.\n")
 	b.WriteString("- If searches return no useful results after at most 3 attempts, say so rather than looping.\n")

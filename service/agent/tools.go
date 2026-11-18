@@ -2,7 +2,6 @@ package agent
 
 import (
 	"fmt"
-	"path/filepath"
 	"slices"
 	"sort"
 	"strings"
@@ -14,10 +13,10 @@ import (
 	"google.golang.org/adk/v2/tool"
 	"google.golang.org/adk/v2/tool/functiontool"
 	"google.golang.org/adk/v2/tool/loadartifactstool"
-	"google.golang.org/genai"
 
 	"github.com/krau/btts/database"
 	"github.com/krau/btts/engine"
+	"github.com/krau/btts/internal/media"
 	"github.com/krau/btts/types"
 )
 
@@ -50,6 +49,7 @@ type toolHit struct {
 	Link           string   `json:"link,omitempty"`
 	Media          bool     `json:"media"`
 	MediaArtifacts []string `json:"media_artifacts,omitempty"`
+	MediaNote      string   `json:"media_note,omitempty"`
 }
 
 type searchOutput struct {
@@ -62,7 +62,7 @@ type searchOutput struct {
 type getMessagesArgs struct {
 	ChatID       int64   `json:"chat_id" jsonschema:"Chat ID that owns the messages. It must be in the allowed scope."`
 	MessageIDs   []int64 `json:"message_ids" jsonschema:"Message IDs to read, at most 5."`
-	IncludeMedia bool    `json:"include_media,omitempty" jsonschema:"Load image/audio/video artifacts only when the user explicitly asks about media content."`
+	IncludeMedia bool    `json:"include_media,omitempty" jsonschema:"Prepare model-compatible media or previews only when the user asks about media content."`
 }
 
 type getMessagesOutput struct {
@@ -86,6 +86,7 @@ type listChatsOutput struct {
 
 type toolset struct {
 	searcher    engine.Searcher
+	mediaInputs mediaInputs
 	mediaLoader MediaLoader
 	allowed     []int64
 	allowedSet  map[int64]struct{}
@@ -112,7 +113,14 @@ func (s *Service) tools(scope Scope) ([]tool.Tool, *toolset, error) {
 	if maxResults <= 0 {
 		maxResults = 10
 	}
-	t := &toolset{searcher: s.searcher, mediaLoader: s.mediaLoader, allowed: allowed, allowedSet: allowedSet, maxResults: maxResults}
+	t := &toolset{
+		searcher:    s.searcher,
+		mediaInputs: s.mediaInputs,
+		mediaLoader: s.mediaLoader,
+		allowed:     allowed,
+		allowedSet:  allowedSet,
+		maxResults:  maxResults,
+	}
 
 	searchTool, err := functiontool.New(functiontool.Config{
 		Name:        "search_messages",
@@ -322,7 +330,9 @@ func (t *toolset) getMessages(ctx adkagent.Context, args getMessagesArgs) (getMe
 		hit := t.makeHit(ctx, types.SearchHit{MessageDocument: *doc})
 		if args.IncludeMedia && mediaCount < 2 {
 			t.attachMedia(ctx, doc, &hit)
-			mediaCount += len(hit.MediaArtifacts)
+			if len(hit.MediaArtifacts) > 0 {
+				mediaCount++
+			}
 		}
 		out.Messages = append(out.Messages, hit)
 	}
@@ -347,24 +357,50 @@ func (t *toolset) listChats(ctx adkagent.Context, _ listChatsArgs) (listChatsOut
 }
 
 func (t *toolset) attachMedia(ctx adkagent.Context, doc *types.MessageDocument, hit *toolHit) {
-	if t.mediaLoader == nil || ctx.Artifacts() == nil || len(hit.MediaArtifacts) >= 2 {
-		return
-	}
-	switch types.MessageType(doc.Type) {
-	case types.MessageTypePhoto, types.MessageTypeVideo, types.MessageTypeVoice, types.MessageTypeAudio:
+	var usable mediaInputs
+	messageType := types.MessageType(doc.Type)
+	switch messageType {
+	case types.MessageTypePhoto:
+		usable = imageInput
+	case types.MessageTypeVideo:
+		usable = videoInput | imageInput
+	case types.MessageTypeVoice, types.MessageTypeAudio:
+		usable = audioInput
 	default:
 		return
 	}
-	data, mimeType, name, err := t.mediaLoader.LoadMedia(ctx, doc.ChatID, int(doc.ID))
+	if t.mediaInputs&usable == 0 {
+		hit.MediaNote = "The current model cannot inspect this media."
+		return
+	}
+	const unavailable = "The media could not be loaded."
+	artifacts := ctx.Artifacts()
+	if t.mediaLoader == nil || artifacts == nil {
+		hit.MediaNote = unavailable
+		return
+	}
+	if messageType == types.MessageTypeVideo && t.mediaInputs&videoInput == 0 {
+		if _, err := media.FFmpegPath(); err != nil {
+			hit.MediaNote = "Video previews are unavailable because ffmpeg is not installed or executable."
+			return
+		}
+	}
+	data, mimeType, _, err := t.mediaLoader.LoadMedia(ctx, doc.ChatID, int(doc.ID))
 	if err != nil || len(data) == 0 {
+		hit.MediaNote = unavailable
 		return
 	}
-	ext := strings.ToLower(filepath.Ext(name))
-	artifactName := fmt.Sprintf("btts_%d_%d%s", doc.ChatID, doc.ID, ext)
-	if _, err := ctx.Artifacts().Save(ctx, artifactName, genai.NewPartFromBytes(data, mimeType)); err != nil {
-		return
+	parts, note := t.mediaInputs.prepare(ctx, data, mimeType)
+	hit.MediaNote = note
+	for i, part := range parts {
+		name := fmt.Sprintf("btts_%d_%d_%d", doc.ChatID, doc.ID, i+1)
+		if _, err := artifacts.Save(ctx, name, part); err == nil {
+			hit.MediaArtifacts = append(hit.MediaArtifacts, name)
+		}
 	}
-	hit.MediaArtifacts = append(hit.MediaArtifacts, artifactName)
+	if len(parts) > 0 && len(hit.MediaArtifacts) == 0 {
+		hit.MediaNote = unavailable
+	}
 }
 
 func (t *toolset) makeHit(ctx adkagent.Context, hit types.SearchHit) toolHit {

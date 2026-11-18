@@ -336,6 +336,8 @@ model = "gemini-flash-latest"
 api_key = ""
 base_url = ""
 api = "responses"                   # responses / chat_completions
+# 省略时按 provider 选择；也可以设为 ["text"] 禁用媒体输入
+# input_modalities = ["text", "image"]
 max_llm_calls = 8
 max_results = 8
 max_concurrency = 2
@@ -346,3 +348,5 @@ max_answer_chars = 4000
 reasoning_level = "high"
 timeout = "90s"
 ```
+
+`agent.input_modalities` 只控制模型能查看的媒体，不影响检索结果。默认 Gemini 可接收图片、音频和视频；OpenAI、OpenAI-compatible 和 Ollama 的当前适配器只直传图片。使用图文模型时，Agent 按需通过本机 `ffmpeg` 把视频转成最多两张 JPEG 预览，不发送视频原文件或声音。未安装 `ffmpeg`、预览失败或模型不支持该媒体时，仍可依据索引里的说明文字、OCR、标签、提取文本和原消息链接回答。

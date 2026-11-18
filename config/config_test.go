@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"slices"
 	"testing"
 	"time"
 )
@@ -29,6 +30,8 @@ timeout = "60s"
 query_timeout = "7s"
 [enrich.tagger]
 timeout = "8s"
+[agent]
+input_modalities = ["text", "image"]
 `
 	if err := os.WriteFile("config", []byte(cfg), 0o644); err != nil {
 		t.Fatal(err)
@@ -48,6 +51,9 @@ timeout = "8s"
 	}
 	if C.Enrich.MaxAttempts != 5 {
 		t.Fatalf("max attempts not normalized: %d", C.Enrich.MaxAttempts)
+	}
+	if !slices.Equal(C.Agent.InputModalities, []string{"text", "image"}) {
+		t.Fatalf("agent input modalities not decoded: %v", C.Agent.InputModalities)
 	}
 }
 
