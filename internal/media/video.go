@@ -1,4 +1,4 @@
-package enrich
+package media
 
 import (
 	"bytes"
@@ -14,23 +14,22 @@ import (
 
 const (
 	videoFrameIntervalSec = 10
-	videoFrameWidth       = 512
+	videoFrameScale       = "scale=512:512:force_original_aspect_ratio=decrease:force_divisible_by=2"
 	maxVideoFrames        = 8
 	videoKeyframeSnapSec  = 2.0
 )
 
-type videoFrame struct {
-	data []byte
-	at   float64
+type VideoFrame struct {
+	JPEG []byte
+	At   float64 // seconds from the start of the video
 }
 
-// videoFrames extracts up to count JPEG frames evenly across the video,
-// preferring nearby keyframes. Frames are scaled to at most 512 pixels wide
-// before embedding.
-func videoFrames(ctx context.Context, data []byte, count int) ([]videoFrame, error) {
-	ffmpeg, err := findFFmpeg()
+// VideoFrames extracts up to count JPEG frames across the video, preferring
+// nearby keyframes. It may return usable frames alongside a decoding error.
+func VideoFrames(ctx context.Context, data []byte, count int) ([]VideoFrame, error) {
+	ffmpeg, err := FFmpegPath()
 	if err != nil {
-		return nil, fmt.Errorf("ffmpeg is required for video enrichment: %w", err)
+		return nil, fmt.Errorf("ffmpeg is required to extract video frames: %w", err)
 	}
 	if count <= 0 {
 		count = 3
@@ -38,7 +37,7 @@ func videoFrames(ctx context.Context, data []byte, count int) ([]videoFrame, err
 	if count > maxVideoFrames {
 		count = maxVideoFrames
 	}
-	path, cleanup, err := writeTempMedia(data)
+	path, cleanup, err := WriteTempFile(data)
 	if err != nil {
 		return nil, fmt.Errorf("write video temp file: %w", err)
 	}
@@ -49,13 +48,13 @@ func videoFrames(ctx context.Context, data []byte, count int) ([]videoFrame, err
 		return videoFramesAtInterval(ctx, ffmpeg, path, count)
 	}
 
-	frames := make([]videoFrame, 0, count)
+	frames := make([]VideoFrame, 0, count)
 	for _, at := range chooseFrameTimes(duration, count, keyframes) {
 		frame, err := videoFrameAt(ctx, ffmpeg, path, at)
 		if err != nil {
-			return nil, err
+			return frames, err
 		}
-		frames = append(frames, videoFrame{data: frame, at: at})
+		frames = append(frames, VideoFrame{JPEG: frame, At: at})
 	}
 	return frames, nil
 }
@@ -78,13 +77,14 @@ func probeVideo(ctx context.Context, path string) (float64, []float64, error) {
 	if err != nil {
 		return 0, nil, err
 	}
-	out, err := exec.CommandContext(ctx, ffprobe,
-		"-v", "error",
+	args := append([]string{"-v", "error"}, videoInputOptions()...)
+	args = append(args,
 		"-select_streams", "v:0",
 		"-show_entries", "format=duration:packet=pts_time,flags",
 		"-of", "json",
 		path,
-	).Output()
+	)
+	out, err := exec.CommandContext(ctx, ffprobe, args...).Output()
 	if err != nil {
 		return 0, nil, err
 	}
@@ -170,17 +170,17 @@ func containsTime(times []float64, at, tolerance float64) bool {
 }
 
 func videoFrameAt(ctx context.Context, ffmpeg, path string, at float64) ([]byte, error) {
-	args := []string{
-		"-hide_banner", "-loglevel", "error",
+	args := append([]string{"-hide_banner", "-loglevel", "error", "-nostdin"}, videoInputOptions()...)
+	args = append(args,
 		"-ss", strconv.FormatFloat(at, 'f', 3, 64),
 		"-i", path, "-an",
 		"-frames:v", "1",
-		"-vf", fmt.Sprintf("scale=%d:-2", videoFrameWidth),
+		"-vf", videoFrameScale,
 		// Some phone videos carry non-standard YUV ranges; MJPEG rejects
 		// them unless ffmpeg's strictness is relaxed.
 		"-strict", "unofficial",
 		"-f", "image2pipe", "-vcodec", "mjpeg", "pipe:1",
-	}
+	)
 	cmd := exec.CommandContext(ctx, ffmpeg, args...)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
@@ -197,14 +197,15 @@ func videoFrameAt(ctx context.Context, ffmpeg, path string, at float64) ([]byte,
 
 // videoFramesAtInterval is the fallback when ffprobe cannot determine the
 // duration. It samples from the beginning at a fixed interval.
-func videoFramesAtInterval(ctx context.Context, ffmpeg, path string, count int) ([]videoFrame, error) {
-	args := []string{
-		"-hide_banner", "-loglevel", "error", "-i", path, "-an",
-		"-vf", fmt.Sprintf("fps=1/%d,scale=%d:-2", videoFrameIntervalSec, videoFrameWidth),
+func videoFramesAtInterval(ctx context.Context, ffmpeg, path string, count int) ([]VideoFrame, error) {
+	args := append([]string{"-hide_banner", "-loglevel", "error", "-nostdin"}, videoInputOptions()...)
+	args = append(args,
+		"-i", path, "-an",
+		"-vf", fmt.Sprintf("fps=1/%d,%s", videoFrameIntervalSec, videoFrameScale),
 		"-frames:v", strconv.Itoa(count),
 		"-strict", "unofficial",
 		"-f", "image2pipe", "-vcodec", "mjpeg", "pipe:1",
-	}
+	)
 	cmd := exec.CommandContext(ctx, ffmpeg, args...)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
@@ -213,14 +214,29 @@ func videoFramesAtInterval(ctx context.Context, ffmpeg, path string, count int) 
 		return nil, fmt.Errorf("ffmpeg decode video: %w: %s", err, strings.TrimSpace(stderr.String()))
 	}
 	frames := splitJPEGStream(raw)
-	out := make([]videoFrame, 0, len(frames))
+	if len(frames) == 0 {
+		frame, err := videoFrameAt(ctx, ffmpeg, path, 0)
+		if err != nil {
+			return nil, err
+		}
+		return []VideoFrame{{JPEG: frame}}, nil
+	}
+	out := make([]VideoFrame, 0, len(frames))
 	for i, frame := range frames {
-		out = append(out, videoFrame{
-			data: frame,
-			at:   float64(i * videoFrameIntervalSec),
+		out = append(out, VideoFrame{
+			JPEG: frame,
+			At:   float64(i * videoFrameIntervalSec),
 		})
 	}
 	return out, nil
+}
+
+func videoInputOptions() []string {
+	// Downloaded files must not be interpreted as playlists or scripts.
+	return []string{
+		"-protocol_whitelist", "file",
+		"-format_whitelist", "mov,mp4,m4a,3gp,3g2,mj2,matroska,webm,gif,avi,asf,flv,mpeg,mpegts,mpegtsraw,mpegvideo,ogg,rm,h264,hevc,mjpeg",
+	}
 }
 
 func splitJPEGStream(raw []byte) [][]byte {

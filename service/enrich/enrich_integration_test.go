@@ -22,6 +22,7 @@ import (
 
 	"github.com/krau/btts/config"
 	"github.com/krau/btts/engine/meili"
+	"github.com/krau/btts/internal/media"
 	"github.com/krau/btts/types"
 	"github.com/meilisearch/meilisearch-go"
 )
@@ -486,7 +487,7 @@ func TestIntegrationRealMediaPipeline(t *testing.T) {
 	if err := e.EnrichNow(ctx, 1, docs[2], wavBytes(samples), "audio/wav"); err != nil {
 		t.Fatalf("enrich audio: %v", err)
 	}
-	ffmpeg, err := findFFmpeg()
+	ffmpeg, err := media.FFmpegPath()
 	if err != nil {
 		t.Skip("ffmpeg is not installed")
 	}

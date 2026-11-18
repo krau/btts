@@ -4,10 +4,12 @@ import (
 	"context"
 	"math"
 	"testing"
+
+	"github.com/krau/btts/internal/media"
 )
 
 func TestAudioWindowsWithFFmpeg(t *testing.T) {
-	if _, err := findFFmpeg(); err != nil {
+	if _, err := media.FFmpegPath(); err != nil {
 		t.Skip("ffmpeg is not installed")
 	}
 	const seconds = 130

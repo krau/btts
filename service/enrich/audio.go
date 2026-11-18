@@ -8,7 +8,8 @@ import (
 	"math"
 	"os/exec"
 	"strings"
-	"sync"
+
+	"github.com/krau/btts/internal/media"
 )
 
 const (
@@ -26,24 +27,11 @@ type audioWindow struct {
 	end   float64
 }
 
-var (
-	ffmpegOnce   sync.Once
-	ffmpegPath   string
-	ffmpegLookup error
-)
-
-func findFFmpeg() (string, error) {
-	ffmpegOnce.Do(func() {
-		ffmpegPath, ffmpegLookup = exec.LookPath("ffmpeg")
-	})
-	return ffmpegPath, ffmpegLookup
-}
-
 // audioWindows decodes the audio track (or a video's soundtrack) to 16 kHz
 // mono and cuts it into 30-second windows with a 25-second hop. Ollama's model
 // ignores audio beyond 30 seconds in a single input.
 func audioWindows(ctx context.Context, data []byte, video bool) ([]audioWindow, error) {
-	ffmpeg, err := findFFmpeg()
+	ffmpeg, err := media.FFmpegPath()
 	if err != nil {
 		return nil, fmt.Errorf("ffmpeg is required for audio enrichment: %w", err)
 	}
@@ -51,7 +39,7 @@ func audioWindows(ctx context.Context, data []byte, video bool) ([]audioWindow, 
 	if video {
 		// MP4 indexes often live at the end of the file, so ffmpeg needs a
 		// seekable input rather than a pipe.
-		path, cleanup, err := writeTempMedia(data)
+		path, cleanup, err := media.WriteTempFile(data)
 		if err != nil {
 			return nil, fmt.Errorf("write video temp file: %w", err)
 		}

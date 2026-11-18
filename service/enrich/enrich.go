@@ -16,6 +16,7 @@ import (
 	"github.com/krau/btts/config"
 	"github.com/krau/btts/database"
 	"github.com/krau/btts/engine"
+	"github.com/krau/btts/internal/media"
 	"github.com/krau/btts/types"
 	"github.com/krau/btts/utils"
 	"github.com/krau/btts/utils/cache"
@@ -852,14 +853,14 @@ func (e *Engine) processData(ctx context.Context, job *database.EnrichJob, doc *
 			}
 		}
 		if isVideo && e.cfg.Enrich.Embedder.VideoEnable {
-			frames, err := videoFrames(ctx, data, e.cfg.Enrich.Embedder.VideoFrames)
+			frames, err := media.VideoFrames(ctx, data, e.cfg.Enrich.Embedder.VideoFrames)
 			if err != nil {
 				enrichErrs = append(enrichErrs, fmt.Errorf("decode video frames: %w", err))
 			}
 			if len(frames) > 0 {
 				frameData := make([][]byte, len(frames))
 				for i := range frames {
-					frameData[i] = frames[i].data
+					frameData[i] = frames[i].JPEG
 				}
 				vectors, err := e.embedder.EmbedImagesWithText(ctx, text, frameData)
 				if err != nil {
@@ -877,8 +878,8 @@ func (e *Engine) processData(ctx context.Context, job *database.EnrichJob, doc *
 							Timestamp: job.Timestamp,
 							Modality:  "image",
 							MediaType: "video",
-							Loc:       frame.at,
-							LocEnd:    frame.at,
+							Loc:       frame.At,
+							LocEnd:    frame.At,
 							Text:      truncate(text, 500),
 							Vectors:   map[string]any{e.cfg.Enrich.Embedder.MediaName: vectors[i]},
 						})

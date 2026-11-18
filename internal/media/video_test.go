@@ -1,4 +1,4 @@
-package enrich
+package media
 
 import (
 	"bytes"
@@ -12,14 +12,14 @@ import (
 )
 
 func TestVideoFramesWithFFmpeg(t *testing.T) {
-	ffmpeg, err := findFFmpeg()
+	ffmpeg, err := FFmpegPath()
 	if err != nil {
 		t.Skip("ffmpeg is not installed")
 	}
 	path := filepath.Join(t.TempDir(), "sample.mp4")
-	cmd := exec.Command(ffmpeg,
+	cmd := exec.CommandContext(t.Context(), ffmpeg,
 		"-hide_banner", "-loglevel", "error",
-		"-f", "lavfi", "-i", "color=c=red:s=320x240:d=25",
+		"-f", "lavfi", "-i", "color=c=red:s=240x320:d=25",
 		"-an", "-c:v", "mpeg4", "-pix_fmt", "yuv420p", "-y", path,
 	)
 	if output, err := cmd.CombinedOutput(); err != nil {
@@ -29,7 +29,7 @@ func TestVideoFramesWithFFmpeg(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	frames, err := videoFrames(context.Background(), data, 3)
+	frames, err := VideoFrames(context.Background(), data, 3)
 	if err != nil {
 		t.Fatalf("extract frames: %v", err)
 	}
@@ -37,19 +37,19 @@ func TestVideoFramesWithFFmpeg(t *testing.T) {
 		t.Fatalf("got %d frames, want 3", len(frames))
 	}
 	for i, frame := range frames {
-		cfg, err := jpeg.DecodeConfig(bytes.NewReader(frame.data))
+		cfg, err := jpeg.DecodeConfig(bytes.NewReader(frame.JPEG))
 		if err != nil {
 			t.Fatalf("frame %d is not a JPEG: %v", i, err)
 		}
-		if cfg.Width != videoFrameWidth {
-			t.Fatalf("frame %d width = %d, want %d", i, cfg.Width, videoFrameWidth)
+		if cfg.Width != 384 || cfg.Height != 512 {
+			t.Fatalf("frame %d dimensions = %dx%d, want 384x512", i, cfg.Width, cfg.Height)
 		}
 		wantAt := 25 * (float64(i) + 0.5) / 3
-		if math.Abs(frame.at-wantAt) > videoKeyframeSnapSec {
-			t.Fatalf("frame %d timestamp = %v, want near %v", i, frame.at, wantAt)
+		if math.Abs(frame.At-wantAt) > videoKeyframeSnapSec {
+			t.Fatalf("frame %d timestamp = %v, want near %v", i, frame.At, wantAt)
 		}
-		if i > 0 && frame.at <= frames[i-1].at {
-			t.Fatalf("frame timestamps are not increasing: %v then %v", frames[i-1].at, frame.at)
+		if i > 0 && frame.At <= frames[i-1].At {
+			t.Fatalf("frame timestamps are not increasing: %v then %v", frames[i-1].At, frame.At)
 		}
 	}
 }
