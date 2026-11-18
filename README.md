@@ -349,4 +349,4 @@ reasoning_level = "high"
 timeout = "90s"
 ```
 
-`agent.input_modalities` 只控制模型能查看的媒体，不影响检索结果。默认 Gemini 可接收图片、音频和视频；OpenAI、OpenAI-compatible 和 Ollama 的当前适配器只直传图片。使用图文模型时，Agent 按需通过本机 `ffmpeg` 把视频转成最多两张 JPEG 预览，不发送视频原文件或声音。未安装 `ffmpeg`、预览失败或模型不支持该媒体时，仍可依据索引里的说明文字、OCR、标签、提取文本和原消息链接回答。
+`agent.input_modalities` 只控制模型能查看的媒体，不影响检索结果。默认 Gemini 可接收图片、音频和视频；OpenAI、OpenAI-compatible 和 Ollama 的当前适配器只直传图片。使用图文模型时，Agent 按需通过本机 `ffmpeg` 把视频转成最多两张 JPEG 预览，不发送视频原文件或声音。已知大小超过 20 MiB 的索引媒体会在下载前跳过。媒体超限、未安装 `ffmpeg`、预览失败或模型不支持该媒体时，仍可依据索引里的说明文字、OCR、标签、提取文本和原消息链接回答。

@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 	"sort"
@@ -18,6 +19,7 @@ import (
 	"github.com/krau/btts/engine"
 	"github.com/krau/btts/internal/media"
 	"github.com/krau/btts/types"
+	"github.com/krau/btts/utils"
 )
 
 type searchArgs struct {
@@ -386,6 +388,10 @@ func (t *toolset) attachMedia(ctx adkagent.Context, doc *types.MessageDocument, 
 		}
 	}
 	data, mimeType, _, err := t.mediaLoader.LoadMedia(ctx, doc.ChatID, int(doc.ID))
+	if errors.Is(err, utils.ErrMediaTooLarge) {
+		hit.MediaNote = "The media exceeds the download size limit."
+		return
+	}
 	if err != nil || len(data) == 0 {
 		hit.MediaNote = unavailable
 		return

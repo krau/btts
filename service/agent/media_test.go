@@ -23,6 +23,7 @@ import (
 	"github.com/krau/btts/engine"
 	"github.com/krau/btts/internal/media"
 	"github.com/krau/btts/types"
+	"github.com/krau/btts/utils"
 )
 
 func TestResolveMediaInputs(t *testing.T) {
@@ -82,9 +83,11 @@ func TestOpenAIAgentHandlesVideoAndAudio(t *testing.T) {
 		name     string
 		textOnly bool
 		preview  bool
+		loadErr  error
 	}{
 		{name: "preview", preview: true},
 		{name: "invalid video"},
+		{name: "oversized video", loadErr: utils.ErrMediaTooLarge},
 		{name: "text only", textOnly: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -96,7 +99,7 @@ func TestOpenAIAgentHandlesVideoAndAudio(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			loader := &testMediaLoader{video: []byte("invalid video")}
+			loader := &testMediaLoader{video: []byte("invalid video"), err: tc.loadErr}
 			if tc.preview {
 				loader.video = sampleVideo(t)
 			}
@@ -143,6 +146,9 @@ func TestOpenAIAgentHandlesVideoAndAudio(t *testing.T) {
 					}
 					if video.MediaNote == "" || (len(video.MediaArtifacts) > 0) != tc.preview {
 						t.Errorf("unexpected video media result: %+v", video)
+					}
+					if tc.loadErr != nil && ffmpegErr == nil && !strings.Contains(video.MediaNote, "size limit") {
+						t.Errorf("expected size limit notice, got %q", video.MediaNote)
 					}
 					if tc.preview {
 						wantFrames = len(video.MediaArtifacts)
@@ -219,6 +225,7 @@ func (s testMediaSearcher) GetDocuments(context.Context, int64, []int) ([]*types
 type testMediaLoader struct {
 	video       []byte
 	loadedVideo bool
+	err         error
 }
 
 func (l *testMediaLoader) LoadMedia(_ context.Context, _ int64, id int) ([]byte, string, string, error) {
@@ -226,6 +233,9 @@ func (l *testMediaLoader) LoadMedia(_ context.Context, _ int64, id int) ([]byte,
 		panic("unsupported audio must not be downloaded")
 	}
 	l.loadedVideo = true
+	if l.err != nil {
+		return nil, "", "", l.err
+	}
 	return l.video, "video/mp4", "sample.mp4", nil
 }
 

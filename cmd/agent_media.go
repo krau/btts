@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 
 	"github.com/krau/btts/service"
+	"github.com/krau/btts/utils"
 )
 
 const maxAgentMediaBytes = 20 << 20
@@ -16,7 +17,7 @@ const maxAgentMediaBytes = 20 << 20
 type agentMediaLoader struct{}
 
 func (agentMediaLoader) LoadMedia(ctx context.Context, chatID int64, messageID int) ([]byte, string, string, error) {
-	reader, err := service.GetTGFileReader(ctx, chatID, messageID)
+	reader, err := service.GetTGFileReaderWithSizeLimit(ctx, chatID, messageID, maxAgentMediaBytes)
 	if err != nil {
 		return nil, "", "", err
 	}
@@ -26,7 +27,7 @@ func (agentMediaLoader) LoadMedia(ctx context.Context, chatID int64, messageID i
 		return nil, "", "", err
 	}
 	if len(data) > maxAgentMediaBytes {
-		return nil, "", "", fmt.Errorf("media exceeds %d bytes", maxAgentMediaBytes)
+		return nil, "", "", fmt.Errorf("%w: data exceeds %d bytes", utils.ErrMediaTooLarge, maxAgentMediaBytes)
 	}
 	mimeType := mime.TypeByExtension(filepath.Ext(reader.Name))
 	if mimeType == "" {
