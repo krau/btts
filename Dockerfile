@@ -39,6 +39,7 @@ RUN adduser -D -u 1001 appuser && chown -R appuser:appuser /app
 USER 1001
 
 COPY --from=build /app/btts .
+COPY --from=build /app/plugins ./plugins
 
 # REST API port (enabled via BTTS_API_ENABLE=true)
 EXPOSE 39415

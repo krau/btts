@@ -516,6 +516,7 @@ func TestCleanMemberExportFile(t *testing.T) {
 }
 
 func TestCleanMemberSessionIgnoresEdits(t *testing.T) {
+	t.Cleanup(func() { deleteCleanMemberSession(testCleanChatID) })
 	f := newFakeCleanMemberAPI(1)
 	config.C.Plugin.Prefixes = []string{","}
 	ctx, entities := newCleanMemberTestEnv(f)

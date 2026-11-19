@@ -4,16 +4,34 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/gotd/td/bin"
 	"github.com/gotd/td/tg"
+	"github.com/krau/btts/config"
 	"github.com/krau/mygotg/ext"
 	"github.com/krau/mygotg/storage"
 	"github.com/krau/mygotg/types"
 )
+
+func TestMain(m *testing.M) {
+	config.C.Plugin.Prefixes = []string{","}
+	config.C.Plugin.Dir = filepath.Join("..", "..", "plugins")
+	if err := LoadJSPlugins(); err != nil {
+		fmt.Fprintf(os.Stderr, "load JS plugins: %v\n", err)
+		os.Exit(1)
+	}
+	if _, ok := lookupJSCommand("re"); !ok {
+		fmt.Fprintln(os.Stderr, "re JS plugin was not loaded")
+		os.Exit(1)
+	}
+	os.Exit(m.Run())
+}
 
 type repeatTestAPI struct {
 	mu              sync.Mutex
@@ -107,17 +125,17 @@ func (f *repeatTestAPI) Invoke(ctx context.Context, input bin.Encoder, output bi
 	return encodeInto(output, response)
 }
 
-func newRepeatTestEnv(ctx context.Context, f *repeatTestAPI, args ...string) (*Context, *ext.Update) {
+func newRepeatTestEnv(ctx context.Context, f *repeatTestAPI, args ...string) (*ext.Context, *ext.Update) {
 	peers := storage.NewPeerStorage(nil, true)
 	peers.AddPeer(testCleanChatID, 42, storage.TypeChannel, "")
 	channel := &tg.Channel{ID: testCleanChatID, AccessHash: 42, Megagroup: true}
 	entities := &tg.Entities{Channels: map[int64]*tg.Channel{channel.ID: channel}}
-	pluginCtx := &Context{
-		Context: ext.NewContext(ctx, tg.NewClient(f), peers, &tg.User{ID: 1}, nil, entities, false),
-		Args:    args,
-		Cmd:     "re",
+	pluginCtx := ext.NewContext(ctx, tg.NewClient(f), peers, &tg.User{ID: 1}, nil, entities, false)
+	text := ",re"
+	if len(args) > 0 {
+		text += " " + strings.Join(args, " ")
 	}
-	update := testCleanMessageUpdate(entities, 100, ",re")
+	update := testCleanMessageUpdate(entities, 100, text)
 	update.EffectiveMessage.ReplyToMessage = types.ConstructMessage(&tg.Message{
 		ID: 90, PeerID: &tg.PeerChannel{ChannelID: testCleanChatID}, Message: "source",
 	})
@@ -127,7 +145,7 @@ func newRepeatTestEnv(ctx context.Context, f *repeatTestAPI, args ...string) (*C
 func TestRepeatSerialRPCsAndCompleteCount(t *testing.T) {
 	f := &repeatTestAPI{delay: 2 * time.Millisecond}
 	ctx, update := newRepeatTestEnv(context.Background(), f, "100")
-	if err := RepeatHandler(ctx, update); err != nil {
+	if err := Dispatcher(ctx, update); err != nil {
 		t.Fatal(err)
 	}
 	f.mu.Lock()
@@ -153,7 +171,7 @@ func TestRepeatWaitsForIndependentRPCResponses(t *testing.T) {
 	f := &repeatTestAPI{requests: make(chan string, 4), responses: make(chan struct{})}
 	ctx, update := newRepeatTestEnv(clientCtx, f, "3")
 	done := make(chan error, 1)
-	go func() { done <- RepeatHandler(ctx, update) }()
+	go func() { done <- Dispatcher(ctx, update) }()
 	for i := range 4 {
 		select {
 		case <-f.requests:
@@ -188,8 +206,8 @@ func TestRepeatReturnsErrorsAndContinuesCount(t *testing.T) {
 	forwardErr := errors.New("forward failed")
 	f := &repeatTestAPI{deleteErr: deleteErr, forwardErrors: map[int]error{2: forwardErr}}
 	ctx, update := newRepeatTestEnv(context.Background(), f, "3")
-	err := RepeatHandler(ctx, update)
-	if !errors.Is(err, deleteErr) || !errors.Is(err, forwardErr) {
+	err := Dispatcher(ctx, update)
+	if err == nil || !strings.Contains(err.Error(), "delete failed") || !strings.Contains(err.Error(), "forward failed") {
 		t.Fatalf("missing RPC errors: %v", err)
 	}
 	if f.forwards != 3 {
@@ -202,7 +220,7 @@ func TestRepeatCancellationStopsFurtherRequests(t *testing.T) {
 	defer cancel()
 	f := &repeatTestAPI{cancel: cancel, cancelAtForward: 2}
 	ctx, update := newRepeatTestEnv(clientCtx, f, "100")
-	if err := RepeatHandler(ctx, update); !errors.Is(err, context.Canceled) {
+	if err := Dispatcher(ctx, update); !errors.Is(err, context.Canceled) {
 		t.Fatalf("missing cancellation: %v", err)
 	}
 	if f.deletes != 1 || f.forwards != 2 {
@@ -228,7 +246,7 @@ func TestRepeatUsageAndInvalidCountReturnEditErrors(t *testing.T) {
 			if tc.noReply {
 				update.EffectiveMessage.ReplyToMessage = nil
 			}
-			if err := RepeatHandler(ctx, update); !errors.Is(err, editErr) {
+			if err := Dispatcher(ctx, update); !errors.Is(err, editErr) {
 				t.Fatalf("missing edit error: %v", err)
 			}
 			if len(f.edits) != 1 || f.deletes != 0 || f.forwards != 0 {
@@ -242,7 +260,7 @@ func TestRepeatDefaultAndMinimumCount(t *testing.T) {
 	for _, args := range [][]string{nil, {"1"}} {
 		f := &repeatTestAPI{}
 		ctx, update := newRepeatTestEnv(context.Background(), f, args...)
-		if err := RepeatHandler(ctx, update); err != nil {
+		if err := Dispatcher(ctx, update); err != nil {
 			t.Fatal(err)
 		}
 		if f.deletes != 1 || f.forwards != 1 {
@@ -256,7 +274,7 @@ func TestRepeatAlreadyCanceledDoesNotRequest(t *testing.T) {
 	cancel()
 	f := &repeatTestAPI{}
 	ctx, update := newRepeatTestEnv(clientCtx, f, "100")
-	if err := RepeatHandler(ctx, update); !errors.Is(err, context.Canceled) {
+	if err := Dispatcher(ctx, update); !errors.Is(err, context.Canceled) {
 		t.Fatalf("missing cancellation: %v", err)
 	}
 	if f.deletes != 0 || f.forwards != 0 {

@@ -3,6 +3,7 @@ module github.com/krau/btts
 go 1.26.10
 
 require (
+	github.com/MoeForge/moejs v0.1.0
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/charmbracelet/bubbles v1.0.0
 	github.com/charmbracelet/bubbletea v1.3.10
@@ -32,6 +33,7 @@ require (
 	cloud.google.com/go/compute/metadata v0.10.0 // indirect
 	github.com/AnimeKaizoku/cacher v1.0.3 // indirect
 	github.com/KyleBanks/depth v1.2.1 // indirect
+	github.com/MoeForge/moego v0.1.0-alpha.1 // indirect
 	github.com/andybalholm/brotli v1.2.3 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
